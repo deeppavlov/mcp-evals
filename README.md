@@ -48,6 +48,17 @@ from mcp_evals.evaluators import FileExists
 from pydantic_ai import Agent
 from pydantic_ai.mcp import MCPServerStdio
 
+# Simple task as class with attributes
+class CreateConfigTask(Task):
+    name = "create_config"
+    goal = "Create a config.json file with default settings"
+    evaluators = [FileExists("config.json")]
+
+class CreateReadmeTask(Task):
+    name = "create_readme"
+    goal = "Create a README.md with project description"
+    evaluators = [FileExists("README.md")]
+
 class FilesystemDomain(Domain):
     name = "filesystem"
     
@@ -55,18 +66,7 @@ class FilesystemDomain(Domain):
         return [MCPServerStdio("uvx", "mcp-server-filesystem", "/workspace")]
     
     def tasks(self):
-        return [
-            Task(
-                name="create_config",
-                goal="Create a config.json file with default settings",
-                evaluators=[FileExists("config.json")],
-            ),
-            Task(
-                name="create_readme",
-                goal="Create a README.md with project description",
-                evaluators=[FileExists("README.md")],
-            ),
-        ]
+        return [CreateConfigTask(), CreateReadmeTask()]
 
 async def main():
     agent = Agent("openai:gpt-4o")
@@ -77,13 +77,41 @@ async def main():
 
 ## Usage
 
-### 1. Define a Domain with Tasks
+### 1. Define Tasks
 
-A domain encapsulates an environment (MCP servers) and the tasks that test it:
+Tasks are abstract async context managers that define what the agent should accomplish and how to verify it:
 
 ```python
-from mcp_evals import Domain, Task
+from mcp_evals import Task
 from mcp_evals.evaluators import SQLQueryReturns
+
+class CreateUsersTableTask(Task):
+    name = "create_users_table"
+    goal = "Create a users table with id, name, and email columns"
+    evaluators = [
+        SQLQueryReturns(
+            query="SELECT name FROM sqlite_master WHERE type='table'",
+            expected=["users"],
+        ),
+    ]
+
+class InsertUserTask(Task):
+    name = "insert_user"
+    goal = "Insert a user named 'Alice' with email 'alice@example.com'"
+    evaluators = [
+        SQLQueryReturns(
+            query="SELECT name, email FROM users",
+            expected=[("Alice", "alice@example.com")],
+        ),
+    ]
+```
+
+### 2. Define a Domain
+
+A domain encapsulates an environment (MCP servers) and groups related tasks:
+
+```python
+from mcp_evals import Domain
 from pydantic_ai.mcp import MCPServerStdio
 
 class DatabaseDomain(Domain):
@@ -93,31 +121,10 @@ class DatabaseDomain(Domain):
         return [MCPServerStdio("uvx", "mcp-server-sqlite", "test.db")]
     
     def tasks(self):
-        return [
-            Task(
-                name="create_users_table",
-                goal="Create a users table with id, name, and email columns",
-                evaluators=[
-                    SQLQueryReturns(
-                        query="SELECT name FROM sqlite_master WHERE type='table'",
-                        expected=["users"],
-                    ),
-                ],
-            ),
-            Task(
-                name="insert_user",
-                goal="Insert a user named 'Alice' with email 'alice@example.com'",
-                evaluators=[
-                    SQLQueryReturns(
-                        query="SELECT name, email FROM users",
-                        expected=[("Alice", "alice@example.com")],
-                    ),
-                ],
-            ),
-        ]
+        return [CreateUsersTableTask(), InsertUserTask()]
 ```
 
-### 2. Run the Benchmark
+### 3. Run the Benchmark
 
 ```python
 from mcp_evals import BenchmarkRunner
@@ -147,13 +154,13 @@ async def main():
             print(f"  {metric.name}: {metric.value}")
 ```
 
-### 3. Custom Evaluators
+### 4. Custom Evaluators
 
 Create domain-specific evaluators using `pydantic_evals` base classes:
 
 ```python
 from pydantic_evals.evaluators import Evaluator, EvaluatorContext
-from pydantic_evals import EvaluatorOutput
+from pydantic_evals import EvaluatorOutput, EvaluationReason
 
 class APIResponseContains(Evaluator[TaskInput, TaskOutput]):
     endpoint: str
@@ -166,15 +173,116 @@ class APIResponseContains(Evaluator[TaskInput, TaskOutput]):
         response = ctx.output
         
         if self.expected_field in response:
-            return EvaluatorOutput(score=1.0)
+            return 1.0
         else:
-            return EvaluatorOutput(
-                score=0.0,
+            return EvaluationReason(
+                value=0.0,
                 reason=f"Field '{self.expected_field}' not found in response",
             )
 ```
 
 See [pydantic_evals documentation](https://ai.pydantic.dev/evals/) for more details on evaluator types and context.
+
+### 5. Tasks with Lifecycle (Setup/Teardown)
+
+Tasks can implement `setup()` for initialization and use `AsyncExitStack` for clean resource management:
+
+```python
+from contextlib import AsyncExitStack
+from pathlib import Path
+import aiofiles
+import tempfile
+
+from mcp_evals import Task
+from mcp_evals.evaluators import FileExists, ContentMatches
+
+class MusicReportTask(Task):
+    name = "music_report"
+    goal = "Analyze the music files and create music_analysis_report.txt"
+    evaluators = [
+        FileExists("music/music_analysis_report.txt"),
+        ContentMatches("music/music_analysis_report.txt", pattern=r"晴天.*2\.576"),
+    ]
+    
+    async def setup(self) -> None:
+        # AsyncExitStack ensures all resources are cleaned up,
+        # even if teardown() isn't called (e.g., on exception)
+        self._stack = AsyncExitStack()
+        await self._stack.__aenter__()
+        
+        # Create temp directory (will be cleaned up automatically)
+        self.test_dir = Path(tempfile.mkdtemp())
+        self._stack.callback(lambda: shutil.rmtree(self.test_dir, ignore_errors=True))
+        
+        # Download and extract test fixtures
+        archive_path = await download_fixtures("music_collection.tar.gz")
+        self._stack.callback(lambda: archive_path.unlink(missing_ok=True))
+        
+        await extract_archive(archive_path, self.test_dir)
+        
+        # Set environment variable for MCP server
+        os.environ["FILESYSTEM_ROOT"] = str(self.test_dir)
+    
+    async def teardown(self) -> None:
+        # AsyncExitStack handles all cleanup in reverse order
+        await self._stack.aclose()
+```
+
+### 6. Tasks with Secrets
+
+Use pydantic-settings for type-safe secret management:
+
+```python
+from pydantic_settings import BaseSettings
+from mcp_evals import Task, TaskSecrets
+
+class GitHubSecrets(TaskSecrets):
+    github_token: str
+    github_username: str
+
+class CreateRepoTask(Task):
+    name = "create_repo"
+    goal = "Create a GitHub repository named 'test-repo' with a README"
+    evaluators = [RepoExists("test-repo"), FileInRepoExists("test-repo", "README.md")]
+    secrets_type = GitHubSecrets  # Declares which secrets this task needs
+    
+    async def setup(self) -> None:
+        # Secrets are loaded automatically from environment
+        print(f"Will create repo under: {self.secrets.github_username}")
+    
+    async def teardown(self) -> None:
+        # Clean up: delete the repo created during the task
+        await delete_github_repo(
+            repo="test-repo",
+            token=self.secrets.github_token,
+        )
+```
+
+### 7. Tasks with Dynamic Goals (Templating)
+
+Use `@property` for dynamic goal generation:
+
+```python
+class ParameterizedTask(Task):
+    name = "create_config"
+    evaluators = [FileExists("config.json"), JsonFieldEquals("config.json", "port", 8080)]
+    
+    def __init__(self, app_name: str, port: int = 8080):
+        self.app_name = app_name
+        self.port = port
+    
+    @property
+    def goal(self) -> str:
+        return f"Create config.json with app_name='{self.app_name}' and port={self.port}"
+
+# Usage in domain:
+class MyDomain(Domain):
+    def tasks(self):
+        return [
+            ParameterizedTask("web-server", port=3000),
+            ParameterizedTask("api-gateway", port=8080),
+        ]
+```
 
 ## Architecture
 
@@ -256,7 +364,136 @@ sequenceDiagram
     R-->>U: BenchmarkReport
 ```
 
-Internally, each domain is converted to a `pydantic_evals.Dataset` which orchestrates running the agent on different tasks, executing evaluators on agent results and sending evaluation results to Logfire.
+### Integration with pydantic_evals
+
+Internally, each domain is converted to a `pydantic_evals.Dataset`. Here's how the mapping works:
+
+```mermaid
+flowchart LR
+    subgraph "mcp_evals (User API)"
+        Domain --> Tasks[Task instances]
+    end
+    
+    subgraph "pydantic_evals (Internal)"
+        Dataset --> Cases[Case instances]
+        Dataset --> EvalFn[Evaluated Function]
+    end
+    
+    Domain -->|"converted to"| Dataset
+    Tasks -->|"converted to"| Cases
+    
+    subgraph "Each Case"
+        CaseInputs[inputs: TaskInput]
+        CaseEvals[evaluators: list]
+    end
+```
+
+#### Conversion: Domain → Dataset, Task → Case
+
+```python
+# Internal conversion (simplified)
+from pydantic_evals import Dataset, Case
+
+def domain_to_dataset(domain: Domain) -> Dataset[TaskInput, AgentOutput]:
+    """Convert mcp_evals Domain to pydantic_evals Dataset."""
+    cases = []
+    for task in domain.tasks():
+        case = Case(
+            name=task.name,
+            inputs=TaskInput(goal=task.goal, output_type=task.output_type),
+            evaluators=task.evaluators,
+            metadata={"task_instance": task},  # Preserve for lifecycle
+        )
+        cases.append(case)
+    
+    return Dataset(cases=cases)
+```
+
+#### The Evaluated Function
+
+The library defines an internal "evaluated function" that `pydantic_evals` calls for each case. This function:
+
+1. Enters the **Dishka scope** for dependency injection
+2. Enters the **Task context** (`__aenter__`) for setup
+3. Runs the agent with the goal
+4. Exits the task context (`__aexit__`) for teardown
+5. Returns the agent output for evaluation
+
+```python
+# mcp_evals/_internal/evaluated_fn.py
+
+from dishka import AsyncContainer
+from pydantic_evals import EvaluatorContext
+
+async def run_agent_on_task(
+    inputs: TaskInput,
+    ctx: EvaluatorContext[TaskInput, AgentOutput],
+) -> AgentOutput:
+    """
+    The function evaluated by pydantic_evals for each Case.
+    
+    This is where mcp_evals integrates with:
+    - Dishka (dependency injection for MCP clients, agent, etc.)
+    - Task lifecycle (async context manager for setup/teardown)
+    """
+    # Retrieve task instance from case metadata
+    task: Task = ctx.metadata["task_instance"]
+    
+    # Get dependencies from Dishka container (injected via scope)
+    container: AsyncContainer = ctx.metadata["dishka_container"]
+    
+    async with container(scope=Scope.TASK) as task_container:
+        # Inject MCP clients into task for evaluators that need them
+        task._mcp_clients = await task_container.get(MCPClientRegistry)
+        
+        # Enter task context (calls task.setup())
+        async with task:
+            # Get agent from container
+            agent = await task_container.get(Agent)
+            
+            # Run the agent
+            result = await agent.run(
+                inputs.goal,
+                output_type=inputs.output_type,
+            )
+            
+            return AgentOutput(
+                response=result.data,
+                messages=result.all_messages(),
+            )
+        # Task context exits here (calls task.teardown())
+```
+
+#### Dataset Evaluation Flow
+
+```python
+# mcp_evals/_internal/runner.py
+
+async def run_domain(domain: Domain, container: AsyncContainer) -> DomainReport:
+    """Run all tasks in a domain."""
+    
+    # Enter domain scope (MCP connections live here)
+    async with container(scope=Scope.DOMAIN) as domain_container:
+        # Connect to MCP servers
+        mcp_servers = domain.mcp_servers()
+        await domain_container.get(MCPConnectionManager).connect_all(mcp_servers)
+        
+        # Convert domain to pydantic_evals Dataset
+        dataset = domain_to_dataset(domain)
+        
+        # Inject container into metadata for evaluated function
+        for case in dataset.cases:
+            case.metadata["dishka_container"] = domain_container
+        
+        # Run evaluation using pydantic_evals
+        # This calls run_agent_on_task for each case, then runs evaluators
+        report = await dataset.evaluate(
+            run_agent_on_task,
+            max_concurrency=1,  # Sequential by default for stateful tasks
+        )
+        
+        return DomainReport.from_pydantic_evals(report)
+```
 
 ### Scope Lifecycle
 
@@ -277,15 +514,19 @@ mcp-evals/
 ├── src/mcp_evals/
 │   ├── __init__.py           # Public API: Domain, Task, BenchmarkRunner, etc.
 │   ├── domain.py             # Domain ABC
-│   ├── task.py               # Task dataclass
+│   ├── task.py               # Task ABC (async context manager)
+│   ├── secrets.py            # TaskSecrets base class
 │   ├── runner.py             # BenchmarkRunner facade
 │   ├── evaluators/
 │   │   ├── __init__.py       # Public evaluators
-│   │   └── builtin.py        # FileExists, ContentMatches, etc.
+│   │   └── builtin.py        # FileExists, ContentMatches, SQLQueryReturns, etc.
 │   ├── _internal/
-│   │   ├── scopes.py         # Dishka scope definitions
-│   │   ├── providers.py      # DI providers
-│   │   └── container.py      # Container factory
+│   │   ├── scopes.py         # Dishka scope definitions (BENCHMARK, DOMAIN, TASK)
+│   │   ├── providers.py      # DI providers (Agent, MCP clients, etc.)
+│   │   ├── container.py      # Container factory
+│   │   ├── conversion.py     # Domain → Dataset, Task → Case conversion
+│   │   ├── evaluated_fn.py   # run_agent_on_task() for pydantic_evals
+│   │   └── types.py          # TaskInput, AgentOutput dataclasses
 │   └── contrib/              # Pre-built domains (optional)
 │       ├── filesystem.py
 │       └── sqlite.py
@@ -312,18 +553,100 @@ class Domain(ABC):
 
     @abstractmethod
     def tasks(self) -> list[Task]:
-        """Return tasks to evaluate in this domain."""
+        """Return Task instances to evaluate in this domain."""
 ```
 
-### `Task`
+### `Task` (ABC + Async Context Manager)
 
 ```python
-@dataclass
-class Task:
-    name: str                        # Unique task identifier
-    goal: str                        # Prompt for the agent
-    evaluators: list[Evaluator]      # Verification functions
-    output_type: type | None = None  # Optional structured output
+from abc import ABC
+from contextlib import AbstractAsyncContextManager
+from functools import cached_property
+from typing import ClassVar, Sequence
+
+from pydantic_settings import BaseSettings
+
+
+class TaskSecrets(BaseSettings):
+    """Base for task-specific secrets. Override in subclasses."""
+    model_config = {"extra": "ignore", "env_file": ".env"}
+
+
+class Task(AbstractAsyncContextManager, ABC):
+    """
+    Abstract base for evaluation tasks.
+    
+    Required attributes (class attributes or @property):
+        name: str                    - Unique task identifier
+        goal: str                    - Prompt/instruction for the agent
+        evaluators: Sequence[Evaluator] - Verification functions
+    
+    Optional attributes:
+        output_type: type | None     - Pydantic model for structured output
+        secrets_type: ClassVar[type] - BaseSettings subclass for secrets
+    
+    Lifecycle methods (override as needed):
+        setup()    - Called on __aenter__, before agent runs
+        teardown() - Called on __aexit__, after agent completes
+    """
+    
+    # === Required (implement as class attr or @property) ===
+    name: str
+    goal: str
+    evaluators: Sequence["Evaluator"]
+    
+    # === Optional with defaults ===
+    output_type: type | None = None
+    secrets_type: ClassVar[type[TaskSecrets]] = TaskSecrets
+    
+    # === Secrets access ===
+    @cached_property
+    def secrets(self) -> TaskSecrets:
+        """Load and cache secrets from environment."""
+        return self.secrets_type()
+    
+    # === Lifecycle (default implementations) ===
+    async def __aenter__(self) -> "Task":
+        await self.setup()
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> bool | None:
+        await self.teardown()
+        return None
+    
+    async def setup(self) -> None:
+        """Override to perform setup before agent execution."""
+        pass
+    
+    async def teardown(self) -> None:
+        """Override to perform cleanup after agent execution."""
+        pass
+```
+
+### `TaskSecrets` (BaseSettings)
+
+```python
+from pydantic_settings import BaseSettings
+
+class TaskSecrets(BaseSettings):
+    """
+    Base class for task-specific secrets.
+    
+    Subclass to declare required environment variables:
+    
+        class MySecrets(TaskSecrets):
+            api_key: str           # Required: MYAPI_KEY env var
+            timeout: int = 30      # Optional with default
+    
+    Then reference in Task:
+    
+        class MyTask(Task):
+            secrets_type = MySecrets
+            
+            async def setup(self):
+                print(self.secrets.api_key)  # Type-safe access
+    """
+    model_config = {"extra": "ignore", "env_file": ".env"}
 ```
 
 ### `BenchmarkRunner`
@@ -362,9 +685,10 @@ TODO
 ## Dependencies
 
 - **[pydantic-ai](https://ai.pydantic.dev/)** — LLM provider abstraction + MCP client
-- **[pydantic-evals](https://ai.pydantic.dev/evals/)** — Evaluation infrastructure
+- **[pydantic-evals](https://ai.pydantic.dev/evals/)** — Evaluation infrastructure (Dataset, Case, Evaluator)
+- **[pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/)** — Environment-based secrets management
 - **[logfire](https://pydantic.dev/logfire)** — Observability and tracing
-- **[dishka](https://github.com/reagento/dishka)** — Dependency injection and resources lifecycle (internal)
+- **[dishka](https://github.com/reagento/dishka)** — Dependency injection and resource lifecycle (internal)
 
 ## Development
 
