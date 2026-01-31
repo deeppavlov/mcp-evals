@@ -256,6 +256,8 @@ sequenceDiagram
     R-->>U: BenchmarkReport
 ```
 
+Internally, each domain is converted to a `pydantic_evals.Dataset` which orchestrates running the agent on different tasks, executing evaluators on agent results and sending evaluation results to Logfire.
+
 ### Scope Lifecycle
 
 The library internally manages three scopes for proper resource lifecycle:
