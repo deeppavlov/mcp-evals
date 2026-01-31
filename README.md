@@ -45,6 +45,7 @@ MCP servers are available from:
 ```python
 from mcp_evals import BenchmarkRunner, Domain, Task
 from mcp_evals.evaluators import FileExists
+from pydantic_ai import Agent
 from pydantic_ai.mcp import MCPServerStdio
 
 class FilesystemDomain(Domain):
@@ -68,7 +69,8 @@ class FilesystemDomain(Domain):
         ]
 
 async def main():
-    runner = BenchmarkRunner(domains=[FilesystemDomain()])
+    agent = Agent("openai:gpt-4o")
+    runner = BenchmarkRunner(agent=agent, domains=[FilesystemDomain()])
     report = await runner.run()
     report.print()
 ```
@@ -119,14 +121,20 @@ class DatabaseDomain(Domain):
 
 ```python
 from mcp_evals import BenchmarkRunner
+from pydantic_ai import Agent
 import logfire
 
 logfire.configure()
 
 async def main():
+    agent = Agent(
+        "openai:gpt-4o",
+        system_prompt="You are a helpful assistant.",
+    )
+    
     runner = BenchmarkRunner(
+        agent=agent,
         domains=[FilesystemDomain(), DatabaseDomain()],
-        model="openai:gpt-4o",  # or any pydantic-ai supported model
     )
     
     report = await runner.run()
@@ -168,29 +176,6 @@ class APIResponseContains(Evaluator[TaskInput, TaskOutput]):
 
 See [pydantic_evals documentation](https://ai.pydantic.dev/evals/) for more details on evaluator types and context.
 
-### 4. Custom Agent Factory
-
-Override the default agent construction if needed:
-
-```python
-from mcp_evals import BenchmarkRunner, AgentFactory
-from pydantic_ai import Agent
-
-class MyAgentFactory(AgentFactory):
-    def create_agent(self, toolset: Toolset, task: Task) -> Agent:
-        return Agent(
-            model="anthropic:claude-sonnet-4-20250514",
-            tools=toolset,
-            system_prompt="You are a helpful assistant. Be concise.",
-            retries=3,
-        )
-
-runner = BenchmarkRunner(
-    domains=[...],
-    agent_factory=MyAgentFactory(),
-)
-```
-
 ## Architecture
 
 ### High-Level Flow
@@ -204,13 +189,13 @@ flowchart TB
             Tasks1[Tasks]
             MCP1 --> Toolset1
             
-            subgraph Run1["Task Execution"]
+            subgraph Task1["Task Execution"]
                 Agent1[Agent]
-                Task1[Goal + Evaluators]
-                Agent1 --> |accomplishes| Task1
+                Goal1[Goal + Evaluators]
+                Agent1 --> |accomplishes| Goal1
             end
             
-            Tasks1 --> Task1
+            Tasks1 --> Goal1
             Toolset1 --> Agent1
         end
         
@@ -220,13 +205,13 @@ flowchart TB
             Tasks2[Tasks]
             MCP2 --> Toolset2
             
-            subgraph Run2["Task Execution"]
+            subgraph Task2["Task Execution"]
                 Agent2[Agent]
-                Task2[Goal + Evaluators]
-                Agent2 --> |accomplishes| Task2
+                Goal2[Goal + Evaluators]
+                Agent2 --> |accomplishes| Goal2
             end
             
-            Tasks2 --> Task2
+            Tasks2 --> Goal2
             Toolset2 --> Agent2
         end
     end
@@ -253,16 +238,16 @@ sequenceDiagram
         R->>D: domain.tasks()
         
         loop For each task
-            R->>A: Create agent with toolset
-            R->>A: agent.run(task.goal)
+            R->>A: agent.run(task.goal, tools=toolset)
+            A->>LF: Log agent span
             A->>MCP: Use tools
             MCP-->>A: Tool results
             A-->>R: Agent output
             
             R->>E: evaluator.evaluate(context)
+            E->>LF: Log evaluator span
             E->>MCP: Check environment state
             E-->>R: EvaluatorOutput
-            R->>LF: Log trace + metrics
         end
         
         R->>MCP: Disconnect servers
@@ -279,7 +264,7 @@ The library internally manages three scopes for proper resource lifecycle:
 |-------|-----------|-----------|
 | `BENCHMARK` | Entire evaluation run | Global config, logfire client |
 | `DOMAIN` | Per domain | MCP connections, combined toolset |
-| `RUN` | Per task execution | Agent instance |
+| `TASK` | Per task execution | Task-specific context |
 
 Users don't need to manage these scopes directly—`BenchmarkRunner` handles everything.
 
@@ -345,9 +330,8 @@ class Task:
 class BenchmarkRunner:
     def __init__(
         self,
+        agent: Agent,
         domains: list[Domain],
-        model: str = "openai:gpt-4o",
-        agent_factory: AgentFactory | None = None,
     ) -> None: ...
 
     async def run(self) -> BenchmarkReport:
