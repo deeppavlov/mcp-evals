@@ -438,6 +438,8 @@ sequenceDiagram
         R->>D: domain.tasks()
         
         loop For each task
+            Note over R: case_context_manager enters task context
+            R->>R: task.setup()
             R->>A: agent.run(task.goal, toolsets=[domain.toolset])
             A->>LF: Log agent span
             A->>MCP: Use tools
@@ -445,9 +447,12 @@ sequenceDiagram
             A-->>R: Agent output
             
             R->>E: evaluator.evaluate(context)
+            Note over E: Task context still active
             E->>LF: Log evaluator span
             E->>MCP: Check environment state
             E-->>R: EvaluatorOutput
+            Note over R: case_context_manager exits task context
+            R->>R: task.teardown()
         end
         
         D->>MCP: Disconnect servers (CombinedToolset cleanup)
@@ -510,11 +515,11 @@ def domain_to_dataset(domain: Domain) -> Dataset[Task, RunResult]:
 
 The library defines an internal "evaluated function" that `pydantic_evals` calls for each case. This function:
 
-1. Enters the **Task context** (`__aenter__`) for setup
-2. Uses the **Agent** and **CombinedToolset** bound via `functools.partial`
-3. Runs the agent with the goal and toolset
-4. Exits the task context (`__aexit__`) for teardown
-5. Returns `RunResult` directly for evaluation
+1. Uses the **Agent** and **CombinedToolset** bound via `functools.partial`
+2. Runs the agent with the goal and toolset
+3. Returns `RunResult` directly for evaluation
+
+**Note:** Task context management (setup/teardown) is handled by `case_context_manager` parameter passed to `dataset.evaluate()`, ensuring the task context spans both task execution AND evaluator execution.
 
 ```python
 # mcp_evals/_internal/evaluated_fn.py
@@ -540,20 +545,21 @@ async def run_agent_on_task(
     Agent and toolset are bound via functools.partial before passing
     to dataset.evaluate().
     
+    Note: Task context (setup/teardown) is managed by case_context_manager,
+    not inside this function. This ensures evaluators can access task state
+    before teardown runs.
+    
     Evaluators receive:
     - ctx.inputs: the Task instance (access task.goal, task.secrets, etc.)
     - ctx.output: the RunResult from agent.run()
     """
-    # Enter task context (calls task.setup())
-    async with task:
-        # Run the agent with domain's combined toolset
-        result: RunResult[OutputT] = await agent.run(
-            task.goal,
-            output_type=task.output_type,
-            toolsets=[toolset],
-        )
-        return result
-    # Task context exits here (calls task.teardown())
+    # Run the agent with domain's combined toolset
+    result: RunResult[OutputT] = await agent.run(
+        task.goal,
+        output_type=task.output_type,
+        toolsets=[toolset],
+    )
+    return result
 ```
 
 #### Dataset Evaluation in BenchmarkRunner
@@ -561,13 +567,22 @@ async def run_agent_on_task(
 ```python
 # mcp_evals/_internal/runner.py (simplified)
 
+from contextlib import asynccontextmanager
 from functools import partial
 from pydantic_ai import Agent
-from pydantic_evals import EvalReport
+from pydantic_ai.result import RunResult
+from pydantic_evals import Case, EvalReport
 
-from mcp_evals import Domain
+from mcp_evals import Domain, Task
 from mcp_evals._internal.conversion import domain_to_dataset
 from mcp_evals._internal.evaluated_fn import run_agent_on_task
+
+@asynccontextmanager
+async def task_lifecycle(case: Case[Task, RunResult, None]):
+    """Context manager that wraps task execution + evaluation."""
+    task = case.inputs  # In mcp_evals, inputs IS the Task instance
+    async with task:
+        yield
 
 async def run_domain(domain: Domain, agent: Agent) -> EvalReport:
     """Run all tasks in a domain."""
@@ -584,14 +599,18 @@ async def run_domain(domain: Domain, agent: Agent) -> EvalReport:
             toolset=domain.toolset,
         )
         
-        # Run evaluation — pydantic_evals handles the loop
+        # Run evaluation with case_context_manager to ensure task context spans
+        # both task execution AND evaluator execution
         report = await dataset.evaluate(
             evaluated_fn,
             max_concurrency=1,  # Sequential by default for stateful tasks
+            case_context_manager=task_lifecycle,  # Task context wraps task + evaluators
         )
         
         return report
 ```
+
+NOTE: `case_context_manager` is not an official feature, but is implemented in [our fork](https://github.com/voorhs/pydantic-ai/tree/f/case-context-manager). See PR: https://github.com/pydantic/pydantic-ai/pull/4155.
 
 ### Scope Lifecycle
 
@@ -600,11 +619,15 @@ The library manages resource lifecycle at two levels:
 | Scope | Managed By | Lifecycle | Resources |
 |-------|------------|-----------|-----------|
 | Domain | `async with domain:` | Per domain | MCP connections, CombinedToolset, domain-level fixtures |
-| Task | `async with task:` | Per task execution | Temp files, env vars, task-level fixtures |
+| Task | `case_context_manager` | Per task execution | Temp files, env vars, task-level fixtures |
 
 **Domain context managers** handle MCP server connections (via `CombinedToolset`) and domain-level setup/teardown.
 
-**Task context managers** handle task-specific setup/teardown (fixtures, environment)
+**Task context managers** handle task-specific setup/teardown (fixtures, environment). The task context is managed via `case_context_manager` parameter passed to `dataset.evaluate()`, ensuring it spans both:
+- Task execution (agent.run)
+- Evaluator execution (evaluator.evaluate)
+
+This is critical because evaluators often need to check the environment state (files, database, etc.) that was set up during `task.setup()`, and this state must remain available until after evaluators complete.
 
 Users don't need to manage these contexts directly—`BenchmarkRunner` handles everything.
 
