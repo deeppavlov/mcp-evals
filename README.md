@@ -18,7 +18,6 @@ This library provides infrastructure for running structured evaluations of LLM a
 | **Simple user API** | Users define domains and tasks; library handles orchestration |
 | **No wheel reinvention** | pydantic-ai for LLM + MCP, pydantic_evals for evaluation, logfire for observability |
 | **Resource lifecycle** | Async context managers with safe cleanup |
-| **Dependency injection** | Dishka for resource acquisition and cleanup |
 | **Maintainability** | pytest, mypy, ruff |
 
 ## Prerequisites
@@ -52,12 +51,18 @@ from pydantic_ai.mcp import MCPServerStdio
 class CreateConfigTask(Task):
     name = "create_config"
     goal = "Create a config.json file with default settings"
-    evaluators = [FileExists("config.json")]
+    
+    def __init__(self):
+        # mutable attributes should be attached to instance, not class
+        self.evaluators = [FileExists("config.json")]
 
 class CreateReadmeTask(Task):
     name = "create_readme"
     goal = "Create a README.md with project description"
-    evaluators = [FileExists("README.md")]
+    
+    def __init__(self):
+        # mutable attributes should be attached to instance, not class
+        self.evaluators = [FileExists("README.md")]
 
 class FilesystemDomain(Domain):
     name = "filesystem"
@@ -75,7 +80,7 @@ async def main():
     report.print()
 ```
 
-## Usage
+## Basic Usage
 
 ### 1. Define Tasks
 
@@ -154,7 +159,9 @@ async def main():
             print(f"  {metric.name}: {metric.value}")
 ```
 
-### 4. Custom Evaluators
+## Advanced Usage
+
+### 1. Custom Evaluators
 
 Create domain-specific evaluators using `pydantic_evals` base classes:
 
@@ -183,7 +190,7 @@ class APIResponseContains(Evaluator[TaskInput, TaskOutput]):
 
 See [pydantic_evals documentation](https://ai.pydantic.dev/evals/) for more details on evaluator types and context.
 
-### 5. Tasks with Lifecycle (Setup/Teardown)
+### 2. Tasks with Lifecycle (Setup/Teardown)
 
 Tasks can implement `setup()` for initialization and use `AsyncExitStack` for clean resource management:
 
@@ -242,7 +249,7 @@ class MusicReportTask(Task):
             os.environ[key] = old_value
 ```
 
-### 6. Tasks with Secrets
+### 3. Tasks with Secrets
 
 Use pydantic-settings for type-safe secret management:
 
@@ -272,7 +279,77 @@ class CreateRepoTask(Task):
         )
 ```
 
-### 7. Tasks with Dynamic Goals (Templating)
+### 4. Domains with Secrets
+
+Use pydantic-settings for type-safe secret management at the domain level — useful when MCP servers require authentication:
+
+```python
+from mcp_evals import Domain, DomainSecrets
+from pydantic_ai.mcp import MCPServerStdio
+
+class SlackSecrets(DomainSecrets):
+    slack_bot_token: str
+    slack_team_id: str
+
+class SlackDomain(Domain):
+    name = "slack"
+    secrets_type = SlackSecrets  # Declares which secrets this domain needs
+    
+    def mcp_servers(self):
+        # Secrets are loaded automatically from environment
+        return [
+            MCPServerStdio(
+                "uvx", "mcp-server-slack",
+                env={
+                    "SLACK_BOT_TOKEN": self.secrets.slack_bot_token,
+                    "SLACK_TEAM_ID": self.secrets.slack_team_id,
+                },
+            )
+        ]
+    
+    def tasks(self):
+        return [SendMessageTask(), ListChannelsTask()]
+```
+
+### 5. Domains with Lifecycle (Setup/Teardown)
+
+Domains can implement `setup()` and `teardown()` for custom initialization and cleanup logic:
+
+```python
+from mcp_evals import Domain
+from pydantic_ai.mcp import MCPServerStdio
+import tempfile
+import shutil
+
+class DatabaseDomain(Domain):
+    name = "database"
+    
+    async def setup(self) -> None:
+        """Called before MCP servers are started."""
+        # Create a fresh temp directory for this domain's database
+        self._temp_dir = tempfile.mkdtemp(prefix="mcp_evals_")
+        self._db_path = f"{self._temp_dir}/test.db"
+        
+        # Optionally seed the database with initial data
+        await self._seed_database()
+    
+    async def teardown(self) -> None:
+        """Called after MCP servers are stopped."""
+        # Clean up temp directory
+        shutil.rmtree(self._temp_dir, ignore_errors=True)
+    
+    def mcp_servers(self):
+        return [MCPServerStdio("uvx", "mcp-server-sqlite", self._db_path)]
+    
+    def tasks(self):
+        return [CreateUsersTableTask(), InsertUserTask()]
+    
+    async def _seed_database(self) -> None:
+        # Custom initialization logic
+        ...
+```
+
+### 6. Tasks with Dynamic Goals (Templating)
 
 Use `@property` for dynamic goal generation:
 
@@ -354,13 +431,14 @@ sequenceDiagram
     U->>R: runner.run()
     
     loop For each domain
-        R->>D: domain.mcp_servers()
-        R->>MCP: Connect to MCP servers
-        MCP-->>R: Combined toolset
+        R->>D: async with domain
+        D->>D: domain.setup()
+        D->>MCP: Connect to MCP servers (CombinedToolset)
+        MCP-->>D: Combined toolset ready
         R->>D: domain.tasks()
         
         loop For each task
-            R->>A: agent.run(task.goal, tools=toolset)
+            R->>A: agent.run(task.goal, toolsets=[domain.toolset])
             A->>LF: Log agent span
             A->>MCP: Use tools
             MCP-->>A: Tool results
@@ -372,7 +450,8 @@ sequenceDiagram
             E-->>R: EvaluatorOutput
         end
         
-        R->>MCP: Disconnect servers
+        D->>MCP: Disconnect servers (CombinedToolset cleanup)
+        D->>D: domain.teardown()
     end
     
     R-->>U: BenchmarkReport
@@ -409,14 +488,10 @@ The key insight: `Case.inputs` accepts any type, so we pass the `Task` instance 
 ```python
 # mcp_evals/_internal/conversion.py
 
-from typing import TypeVar
 from pydantic_evals import Dataset, Case
 from pydantic_ai.result import RunResult
 
 from mcp_evals import Task, Domain
-
-TaskT = TypeVar("TaskT", bound=Task)
-OutputT = TypeVar("OutputT")  # Will be RunResult[ResponseT]
 
 def domain_to_dataset(domain: Domain) -> Dataset[Task, RunResult]:
     """Convert mcp_evals Domain to pydantic_evals Dataset."""
@@ -436,7 +511,7 @@ def domain_to_dataset(domain: Domain) -> Dataset[Task, RunResult]:
 The library defines an internal "evaluated function" that `pydantic_evals` calls for each case. This function:
 
 1. Enters the **Task context** (`__aenter__`) for setup
-2. Gets **Agent** (BENCHMARK-scoped) and **CombinedToolset** from Dishka (DOMAIN-scoped)
+2. Uses the **Agent** and **CombinedToolset** bound via `functools.partial`
 3. Runs the agent with the goal and toolset
 4. Exits the task context (`__aexit__`) for teardown
 5. Returns `RunResult` directly for evaluation
@@ -445,9 +520,7 @@ The library defines an internal "evaluated function" that `pydantic_evals` calls
 # mcp_evals/_internal/evaluated_fn.py
 
 from typing import TypeVar
-from dishka import FromDishka
 from pydantic_ai import Agent
-from pydantic_ai.mcp import MCPServerStdio
 from pydantic_ai.toolsets import CombinedToolset
 from pydantic_ai.result import RunResult
 
@@ -458,16 +531,14 @@ OutputT = TypeVar("OutputT")
 async def run_agent_on_task(
     task: Task,
     *,
-    # Dishka injects these from DOMAIN scope
-    agent: FromDishka[Agent],
-    toolset: FromDishka[CombinedToolset],  # AsyncIterator provider with cleanup
+    agent: Agent,
+    toolset: CombinedToolset,
 ) -> RunResult[OutputT]:
     """
     The function evaluated by pydantic_evals for each Case.
     
-    This is where mcp_evals integrates with:
-    - Task lifecycle (async context manager for setup/teardown)
-    - Dishka (CombinedToolset from DOMAIN scope, Agent from BENCHMARK scope)
+    Agent and toolset are bound via functools.partial before passing
+    to dataset.evaluate().
     
     Evaluators receive:
     - ctx.inputs: the Task instance (access task.goal, task.secrets, etc.)
@@ -485,56 +556,41 @@ async def run_agent_on_task(
     # Task context exits here (calls task.teardown())
 ```
 
-#### Dishka Provider for CombinedToolset
-
-The `CombinedToolset` is provided at DOMAIN scope using an `AsyncIterator` provider, ensuring proper cleanup:
-
-```python
-# mcp_evals/_internal/providers.py
-
-from dishka import Provider, Scope, provide
-from pydantic_ai import CombinedToolset
-
-class DomainProvider(Provider):
-    scope = Scope.DOMAIN
-    
-    @provide
-    async def combined_toolset(
-        self, 
-        mcp_servers: list[MCPServerStdio],  # From domain.mcp_servers()
-    ) -> AsyncIterator[CombinedToolset]:
-        """
-        Provide CombinedToolset with automatic cleanup.
-        
-        AsyncIterator provider pattern ensures proper closing of MCP connections.
-        """
-        toolset = CombinedToolset(mcp_servers)
-        async with toolset:
-            yield toolset
-```
-
 #### Dataset Evaluation in BenchmarkRunner
 
 ```python
 # mcp_evals/_internal/runner.py (simplified)
 
-async def run_domain(domain: Domain, container: AsyncContainer) -> EvalReport:
+from functools import partial
+from pydantic_ai import Agent
+from pydantic_evals import EvalReport
+
+from mcp_evals import Domain
+from mcp_evals._internal.conversion import domain_to_dataset
+from mcp_evals._internal.evaluated_fn import run_agent_on_task
+
+async def run_domain(domain: Domain, agent: Agent) -> EvalReport:
     """Run all tasks in a domain."""
     
-    # Convert domain to pydantic_evals Dataset
-    dataset = domain_to_dataset(domain)
-    
-    # Create evaluated function with Dishka injection
-    # (pydantic_evals supports dependency injection via function signature)
-    evaluated_fn = inject(run_agent_on_task, container)
-    
-    # Run evaluation — pydantic_evals handles the loop
-    report = await dataset.evaluate(
-        evaluated_fn,
-        max_concurrency=1,  # Sequential by default for stateful tasks
-    )
-    
-    return report
+    # Domain is an async context manager that manages CombinedToolset lifecycle and custom user's setup/teardown logic
+    async with domain:
+        # Convert domain to pydantic_evals Dataset
+        dataset = domain_to_dataset(domain)
+        
+        # Bind agent and toolset to the evaluated function
+        evaluated_fn = partial(
+            run_agent_on_task,
+            agent=agent,
+            toolset=domain.toolset,
+        )
+        
+        # Run evaluation — pydantic_evals handles the loop
+        report = await dataset.evaluate(
+            evaluated_fn,
+            max_concurrency=1,  # Sequential by default for stateful tasks
+        )
+        
+        return report
 ```
 
 ### Scope Lifecycle
@@ -543,15 +599,14 @@ The library manages resource lifecycle at two levels:
 
 | Scope | Managed By | Lifecycle | Resources |
 |-------|------------|-----------|-----------|
-| `BENCHMARK` | Dishka | Entire evaluation run | Agent, global config, logfire client |
-| `DOMAIN` | Dishka | Per domain | MCP connections, CombinedToolset |
-| Task | `async with task:` | Per task execution | Temp files, env vars, fixtures |
+| Domain | `async with domain:` | Per domain | MCP connections, CombinedToolset, domain-level fixtures |
+| Task | `async with task:` | Per task execution | Temp files, env vars, task-level fixtures |
 
-**Dishka scopes** manage shared resources (Agent, MCP connections) with automatic cleanup via `AsyncIterator` providers.
+**Domain context managers** handle MCP server connections (via `CombinedToolset`) and domain-level setup/teardown.
 
-**Task context managers** handle task-specific setup/teardown (fixtures, environment) with `AsyncExitStack` for safe cleanup.
+**Task context managers** handle task-specific setup/teardown (fixtures, environment)
 
-Users don't need to manage these scopes directly—`BenchmarkRunner` handles everything.
+Users don't need to manage these contexts directly—`BenchmarkRunner` handles everything.
 
 ## Project Structure
 
@@ -559,17 +614,14 @@ Users don't need to manage these scopes directly—`BenchmarkRunner` handles eve
 mcp-evals/
 ├── src/mcp_evals/
 │   ├── __init__.py           # Public API: Domain, Task, BenchmarkRunner, etc.
-│   ├── domain.py             # Domain ABC
+│   ├── domain.py             # Domain ABC (async context manager)
 │   ├── task.py               # Task ABC (async context manager)
-│   ├── secrets.py            # TaskSecrets base class
+│   ├── secrets.py            # DomainSecrets, TaskSecrets base classes
 │   ├── runner.py             # BenchmarkRunner facade
 │   ├── evaluators/
 │   │   ├── __init__.py       # Public evaluators
 │   │   └── builtin.py        # FileExists, ContentMatches, SQLQueryReturns, etc.
 │   ├── _internal/
-│   │   ├── scopes.py         # Dishka scope definitions (BENCHMARK, DOMAIN)
-│   │   ├── providers.py      # DI providers (Agent, CombinedToolset)
-│   │   ├── container.py      # Container factory
 │   │   ├── conversion.py     # Domain → Dataset, Task → Case conversion
 │   │   └── evaluated_fn.py   # run_agent_on_task() for pydantic_evals
 │   └── contrib/              # Pre-built domains (optional)
@@ -583,22 +635,110 @@ mcp-evals/
 
 ## API Reference
 
-### `Domain` (ABC)
+### `Domain` (ABC + Async Context Manager)
 
 ```python
-class Domain(ABC):
-    @property
-    @abstractmethod
-    def name(self) -> str:
-        """Unique domain identifier."""
+from abc import ABC, abstractmethod
+from contextlib import AbstractAsyncContextManager
+from functools import cached_property
+from typing import ClassVar
 
+from pydantic_settings import BaseSettings
+from pydantic_ai.mcp import MCPServer
+from pydantic_ai.toolsets import CombinedToolset
+
+
+class DomainSecrets(BaseSettings):
+    """Base for domain-specific secrets. Override in subclasses."""
+    model_config = {"extra": "ignore", "env_file": ".env"}
+
+
+class Domain(AbstractAsyncContextManager, ABC):
+    """
+    Abstract base for evaluation domains.
+    
+    Domain is an async context manager that:
+    1. Calls setup() for user-defined initialization
+    2. Enters the CombinedToolset context (connects to MCP servers)
+    3. Provides toolset property for agent execution
+    4. Exits the CombinedToolset context on cleanup (disconnects MCP servers)
+    5. Calls teardown() for user-defined cleanup
+    
+    Required attributes/methods:
+        name: str                    - Unique domain identifier
+        mcp_servers() -> list        - Returns MCP server configurations
+        tasks() -> list[Task]        - Returns Task instances to evaluate
+    
+    Optional attributes:
+        secrets_type: ClassVar[type] - BaseSettings subclass for secrets
+    
+    Lifecycle methods (override as needed):
+        setup()    - Called before MCP servers are started
+        teardown() - Called after MCP servers are stopped
+    """
+    
+    # === Required ===
+    name: str
+    
     @abstractmethod
-    def mcp_servers(self) -> list[MCPServerStdio | MCPServerHTTP]:
+    def mcp_servers(self) -> list[MCPServer]:
         """Return MCP server configurations."""
-
+    
     @abstractmethod
-    def tasks(self) -> list[Task]:
+    def tasks(self) -> list["Task"]:
         """Return Task instances to evaluate in this domain."""
+    
+    # === Optional with defaults ===
+    secrets_type: ClassVar[type[DomainSecrets]] = DomainSecrets
+    
+    # === Secrets access ===
+    @cached_property
+    def secrets(self) -> DomainSecrets:
+        """Load and cache secrets from environment."""
+        return self.secrets_type()
+    
+    # === Toolset access (available after __aenter__) ===
+    _toolset: CombinedToolset | None = None
+    
+    @property
+    def toolset(self) -> CombinedToolset:
+        """Access the CombinedToolset. Only available inside context."""
+        if self._toolset is None:
+            raise RuntimeError(
+                f"Domain '{self.name}' toolset accessed outside context. "
+                "Use 'async with domain:' first."
+            )
+        return self._toolset
+    
+    # === Lifecycle ===
+    async def __aenter__(self) -> "Domain":
+        # User-defined setup
+        await self.setup()
+        
+        # Create and enter CombinedToolset context
+        self._toolset = CombinedToolset(self.mcp_servers())
+        await self._toolset.__aenter__()
+        
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> bool | None:
+        # Exit CombinedToolset context (disconnect MCP servers)
+        if self._toolset is not None:
+            await self._toolset.__aexit__(exc_type, exc_val, exc_tb)
+            self._toolset = None
+        
+        # User-defined teardown
+        await self.teardown()
+        
+        return None
+    
+    async def setup(self) -> None:
+        """Override to perform setup before MCP servers are started."""
+        pass
+    
+    async def teardown(self) -> None:
+        """Override to perform cleanup after MCP servers are stopped."""
+        pass
 ```
 
 ### `Task` (ABC + Async Context Manager)
@@ -668,10 +808,34 @@ class Task(AbstractAsyncContextManager, ABC):
         pass
 ```
 
-### `TaskSecrets` (BaseSettings)
+### `DomainSecrets` / `TaskSecrets` (BaseSettings)
 
 ```python
 from pydantic_settings import BaseSettings
+
+class DomainSecrets(BaseSettings):
+    """
+    Base class for domain-specific secrets.
+    
+    Subclass to declare required environment variables:
+    
+        class SlackSecrets(DomainSecrets):
+            slack_bot_token: str   # Required: SLACK_BOT_TOKEN env var
+            slack_team_id: str     # Required: SLACK_TEAM_ID env var
+    
+    Then reference in Domain:
+    
+        class SlackDomain(Domain):
+            secrets_type = SlackSecrets
+            
+            def mcp_servers(self):
+                return [MCPServerStdio(
+                    "uvx", "mcp-server-slack",
+                    env={"SLACK_BOT_TOKEN": self.secrets.slack_bot_token},
+                )]
+    """
+    model_config = {"extra": "ignore", "env_file": ".env"}
+
 
 class TaskSecrets(BaseSettings):
     """
@@ -680,7 +844,7 @@ class TaskSecrets(BaseSettings):
     Subclass to declare required environment variables:
     
         class MySecrets(TaskSecrets):
-            api_key: str           # Required: MYAPI_KEY env var
+            api_key: str           # Required: API_KEY env var
             timeout: int = 30      # Optional with default
     
     Then reference in Task:
@@ -733,7 +897,6 @@ TODO
 - **[pydantic-evals](https://ai.pydantic.dev/evals/)** — Evaluation infrastructure (Dataset, Case, Evaluator)
 - **[pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/)** — Environment-based secrets management
 - **[logfire](https://pydantic.dev/logfire)** — Observability and tracing
-- **[dishka](https://github.com/reagento/dishka)** — Dependency injection and resource lifecycle (internal)
 
 ## Development
 
