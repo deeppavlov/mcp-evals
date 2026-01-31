@@ -21,11 +21,29 @@ This library provides infrastructure for running structured evaluations of LLM a
 | **Dependency injection** | Dishka for resource acquisition and cleanup |
 | **Maintainability** | pytest, mypy, ruff |
 
+## Prerequisites
+
+### uv (for running MCP servers)
+
+Many MCP servers are distributed as Python packages and run via `uvx` (part of [uv](https://github.com/astral-sh/uv)). `uvx` runs CLI tools in isolated environments without global installation — similar to `npx` for Node.js.
+
+```bash
+# Install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Now you can run MCP servers like:
+uvx mcp-server-filesystem /workspace
+uvx mcp-server-sqlite test.db
+```
+
+MCP servers are available from:
+- [Official MCP servers](https://github.com/modelcontextprotocol/servers)
+- PyPI (search for `mcp-server-*`)
 
 ## Quick Start
 
 ```python
-from mcp_evals import BenchmarkRunner, Task, Domain
+from mcp_evals import BenchmarkRunner, Domain, Task
 from mcp_evals.evaluators import FileExists
 from pydantic_ai.mcp import MCPServerStdio
 
@@ -34,77 +52,70 @@ class FilesystemDomain(Domain):
     
     def mcp_servers(self):
         return [MCPServerStdio("uvx", "mcp-server-filesystem", "/workspace")]
-
-tasks = [
-    Task(
-        name="create_config",
-        goal="Create a config.json file with default settings",
-        domain="filesystem",
-        evaluators=[FileExists("config.json")],
-    ),
-]
+    
+    def tasks(self):
+        return [
+            Task(
+                name="create_config",
+                goal="Create a config.json file with default settings",
+                evaluators=[FileExists("config.json")],
+            ),
+            Task(
+                name="create_readme",
+                goal="Create a README.md with project description",
+                evaluators=[FileExists("README.md")],
+            ),
+        ]
 
 async def main():
     runner = BenchmarkRunner(domains=[FilesystemDomain()])
-    report = await runner.run(tasks)
+    report = await runner.run()
     report.print()
 ```
 
 ## Usage
 
-### 1. Define a Domain
+### 1. Define a Domain with Tasks
 
-A domain represents an environment with specific MCP servers. Implement the `Domain` abstract class:
+A domain encapsulates an environment (MCP servers) and the tasks that test it:
 
 ```python
-from mcp_evals import Domain
-from pydantic_ai.mcp import MCPServerStdio, MCPServerHTTP
+from mcp_evals import Domain, Task
+from mcp_evals.evaluators import SQLQueryReturns
+from pydantic_ai.mcp import MCPServerStdio
 
 class DatabaseDomain(Domain):
     name = "database"
     
     def mcp_servers(self):
+        return [MCPServerStdio("uvx", "mcp-server-sqlite", "test.db")]
+    
+    def tasks(self):
         return [
-            MCPServerStdio("uvx", "mcp-server-sqlite", "test.db"),
-            MCPServerHTTP("http://localhost:8080/mcp"),
+            Task(
+                name="create_users_table",
+                goal="Create a users table with id, name, and email columns",
+                evaluators=[
+                    SQLQueryReturns(
+                        query="SELECT name FROM sqlite_master WHERE type='table'",
+                        expected=["users"],
+                    ),
+                ],
+            ),
+            Task(
+                name="insert_user",
+                goal="Insert a user named 'Alice' with email 'alice@example.com'",
+                evaluators=[
+                    SQLQueryReturns(
+                        query="SELECT name, email FROM users",
+                        expected=[("Alice", "alice@example.com")],
+                    ),
+                ],
+            ),
         ]
 ```
 
-### 2. Define Tasks
-
-Tasks are simple dataclasses describing what the agent should accomplish:
-
-```python
-from mcp_evals import Task
-from mcp_evals.evaluators import FileExists, ContentMatches, SQLQueryReturns
-
-tasks = [
-    Task(
-        name="create_users_table",
-        goal="Create a users table with id, name, and email columns",
-        domain="database",
-        evaluators=[
-            SQLQueryReturns(
-                query="SELECT name FROM sqlite_master WHERE type='table'",
-                expected=["users"],
-            ),
-        ],
-    ),
-    Task(
-        name="insert_user",
-        goal="Insert a user named 'Alice' with email 'alice@example.com'",
-        domain="database",
-        evaluators=[
-            SQLQueryReturns(
-                query="SELECT name, email FROM users",
-                expected=[("Alice", "alice@example.com")],
-            ),
-        ],
-    ),
-]
-```
-
-### 3. Run the Benchmark
+### 2. Run the Benchmark
 
 ```python
 from mcp_evals import BenchmarkRunner
@@ -118,7 +129,7 @@ async def main():
         model="openai:gpt-4o",  # or any pydantic-ai supported model
     )
     
-    report = await runner.run(tasks)
+    report = await runner.run()
     report.print()
     
     # Access detailed results
@@ -128,32 +139,36 @@ async def main():
             print(f"  {metric.name}: {metric.value}")
 ```
 
-### 4. Custom Evaluators
+### 3. Custom Evaluators
 
-Create domain-specific evaluators by implementing the `Evaluator` protocol:
+Create domain-specific evaluators using `pydantic_evals` base classes:
 
 ```python
-from mcp_evals import Evaluator, EvalResult, EvalContext
+from pydantic_evals.evaluators import Evaluator, EvaluatorContext
+from pydantic_evals import EvaluatorOutput
 
-class APIResponseContains(Evaluator):
-    def __init__(self, endpoint: str, expected_field: str):
-        self.endpoint = endpoint
-        self.expected_field = expected_field
+class APIResponseContains(Evaluator[TaskInput, TaskOutput]):
+    endpoint: str
+    expected_field: str
     
-    async def evaluate(self, ctx: EvalContext) -> EvalResult:
-        # Access the domain's MCP tools to verify state
-        response = await ctx.call_tool("http_get", url=self.endpoint)
+    async def evaluate(
+        self, ctx: EvaluatorContext[TaskInput, TaskOutput]
+    ) -> EvaluatorOutput:
+        # Access the task output
+        response = ctx.output
         
         if self.expected_field in response:
-            return EvalResult(passed=True)
+            return EvaluatorOutput(score=1.0)
         else:
-            return EvalResult(
-                passed=False,
-                message=f"Field '{self.expected_field}' not found in response",
+            return EvaluatorOutput(
+                score=0.0,
+                reason=f"Field '{self.expected_field}' not found in response",
             )
 ```
 
-### 5. Custom Agent Factory
+See [pydantic_evals documentation](https://ai.pydantic.dev/evals/) for more details on evaluator types and context.
+
+### 4. Custom Agent Factory
 
 Override the default agent construction if needed:
 
@@ -186,6 +201,7 @@ flowchart TB
         subgraph Domain1["Domain: filesystem"]
             MCP1[MCP Servers]
             Toolset1[Combined Toolset]
+            Tasks1[Tasks]
             MCP1 --> Toolset1
             
             subgraph Run1["Task Execution"]
@@ -194,12 +210,14 @@ flowchart TB
                 Agent1 --> |accomplishes| Task1
             end
             
+            Tasks1 --> Task1
             Toolset1 --> Agent1
         end
         
         subgraph Domain2["Domain: database"]
             MCP2[MCP Servers]
             Toolset2[Combined Toolset]
+            Tasks2[Tasks]
             MCP2 --> Toolset2
             
             subgraph Run2["Task Execution"]
@@ -208,6 +226,7 @@ flowchart TB
                 Agent2 --> |accomplishes| Task2
             end
             
+            Tasks2 --> Task2
             Toolset2 --> Agent2
         end
     end
@@ -225,14 +244,15 @@ sequenceDiagram
     participant E as Evaluator
     participant LF as Logfire
 
-    U->>R: runner.run(tasks)
+    U->>R: runner.run()
     
     loop For each domain
-        R->>D: domain.setup()
+        R->>D: domain.mcp_servers()
         R->>MCP: Connect to MCP servers
         MCP-->>R: Combined toolset
+        R->>D: domain.tasks()
         
-        loop For each task in domain
+        loop For each task
             R->>A: Create agent with toolset
             R->>A: agent.run(task.goal)
             A->>MCP: Use tools
@@ -241,11 +261,10 @@ sequenceDiagram
             
             R->>E: evaluator.evaluate(context)
             E->>MCP: Check environment state
-            E-->>R: EvalResult
+            E-->>R: EvaluatorOutput
             R->>LF: Log trace + metrics
         end
         
-        R->>D: domain.teardown()
         R->>MCP: Disconnect servers
     end
     
@@ -275,7 +294,6 @@ mcp-evals/
 │   ├── runner.py             # BenchmarkRunner facade
 │   ├── evaluators/
 │   │   ├── __init__.py       # Public evaluators
-│   │   ├── base.py           # Evaluator protocol, EvalResult
 │   │   └── builtin.py        # FileExists, ContentMatches, etc.
 │   ├── _internal/
 │   │   ├── scopes.py         # Dishka scope definitions
@@ -305,10 +323,9 @@ class Domain(ABC):
     def mcp_servers(self) -> list[MCPServerStdio | MCPServerHTTP]:
         """Return MCP server configurations."""
 
-    @asynccontextmanager
-    async def setup(self) -> AsyncIterator[None]:
-        """Optional setup/teardown hook."""
-        yield
+    @abstractmethod
+    def tasks(self) -> list[Task]:
+        """Return tasks to evaluate in this domain."""
 ```
 
 ### `Task`
@@ -318,7 +335,6 @@ class Domain(ABC):
 class Task:
     name: str                        # Unique task identifier
     goal: str                        # Prompt for the agent
-    domain: str                      # Domain name reference
     evaluators: list[Evaluator]      # Verification functions
     output_type: type | None = None  # Optional structured output
 ```
@@ -334,15 +350,20 @@ class BenchmarkRunner:
         agent_factory: AgentFactory | None = None,
     ) -> None: ...
 
-    async def run(self, tasks: list[Task]) -> BenchmarkReport: ...
+    async def run(self) -> BenchmarkReport:
+        """Run all tasks from all domains."""
+        ...
 ```
 
-### `Evaluator` (Protocol)
+### Evaluators
 
-```python
-class Evaluator(Protocol):
-    async def evaluate(self, ctx: EvalContext) -> EvalResult: ...
-```
+This library uses [pydantic_evals](https://ai.pydantic.dev/evals/) for evaluation infrastructure. Key types:
+
+- `Evaluator[InputT, OutputT]` — Base class for custom evaluators
+- `EvaluatorContext[InputT, OutputT]` — Context passed to evaluators with input/output data
+- `EvaluatorOutput` — Result containing score, reason, and optional labels
+
+See `mcp_evals.evaluators` for built-in evaluators.
 
 ## Built-in Evaluators
 
@@ -357,7 +378,7 @@ TODO
 - **[pydantic-ai](https://ai.pydantic.dev/)** — LLM provider abstraction + MCP client
 - **[pydantic-evals](https://ai.pydantic.dev/evals/)** — Evaluation infrastructure
 - **[logfire](https://pydantic.dev/logfire)** — Observability and tracing
-- **[dishka](https://github.com/reagento/dishka)** — Dependency injection (internal)
+- **[dishka](https://github.com/reagento/dishka)** — Dependency injection and resources lifecycle (internal)
 
 ## Development
 
