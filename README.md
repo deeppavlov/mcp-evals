@@ -926,7 +926,7 @@ TODO
 ## Dependencies
 
 - **[pydantic-ai](https://ai.pydantic.dev/)** — LLM provider abstraction + MCP client
-- **[pydantic-evals](https://ai.pydantic.dev/evals/)** — Evaluation infrastructure (Dataset, Case, Evaluator)
+- **[pydantic-evals](https://ai.pydantic.dev/evals/)** (specifically, [our fork](https://github.com/voorhs/pydantic-ai/tree/f/case-context-manager)) — Evaluation infrastructure (Dataset, Case, Evaluator)
 - **[pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/)** — Environment-based secrets management
 - **[logfire](https://pydantic.dev/logfire)** — Observability and tracing
 
