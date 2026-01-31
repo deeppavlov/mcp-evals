@@ -190,8 +190,8 @@ Tasks can implement `setup()` for initialization and use `AsyncExitStack` for cl
 ```python
 from contextlib import AsyncExitStack
 from pathlib import Path
-import aiofiles
-import tempfile
+import aiofiles.tempfile
+import os
 
 from mcp_evals import Task
 from mcp_evals.evaluators import FileExists, ContentMatches
@@ -204,15 +204,19 @@ class MusicReportTask(Task):
         ContentMatches("music/music_analysis_report.txt", pattern=r"晴天.*2\.576"),
     ]
     
+    _stack: AsyncExitStack | None = None  # Track context state
+    
     async def setup(self) -> None:
-        # AsyncExitStack ensures all resources are cleaned up,
-        # even if teardown() isn't called (e.g., on exception)
+        # Prevent re-entry
+        if self._stack is not None:
+            raise RuntimeError(f"Task {self.name} context already entered")
+        
         self._stack = AsyncExitStack()
         await self._stack.__aenter__()
         
-        # Create temp directory (will be cleaned up automatically)
-        self.test_dir = Path(tempfile.mkdtemp())
-        self._stack.callback(lambda: shutil.rmtree(self.test_dir, ignore_errors=True))
+        # Create temp directory using async context manager
+        temp_dir_ctx = aiofiles.tempfile.TemporaryDirectory()
+        self.test_dir = Path(await self._stack.enter_async_context(temp_dir_ctx))
         
         # Download and extract test fixtures
         archive_path = await download_fixtures("music_collection.tar.gz")
@@ -220,12 +224,22 @@ class MusicReportTask(Task):
         
         await extract_archive(archive_path, self.test_dir)
         
-        # Set environment variable for MCP server
+        # Set environment variable for MCP server (will be cleared on teardown)
+        old_value = os.environ.get("FILESYSTEM_ROOT")
         os.environ["FILESYSTEM_ROOT"] = str(self.test_dir)
+        self._stack.callback(lambda: self._restore_env("FILESYSTEM_ROOT", old_value))
     
     async def teardown(self) -> None:
-        # AsyncExitStack handles all cleanup in reverse order
-        await self._stack.aclose()
+        if self._stack is not None:
+            await self._stack.aclose()
+            self._stack = None
+    
+    @staticmethod
+    def _restore_env(key: str, old_value: str | None) -> None:
+        if old_value is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = old_value
 ```
 
 ### 6. Tasks with Secrets
@@ -383,29 +397,37 @@ flowchart LR
     Tasks -->|"converted to"| Cases
     
     subgraph "Each Case"
-        CaseInputs[inputs: TaskInput]
-        CaseEvals[evaluators: list]
+        CaseInputs["inputs: Task (the instance itself)"]
+        CaseEvals[evaluators: task.evaluators]
     end
 ```
 
 #### Conversion: Domain → Dataset, Task → Case
 
-```python
-# Internal conversion (simplified)
-from pydantic_evals import Dataset, Case
+The key insight: `Case.inputs` accepts any type, so we pass the `Task` instance directly. Evaluators receive this in their context, giving them full access to task attributes.
 
-def domain_to_dataset(domain: Domain) -> Dataset[TaskInput, AgentOutput]:
+```python
+# mcp_evals/_internal/conversion.py
+
+from typing import TypeVar
+from pydantic_evals import Dataset, Case
+from pydantic_ai.result import RunResult
+
+from mcp_evals import Task, Domain
+
+TaskT = TypeVar("TaskT", bound=Task)
+OutputT = TypeVar("OutputT")  # Will be RunResult[ResponseT]
+
+def domain_to_dataset(domain: Domain) -> Dataset[Task, RunResult]:
     """Convert mcp_evals Domain to pydantic_evals Dataset."""
-    cases = []
-    for task in domain.tasks():
-        case = Case(
+    cases = [
+        Case(
             name=task.name,
-            inputs=TaskInput(goal=task.goal, output_type=task.output_type),
+            inputs=task,  # Task instance is the input — evaluators access it via ctx.inputs
             evaluators=task.evaluators,
-            metadata={"task_instance": task},  # Preserve for lifecycle
         )
-        cases.append(case)
-    
+        for task in domain.tasks()
+    ]
     return Dataset(cases=cases)
 ```
 
@@ -413,97 +435,121 @@ def domain_to_dataset(domain: Domain) -> Dataset[TaskInput, AgentOutput]:
 
 The library defines an internal "evaluated function" that `pydantic_evals` calls for each case. This function:
 
-1. Enters the **Dishka scope** for dependency injection
-2. Enters the **Task context** (`__aenter__`) for setup
-3. Runs the agent with the goal
+1. Enters the **Task context** (`__aenter__`) for setup
+2. Gets **Agent** (BENCHMARK-scoped) and **CombinedToolset** from Dishka (DOMAIN-scoped)
+3. Runs the agent with the goal and toolset
 4. Exits the task context (`__aexit__`) for teardown
-5. Returns the agent output for evaluation
+5. Returns `RunResult` directly for evaluation
 
 ```python
 # mcp_evals/_internal/evaluated_fn.py
 
-from dishka import AsyncContainer
-from pydantic_evals import EvaluatorContext
+from typing import TypeVar
+from dishka import FromDishka
+from pydantic_ai import Agent
+from pydantic_ai.mcp import MCPServerStdio
+from pydantic_ai.toolsets import CombinedToolset
+from pydantic_ai.result import RunResult
+
+from mcp_evals import Task
+
+OutputT = TypeVar("OutputT")
 
 async def run_agent_on_task(
-    inputs: TaskInput,
-    ctx: EvaluatorContext[TaskInput, AgentOutput],
-) -> AgentOutput:
+    task: Task,
+    *,
+    # Dishka injects these from DOMAIN scope
+    agent: FromDishka[Agent],
+    toolset: FromDishka[CombinedToolset],  # AsyncIterator provider with cleanup
+) -> RunResult[OutputT]:
     """
     The function evaluated by pydantic_evals for each Case.
     
     This is where mcp_evals integrates with:
-    - Dishka (dependency injection for MCP clients, agent, etc.)
     - Task lifecycle (async context manager for setup/teardown)
+    - Dishka (CombinedToolset from DOMAIN scope, Agent from BENCHMARK scope)
+    
+    Evaluators receive:
+    - ctx.inputs: the Task instance (access task.goal, task.secrets, etc.)
+    - ctx.output: the RunResult from agent.run()
     """
-    # Retrieve task instance from case metadata
-    task: Task = ctx.metadata["task_instance"]
-    
-    # Get dependencies from Dishka container (injected via scope)
-    container: AsyncContainer = ctx.metadata["dishka_container"]
-    
-    async with container(scope=Scope.TASK) as task_container:
-        # Inject MCP clients into task for evaluators that need them
-        task._mcp_clients = await task_container.get(MCPClientRegistry)
-        
-        # Enter task context (calls task.setup())
-        async with task:
-            # Get agent from container
-            agent = await task_container.get(Agent)
-            
-            # Run the agent
-            result = await agent.run(
-                inputs.goal,
-                output_type=inputs.output_type,
-            )
-            
-            return AgentOutput(
-                response=result.data,
-                messages=result.all_messages(),
-            )
-        # Task context exits here (calls task.teardown())
+    # Enter task context (calls task.setup())
+    async with task:
+        # Run the agent with domain's combined toolset
+        result: RunResult[OutputT] = await agent.run(
+            task.goal,
+            output_type=task.output_type,
+            toolsets=[toolset],
+        )
+        return result
+    # Task context exits here (calls task.teardown())
 ```
 
-#### Dataset Evaluation Flow
+#### Dishka Provider for CombinedToolset
+
+The `CombinedToolset` is provided at DOMAIN scope using an `AsyncIterator` provider, ensuring proper cleanup:
 
 ```python
-# mcp_evals/_internal/runner.py
+# mcp_evals/_internal/providers.py
 
-async def run_domain(domain: Domain, container: AsyncContainer) -> DomainReport:
+from dishka import Provider, Scope, provide
+from pydantic_ai import CombinedToolset
+
+class DomainProvider(Provider):
+    scope = Scope.DOMAIN
+    
+    @provide
+    async def combined_toolset(
+        self, 
+        mcp_servers: list[MCPServerStdio],  # From domain.mcp_servers()
+    ) -> AsyncIterator[CombinedToolset]:
+        """
+        Provide CombinedToolset with automatic cleanup.
+        
+        AsyncIterator provider pattern ensures proper closing of MCP connections.
+        """
+        toolset = CombinedToolset(mcp_servers)
+        async with toolset:
+            yield toolset
+```
+
+#### Dataset Evaluation in BenchmarkRunner
+
+```python
+# mcp_evals/_internal/runner.py (simplified)
+
+async def run_domain(domain: Domain, container: AsyncContainer) -> EvalReport:
     """Run all tasks in a domain."""
     
-    # Enter domain scope (MCP connections live here)
-    async with container(scope=Scope.DOMAIN) as domain_container:
-        # Connect to MCP servers
-        mcp_servers = domain.mcp_servers()
-        await domain_container.get(MCPConnectionManager).connect_all(mcp_servers)
-        
-        # Convert domain to pydantic_evals Dataset
-        dataset = domain_to_dataset(domain)
-        
-        # Inject container into metadata for evaluated function
-        for case in dataset.cases:
-            case.metadata["dishka_container"] = domain_container
-        
-        # Run evaluation using pydantic_evals
-        # This calls run_agent_on_task for each case, then runs evaluators
-        report = await dataset.evaluate(
-            run_agent_on_task,
-            max_concurrency=1,  # Sequential by default for stateful tasks
-        )
-        
-        return DomainReport.from_pydantic_evals(report)
+    # Convert domain to pydantic_evals Dataset
+    dataset = domain_to_dataset(domain)
+    
+    # Create evaluated function with Dishka injection
+    # (pydantic_evals supports dependency injection via function signature)
+    evaluated_fn = inject(run_agent_on_task, container)
+    
+    # Run evaluation — pydantic_evals handles the loop
+    report = await dataset.evaluate(
+        evaluated_fn,
+        max_concurrency=1,  # Sequential by default for stateful tasks
+    )
+    
+    return report
 ```
 
 ### Scope Lifecycle
 
-The library internally manages three scopes for proper resource lifecycle:
+The library manages resource lifecycle at two levels:
 
-| Scope | Lifecycle | Resources |
-|-------|-----------|-----------|
-| `BENCHMARK` | Entire evaluation run | Global config, logfire client |
-| `DOMAIN` | Per domain | MCP connections, combined toolset |
-| `TASK` | Per task execution | Task-specific context |
+| Scope | Managed By | Lifecycle | Resources |
+|-------|------------|-----------|-----------|
+| `BENCHMARK` | Dishka | Entire evaluation run | Agent, global config, logfire client |
+| `DOMAIN` | Dishka | Per domain | MCP connections, CombinedToolset |
+| Task | `async with task:` | Per task execution | Temp files, env vars, fixtures |
+
+**Dishka scopes** manage shared resources (Agent, MCP connections) with automatic cleanup via `AsyncIterator` providers.
+
+**Task context managers** handle task-specific setup/teardown (fixtures, environment) with `AsyncExitStack` for safe cleanup.
 
 Users don't need to manage these scopes directly—`BenchmarkRunner` handles everything.
 
@@ -521,12 +567,11 @@ mcp-evals/
 │   │   ├── __init__.py       # Public evaluators
 │   │   └── builtin.py        # FileExists, ContentMatches, SQLQueryReturns, etc.
 │   ├── _internal/
-│   │   ├── scopes.py         # Dishka scope definitions (BENCHMARK, DOMAIN, TASK)
-│   │   ├── providers.py      # DI providers (Agent, MCP clients, etc.)
+│   │   ├── scopes.py         # Dishka scope definitions (BENCHMARK, DOMAIN)
+│   │   ├── providers.py      # DI providers (Agent, CombinedToolset)
 │   │   ├── container.py      # Container factory
 │   │   ├── conversion.py     # Domain → Dataset, Task → Case conversion
-│   │   ├── evaluated_fn.py   # run_agent_on_task() for pydantic_evals
-│   │   └── types.py          # TaskInput, AgentOutput dataclasses
+│   │   └── evaluated_fn.py   # run_agent_on_task() for pydantic_evals
 │   └── contrib/              # Pre-built domains (optional)
 │       ├── filesystem.py
 │       └── sqlite.py
