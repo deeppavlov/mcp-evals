@@ -608,6 +608,15 @@ The library manages resource lifecycle at two levels:
 
 Users don't need to manage these contexts directly—`BenchmarkRunner` handles everything.
 
+### TODO
+
+- [ ] error handling
+- [ ] testing strategy
+- [ ] `Domain` re-entry protection
+- [ ] awkward mutable pattern in tasks examples
+- [ ] check tasks names uniqueness within a single domain
+- [ ] check domains names uniqueness within a single benchmark run
+
 ## Project Structure
 
 ```
