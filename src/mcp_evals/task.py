@@ -31,7 +31,7 @@ class Task(ABC):
 
     name: str
     goal: str
-    evaluators: tuple[Evaluator["Task", AgentRunResult], ...]
+    evaluators: tuple[Evaluator[Self, AgentRunResult], ...]
 
     output_type: type | None = None
     secrets_type: ClassVar[type[TaskSecrets]] = TaskSecrets

@@ -230,10 +230,11 @@ class PopularityScoresMatchExpected(Evaluator["MusicReportTask", AgentRunResult]
                 actual_score = float(parts[1].strip())
 
                 # Find expected score for this song
-                expected_score = None
+                expected_score: float | None = None
                 for expected_song in EXPECTED_SONGS:
                     if expected_song["song_name"] == song_name:
-                        expected_score = expected_song["popularity_score"]
+                        score_value = expected_song["popularity_score"]
+                        expected_score = float(score_value) if isinstance(score_value, (int, float, str)) else None
                         break
 
                 if expected_score is not None and abs(actual_score - expected_score) > 0.001:  # noqa: PLR2004
@@ -379,10 +380,9 @@ Create a file named `music_analysis_report.txt` in the `music/` folder with the 
     _stack: AsyncExitStack | None = None
     work_dir: Path | None = None
 
-    @property
-    def evaluators(self) -> tuple[Evaluator]:
+    def __init__(self) -> None:
         """Initialize the task with evaluators."""
-        return (
+        self.evaluators = (
             FileExists("music/music_analysis_report.txt"),
             FileContentStructure("music/music_analysis_report.txt", expected_lines=25),
             SongRankingFormat(),

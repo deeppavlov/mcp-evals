@@ -25,7 +25,7 @@ class FilesystemDomain(Domain):
         The server uses FILESYSTEM_ROOT environment variable which is set
         by tasks during setup(). Each task sets it to its isolated workspace.
         """
-        return [MCPServerStdio("uvx", "mcp-server-filesystem", "/")]
+        return [MCPServerStdio("uvx", "mcp-server-filesystem")]
 
     def tasks(self) -> Sequence[MusicReportTask | DuplicatesSearchingTask]:
         """Return all filesystem tasks."""

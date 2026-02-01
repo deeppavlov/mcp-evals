@@ -213,10 +213,9 @@ After completing the task, the directory structure should be:
     _stack: AsyncExitStack | None = None
     work_dir: Path | None = None
 
-    @property
-    def evaluators(self) -> tuple[Evaluator["DuplicatesSearchingTask", AgentRunResult], ...]:
+    def __init__(self) -> None:
         """Initialize the task with evaluators."""
-        return (
+        self.evaluators = (
             DirectoryExists("duplicates"),
             FileCount("duplicates", expected=14),
             DuplicateFilesMoved(),
