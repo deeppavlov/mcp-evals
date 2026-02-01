@@ -10,6 +10,7 @@ requires-python = ">=3.12"
 dependencies = [
     "pydantic-ai",
     "pydantic-settings>=2.12.0,<3.0",
+    "loguru~=0.7.3"
 ]
 
 [project.optional-dependencies]
