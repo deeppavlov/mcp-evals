@@ -4,35 +4,66 @@ import shutil
 import zipfile
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from enum import StrEnum
 from pathlib import Path
 
-import aiofiles.tempfile
-import httpx
-from appdirs import user_cache_dir
+try:
+    import aiofiles.tempfile
+except ImportError as e:
+    msg = "aiofiles is required for filesystem tasks. Install with: pip install 'mcp-evals[domain-filesystem]'"
+    raise ImportError(msg) from e
+
+try:
+    import httpx
+except ImportError as e:
+    msg = "httpx is required for filesystem tasks. Install with: pip install 'mcp-evals[domain-filesystem]'"
+    raise ImportError(msg) from e
+
+try:
+    from appdirs import user_cache_dir
+except ImportError as e:
+    msg = "appdirs is required for filesystem tasks. Install with: pip install 'mcp-evals[domain-filesystem]'"
+    raise ImportError(msg) from e
+
+
+class Fixture(StrEnum):
+    """Enumeration of available filesystem test fixture categories."""
+
+    DESKTOP = "desktop"
+    FILE_CONTEXT = "file_context"
+    FILE_PROPERTY = "file_property"
+    FOLDER_STRUCTURE = "folder_structure"
+    PAPERS = "papers"
+    STUDENT_DATABASE = "student_database"
+    THREESTUDIO = "threestudio"
+    VOTENET = "votenet"
+    LEGAL_DOCUMENT = "legal_document"
+    DESKTOP_TEMPLATE = "desktop_template"
+
 
 # URL mapping for different test environment categories
-FIXTURE_URL_MAPPING = {
-    "desktop": "https://storage.mcpmark.ai/filesystem/desktop.zip",
-    "file_context": "https://storage.mcpmark.ai/filesystem/file_context.zip",
-    "file_property": "https://storage.mcpmark.ai/filesystem/file_property.zip",
-    "folder_structure": "https://storage.mcpmark.ai/filesystem/folder_structure.zip",
-    "papers": "https://storage.mcpmark.ai/filesystem/papers.zip",
-    "student_database": "https://storage.mcpmark.ai/filesystem/student_database.zip",
-    "threestudio": "https://storage.mcpmark.ai/filesystem/threestudio.zip",
-    "votenet": "https://storage.mcpmark.ai/filesystem/votenet.zip",
-    "legal_document": "https://storage.mcpmark.ai/filesystem/legal_document.zip",
-    "desktop_template": "https://storage.mcpmark.ai/filesystem/desktop_template.zip",
+FIXTURE_URL_MAPPING: dict[Fixture, str] = {
+    Fixture.DESKTOP: "https://storage.mcpmark.ai/filesystem/desktop.zip",
+    Fixture.FILE_CONTEXT: "https://storage.mcpmark.ai/filesystem/file_context.zip",
+    Fixture.FILE_PROPERTY: "https://storage.mcpmark.ai/filesystem/file_property.zip",
+    Fixture.FOLDER_STRUCTURE: "https://storage.mcpmark.ai/filesystem/folder_structure.zip",
+    Fixture.PAPERS: "https://storage.mcpmark.ai/filesystem/papers.zip",
+    Fixture.STUDENT_DATABASE: "https://storage.mcpmark.ai/filesystem/student_database.zip",
+    Fixture.THREESTUDIO: "https://storage.mcpmark.ai/filesystem/threestudio.zip",
+    Fixture.VOTENET: "https://storage.mcpmark.ai/filesystem/votenet.zip",
+    Fixture.LEGAL_DOCUMENT: "https://storage.mcpmark.ai/filesystem/legal_document.zip",
+    Fixture.DESKTOP_TEMPLATE: "https://storage.mcpmark.ai/filesystem/desktop_template.zip",
 }
 
 
-async def download_fixture(category: str) -> Path:
+async def download_fixture(category: Fixture) -> Path:
     """Download and cache a filesystem test fixture.
 
     Downloads the fixture from storage.mcpmark.ai if not already cached.
     Caches fixtures in user cache directory for reuse.
 
     Args:
-        category: Fixture category (e.g., 'desktop', 'file_context')
+        category: Fixture category enum value
 
     Returns:
         Path to the extracted fixture directory
@@ -42,7 +73,8 @@ async def download_fixture(category: str) -> Path:
         RuntimeError: If download or extraction fails
     """
     if category not in FIXTURE_URL_MAPPING:
-        msg = f"Unknown category: {category}. Supported: {', '.join(FIXTURE_URL_MAPPING.keys())}"
+        supported = ", ".join(f.value for f in FIXTURE_URL_MAPPING)
+        msg = f"Unknown category: {category}. Supported: {supported}"
         raise ValueError(msg)
 
     cache_dir = Path(user_cache_dir("mcp-evals", "mcp-evals")) / "fixtures"

@@ -9,7 +9,7 @@ from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorCont
 
 from mcp_evals import Task
 from mcp_evals.contrib.filesystem.common_evaluators import FileContentStructure
-from mcp_evals.contrib.filesystem.utils import create_isolated_workspace, download_fixture
+from mcp_evals.contrib.filesystem.utils import Fixture, create_isolated_workspace, download_fixture
 from mcp_evals.evaluators import FileExists
 
 # Expected data from MCP Universe verification
@@ -402,7 +402,7 @@ Create a file named `music_analysis_report.txt` in the `music/` folder with the 
         await self._stack.__aenter__()
 
         # Download fixture
-        fixture_path = await download_fixture("desktop")
+        fixture_path = await download_fixture(Fixture.DESKTOP)
 
         # Create isolated workspace - enter context manager into stack
         workspace_ctx = create_isolated_workspace(fixture_path)
