@@ -35,6 +35,7 @@ class TestFileExists:
 
             assert isinstance(result, EvaluationReason)
             assert result.value == 0.0
+            assert result.reason is not None
             assert "does not exist" in result.reason
 
     async def test_returns_0_when_path_is_directory(self) -> None:
@@ -48,6 +49,7 @@ class TestFileExists:
 
             assert isinstance(result, EvaluationReason)
             assert result.value == 0.0
+            assert result.reason is not None
             assert "is not a file" in result.reason
 
     async def test_handles_relative_paths(self) -> None:
@@ -117,6 +119,7 @@ class TestContentMatches:
 
             assert isinstance(result, EvaluationReason)
             assert result.value == 0.0
+            assert result.reason is not None
             assert "does not match pattern" in result.reason
 
     async def test_returns_0_when_file_does_not_exist(self) -> None:
@@ -129,6 +132,7 @@ class TestContentMatches:
 
             assert isinstance(result, EvaluationReason)
             assert result.value == 0.0
+            assert result.reason is not None
             assert "does not exist" in result.reason
 
     async def test_returns_0_when_path_is_directory(self) -> None:
@@ -142,6 +146,7 @@ class TestContentMatches:
 
             assert isinstance(result, EvaluationReason)
             assert result.value == 0.0
+            assert result.reason is not None
             assert "is not a file" in result.reason
 
     async def test_handles_regex_special_characters(self) -> None:
@@ -193,6 +198,7 @@ class TestContentMatches:
 
                     assert isinstance(result, EvaluationReason)
                     assert result.value == 0.0
+                    assert result.reason is not None
                     assert "Error reading file" in result.reason
                 finally:
                     test_file.chmod(0o644)

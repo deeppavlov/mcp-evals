@@ -1,5 +1,6 @@
 """Tests for internal conversion functions."""
 
+from collections.abc import Sequence
 from unittest.mock import MagicMock
 
 from pydantic_ai.mcp import MCPServer
@@ -35,14 +36,14 @@ class ConcreteDomain(Domain):
 
     name = "test_domain"
 
-    def __init__(self, tasks: list[Task] | None = None) -> None:
+    def __init__(self, tasks: list[ConcreteTask] | None = None) -> None:
         self._tasks = tasks or []
 
-    def mcp_servers(self) -> list[MCPServer]:
+    def mcp_servers(self) -> Sequence[MCPServer]:
         """Return empty list of MCP servers."""
         return []
 
-    def tasks(self) -> list[Task]:
+    def tasks(self) -> Sequence[ConcreteTask]:
         """Return tasks."""
         return self._tasks
 
@@ -134,14 +135,14 @@ class TestDomainToDataset:
             evaluators=(),
         )
         # Add custom attribute
-        task.custom_attr = "custom_value"  # type: ignore[assignment]
+        task.custom_attr = "custom_value"  # type: ignore[attr-defined]
 
         domain = ConcreteDomain(tasks=[task])
         dataset = domain_to_dataset(domain)
 
         case = dataset.cases[0]
         assert hasattr(case.inputs, "custom_attr")
-        assert case.inputs.custom_attr == "custom_value"  # type: ignore[attr-defined]
+        assert case.inputs.custom_attr == "custom_value"
 
     def test_case_types_are_correct(self) -> None:
         """Test that Case types are correct."""

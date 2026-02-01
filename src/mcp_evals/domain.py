@@ -1,6 +1,7 @@
 """Domain abstraction for evaluation domains."""
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from functools import cached_property
 from types import TracebackType
 from typing import TYPE_CHECKING, ClassVar, Self
@@ -40,11 +41,11 @@ class Domain(ABC):
     name: str
 
     @abstractmethod
-    def mcp_servers(self) -> list[MCPServer]:
+    def mcp_servers(self) -> Sequence[MCPServer]:
         """Return MCP server configurations."""
 
     @abstractmethod
-    def tasks(self) -> list["Task"]:
+    def tasks(self) -> Sequence["Task"]:
         """Return Task instances to evaluate in this domain."""
 
     secrets_type: ClassVar[type[DomainSecrets]] = DomainSecrets

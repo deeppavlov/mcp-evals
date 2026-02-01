@@ -32,12 +32,13 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
-    "COM812",  # trailing commas
-    "ERA001",  # commented code
-    "FBT",     # boolean trap
-    "D105",    # docstring in magic methods
-    "EM101",   # string literal in exception
-    "TRY003",  # strings in exceptions
+    "COM812",     # trailing commas
+    "ERA001",     # commented code
+    "FBT",        # boolean trap
+    "D105",       # docstring in magic methods
+    "EM101",      # string literal in exception
+    "TRY003",     # strings in exceptions
+    "FIX", "TD"   # todos
 ]
 
 [tool.ruff.lint.pylint]
