@@ -17,6 +17,7 @@ dev = [
     "pytest~=9.0.2",
     "mypy~=1.19.1",
     "ruff~=0.14.14",
+    "pytest-asyncio~=1.3.0",
 ]
 
 [build-system]
@@ -35,6 +36,8 @@ ignore = [
     "ERA001",  # commented code
     "FBT",     # boolean trap
     "D105",    # docstring in magic methods
+    "EM101",   # string literal in exception
+    "TRY003",  # strings in exceptions
 ]
 
 [tool.ruff.lint.pylint]
@@ -42,6 +45,9 @@ max-args = 10
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = ["S", "PLR2004", "ERA", "D", "ANN", "SLF"]
 
 [tool.mypy]
 python_version = "3.12"
