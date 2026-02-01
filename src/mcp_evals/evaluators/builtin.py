@@ -1,6 +1,7 @@
 """Built-in evaluators for common evaluation scenarios."""
 
 import re
+from dataclasses import dataclass
 from pathlib import Path
 
 from pydantic_ai.run import AgentRunResult  # type: ignore[import-untyped]
@@ -9,6 +10,7 @@ from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorCont
 from mcp_evals.task import Task
 
 
+@dataclass
 class FileExists(Evaluator[Task, AgentRunResult]):
     """Evaluator that checks if a file exists.
 
@@ -35,6 +37,7 @@ class FileExists(Evaluator[Task, AgentRunResult]):
         )
 
 
+@dataclass
 class ContentMatches(Evaluator[Task, AgentRunResult]):
     r"""Evaluator that checks if file content matches a regex pattern.
 
@@ -67,7 +70,7 @@ class ContentMatches(Evaluator[Task, AgentRunResult]):
 
         try:
             content = file_path.read_text(encoding="utf-8")
-            if re.search(self.pattern, content):
+            if re.search(self.pattern, content, re.DOTALL):
                 return 1.0
             return EvaluationReason(
                 value=0.0,
