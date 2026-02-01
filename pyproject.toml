@@ -8,7 +8,7 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "pydantic-ai-slim[evals,logfire,mcp]>=0.0.1.dev1661",
+    "pydantic-ai @ git+ssh://git@github.com/voorhs/pydantic-ai.git@5ab6940",
     "pydantic-settings>=2.12.0,<3.0",
 ]
 
@@ -19,18 +19,9 @@ dev = [
     "ruff~=0.14.14",
 ]
 
-[project.optional-dependencies]
-openai = [
-    "pydantic-ai-slim[openai]>=0.0.1.dev1661",
-]
-
 [build-system]
 requires = ["uv_build>=0.8.8,<0.9.0"]
 build-backend = "uv_build"
-
-[tool.uv.sources]
-pydantic-ai-slim = { git = "https://github.com/voorhs/pydantic-ai.git", branch = "f/case-context-manager", subdirectory = "pydantic_ai_slim"}
-pydantic-evals = { git = "https://github.com/voorhs/pydantic-ai.git", branch = "f/case-context-manager", subdirectory = "pydantic_evals"}
 
 [tool.ruff]
 line-length = 120
