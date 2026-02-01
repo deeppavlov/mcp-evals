@@ -3,8 +3,8 @@
 from unittest.mock import MagicMock
 
 import pytest
-from pydantic_ai.run import AgentRunResult  # type: ignore[import-untyped]
-from pydantic_evals.evaluators import Evaluator  # type: ignore[import-untyped]
+from pydantic_ai.run import AgentRunResult
+from pydantic_evals.evaluators import Evaluator
 
 from mcp_evals.secrets import TaskSecrets
 from mcp_evals.task import Task
@@ -135,7 +135,7 @@ class TestTaskSecrets:
 
         # First access
         secrets1 = task.secrets
-        assert secrets1.task_api_key == "secret123"
+        assert secrets1.task_api_key == "secret123"  # type: ignore[attr-defined]
 
         # Second access should return same instance (cached)
         secrets2 = task.secrets
@@ -152,7 +152,7 @@ class TestTaskSecrets:
             secrets_type = CustomTaskSecrets
 
         task = TestTask()
-        assert task.secrets.custom_field == "custom_value"
+        assert task.secrets.custom_field == "custom_value"  # type: ignore[attr-defined]
 
     async def test_default_secrets_type(self) -> None:
         """Test that default TaskSecrets is used when not specified."""

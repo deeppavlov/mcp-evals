@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from pydantic_ai.run import AgentRunResult  # type: ignore[import-untyped]
+from pydantic_ai.run import AgentRunResult
 from pydantic_evals import Case, Dataset
 
 from mcp_evals.domain import Domain

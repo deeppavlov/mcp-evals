@@ -5,12 +5,13 @@ from functools import cached_property
 from types import TracebackType
 from typing import ClassVar, Self
 
-from pydantic_ai.run import AgentRunResult  # type: ignore[import-untyped]
+from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import Evaluator
 
 from mcp_evals.secrets import TaskSecrets
 
 
+# TODO make it generic to secrets type
 class Task(ABC):
     """Abstract base for evaluation tasks.
 
@@ -30,7 +31,7 @@ class Task(ABC):
 
     name: str
     goal: str
-    evaluators: tuple[Evaluator["Task", AgentRunResult]]
+    evaluators: tuple[Evaluator["Task", AgentRunResult], ...]
 
     output_type: type | None = None
     secrets_type: ClassVar[type[TaskSecrets]] = TaskSecrets

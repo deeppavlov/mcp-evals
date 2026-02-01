@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from mcp_evals.evaluators import ContentMatches, FileExists
+from mcp_evals.evaluators import ContentMatches, EvaluationReason, FileExists
 
 
 @pytest.mark.asyncio
@@ -33,6 +33,7 @@ class TestFileExists:
             evaluator = FileExists(path=str(test_file))
             result = await evaluator.evaluate(MagicMock())
 
+            assert isinstance(result, EvaluationReason)
             assert result.value == 0.0
             assert "does not exist" in result.reason
 
@@ -45,6 +46,7 @@ class TestFileExists:
             evaluator = FileExists(path=str(test_dir))
             result = await evaluator.evaluate(MagicMock())
 
+            assert isinstance(result, EvaluationReason)
             assert result.value == 0.0
             assert "is not a file" in result.reason
 
@@ -113,6 +115,7 @@ class TestContentMatches:
             evaluator = ContentMatches(path=str(test_file), pattern=r"port.*8080")
             result = await evaluator.evaluate(MagicMock())
 
+            assert isinstance(result, EvaluationReason)
             assert result.value == 0.0
             assert "does not match pattern" in result.reason
 
@@ -124,6 +127,7 @@ class TestContentMatches:
             evaluator = ContentMatches(path=str(test_file), pattern=r".*")
             result = await evaluator.evaluate(MagicMock())
 
+            assert isinstance(result, EvaluationReason)
             assert result.value == 0.0
             assert "does not exist" in result.reason
 
@@ -136,6 +140,7 @@ class TestContentMatches:
             evaluator = ContentMatches(path=str(test_dir), pattern=r".*")
             result = await evaluator.evaluate(MagicMock())
 
+            assert isinstance(result, EvaluationReason)
             assert result.value == 0.0
             assert "is not a file" in result.reason
 
@@ -186,6 +191,7 @@ class TestContentMatches:
                     evaluator = ContentMatches(path=str(test_file), pattern=r".*")
                     result = await evaluator.evaluate(MagicMock())
 
+                    assert isinstance(result, EvaluationReason)
                     assert result.value == 0.0
                     assert "Error reading file" in result.reason
                 finally:
@@ -201,6 +207,7 @@ class TestContentMatches:
             evaluator = ContentMatches(path=str(test_file), pattern=r"hello")
             result = await evaluator.evaluate(MagicMock())
 
+            assert isinstance(result, EvaluationReason)
             assert result.value == 0.0
 
             # Case sensitive - should match
@@ -225,4 +232,5 @@ class TestContentMatches:
             evaluator = ContentMatches(path=str(test_file), pattern=r".+")
             result = await evaluator.evaluate(MagicMock())
 
+            assert isinstance(result, EvaluationReason)
             assert result.value == 0.0

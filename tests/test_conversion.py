@@ -2,9 +2,10 @@
 
 from unittest.mock import MagicMock
 
-from pydantic_ai.run import AgentRunResult  # type: ignore[import-untyped]
-from pydantic_evals import Case, Dataset  # type: ignore[import-untyped]
-from pydantic_evals.evaluators import Evaluator  # type: ignore[import-untyped]
+from pydantic_ai.mcp import MCPServer
+from pydantic_ai.run import AgentRunResult
+from pydantic_evals import Case, Dataset
+from pydantic_evals.evaluators import Evaluator
 
 from mcp_evals._internal.conversion import domain_to_dataset
 from mcp_evals.domain import Domain
@@ -37,7 +38,7 @@ class ConcreteDomain(Domain):
     def __init__(self, tasks: list[Task] | None = None) -> None:
         self._tasks = tasks or []
 
-    def mcp_servers(self) -> list:
+    def mcp_servers(self) -> list[MCPServer]:
         """Return empty list of MCP servers."""
         return []
 
@@ -133,7 +134,7 @@ class TestDomainToDataset:
             evaluators=(),
         )
         # Add custom attribute
-        task.custom_attr = "custom_value"  # type: ignore[attr-defined]
+        task.custom_attr = "custom_value"  # type: ignore[assignment]
 
         domain = ConcreteDomain(tasks=[task])
         dataset = domain_to_dataset(domain)

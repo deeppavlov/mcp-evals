@@ -7,11 +7,11 @@ from typing import Any, Self
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from pydantic_ai.agent import Agent  # type: ignore[import-untyped]
-from pydantic_ai.mcp import MCPServer  # type: ignore[import-untyped]
-from pydantic_ai.run import AgentRunResult  # type: ignore[import-untyped]
-from pydantic_ai.toolsets import CombinedToolset  # type: ignore[import-untyped]
-from pydantic_evals.evaluators import Evaluator  # type: ignore[import-untyped]
+from pydantic_ai.agent import Agent
+from pydantic_ai.mcp import MCPServer
+from pydantic_ai.run import AgentRunResult
+from pydantic_ai.toolsets import CombinedToolset
+from pydantic_evals.evaluators import Evaluator
 
 from mcp_evals.domain import Domain
 from mcp_evals.task import Task

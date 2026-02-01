@@ -5,8 +5,8 @@ from functools import cached_property
 from types import TracebackType
 from typing import TYPE_CHECKING, ClassVar, Self
 
-from pydantic_ai.mcp import MCPServer  # type: ignore[import-untyped]
-from pydantic_ai.toolsets import CombinedToolset  # type: ignore[import-untyped]
+from pydantic_ai.mcp import MCPServer
+from pydantic_ai.toolsets import CombinedToolset
 
 from mcp_evals.secrets import DomainSecrets
 

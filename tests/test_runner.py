@@ -3,11 +3,13 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from pydantic_ai.agent import Agent  # type: ignore[import-untyped]
-from pydantic_evals.reporting import EvaluationReport  # type: ignore[import-untyped]
+from pydantic_ai.agent import Agent
+from pydantic_ai.mcp import MCPServer
+from pydantic_evals.reporting import EvaluationReport
 
 from mcp_evals.domain import Domain
 from mcp_evals.runner import BenchmarkRunner
+from mcp_evals.task import Task
 
 
 class ConcreteDomain(Domain):
@@ -18,11 +20,11 @@ class ConcreteDomain(Domain):
     def __init__(self, name: str = "test_domain") -> None:
         self.name = name
 
-    def mcp_servers(self) -> list:
+    def mcp_servers(self) -> list[MCPServer]:
         """Return empty list of MCP servers."""
         return []
 
-    def tasks(self) -> list:
+    def tasks(self) -> list[Task]:
         """Return empty list of tasks."""
         return []
 

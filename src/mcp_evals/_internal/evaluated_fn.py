@@ -2,9 +2,9 @@
 
 from typing import Any
 
-from pydantic_ai.agent import Agent, OutputDataT  # type: ignore[import-untyped]
-from pydantic_ai.run import AgentRunResult  # type: ignore[import-untyped]
-from pydantic_ai.toolsets import CombinedToolset  # type: ignore[import-untyped]
+from pydantic_ai.agent import Agent, OutputDataT
+from pydantic_ai.run import AgentRunResult
+from pydantic_ai.toolsets import CombinedToolset
 
 from mcp_evals.task import Task
 
@@ -13,7 +13,7 @@ async def run_agent_on_task(
     task: Task,
     *,
     agent: Agent[Any, OutputDataT],
-    toolset: CombinedToolset,
+    toolset: CombinedToolset[Any],
 ) -> AgentRunResult[OutputDataT]:
     """The function evaluated by pydantic_evals for each Case.
 
