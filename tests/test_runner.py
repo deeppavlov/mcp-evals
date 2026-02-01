@@ -44,6 +44,7 @@ class TestBenchmarkRunnerInitialization:
         assert domain2 in runner.domains
 
 
+@pytest.mark.asyncio
 class TestBenchmarkRunnerRun:
     """Tests for BenchmarkRunner.run() method."""
 
@@ -59,7 +60,7 @@ class TestBenchmarkRunnerRun:
 
         call_order = []
 
-        async def mock_run_domain(domain: Domain, agent: Agent) -> EvaluationReport:
+        async def mock_run_domain(domain: Domain, agent: Agent) -> EvaluationReport:  # noqa: ARG001
             call_order.append(domain.name)
             if domain.name == "domain1":
                 return mock_report1
@@ -130,7 +131,7 @@ class TestBenchmarkRunnerRun:
 
         mock_report1 = MagicMock(spec=EvaluationReport)
 
-        async def mock_run_domain(domain: Domain, agent: Agent) -> EvaluationReport:
+        async def mock_run_domain(domain: Domain, agent: Agent) -> EvaluationReport:  # noqa: ARG001
             if domain.name == "domain1":
                 return mock_report1
             raise ValueError("Domain execution failed")
@@ -150,7 +151,7 @@ class TestBenchmarkRunnerRun:
 
         received_agents = []
 
-        async def mock_run_domain(agent: Agent) -> EvaluationReport:
+        async def mock_run_domain(domain: Domain, agent: Agent) -> EvaluationReport:  # noqa: ARG001
             received_agents.append(agent)
             return MagicMock(spec=EvaluationReport)
 

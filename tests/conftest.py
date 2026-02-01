@@ -2,7 +2,8 @@
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any
+from types import TracebackType
+from typing import Any, Self
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -120,7 +121,7 @@ class MockDomain(Domain):
         """Track that teardown was called."""
         self._teardown_called.append(True)
 
-    async def __aenter__(self) -> "MockDomain":
+    async def __aenter__(self) -> Self:
         """Enter context with optional mock toolset."""
         if self._mock_toolset is not None:
             # Use provided mock toolset
@@ -132,7 +133,9 @@ class MockDomain(Domain):
         # Use parent implementation
         return await super().__aenter__()
 
-    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> bool | None:
+    async def __aexit__(
+        self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: TracebackType | None
+    ) -> bool | None:
         """Exit context with optional mock toolset."""
         if self._mock_toolset is not None:
             # Use provided mock toolset

@@ -28,6 +28,7 @@ class ConcreteTask(Task):
         self.evaluators = evaluators or ()
 
 
+@pytest.mark.asyncio
 class TestTaskContextManager:
     """Tests for Task as async context manager."""
 
@@ -116,6 +117,7 @@ class TestTaskContextManager:
         assert len(teardown_called) == 1
 
 
+@pytest.mark.asyncio
 class TestTaskSecrets:
     """Tests for Task secrets functionality."""
 
@@ -199,6 +201,7 @@ class TestTaskAttributes:
         assert task.output_type is None
 
 
+@pytest.mark.asyncio
 class TestTaskLifecycle:
     """Tests for Task lifecycle methods."""
 

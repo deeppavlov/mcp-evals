@@ -89,6 +89,7 @@ class TestFileExists:
             assert result == 1.0
 
 
+@pytest.mark.asyncio
 class TestContentMatches:
     """Tests for ContentMatches evaluator."""
 
