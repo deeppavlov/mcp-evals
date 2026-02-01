@@ -31,3 +31,23 @@ build-backend = "uv_build"
 [tool.uv.sources]
 pydantic-ai-slim = { git = "https://github.com/voorhs/pydantic-ai.git", branch = "f/case-context-manager", subdirectory = "pydantic_ai_slim"}
 pydantic-evals = { git = "https://github.com/voorhs/pydantic-ai.git", branch = "f/case-context-manager", subdirectory = "pydantic_evals"}
+
+[tool.ruff]
+line-length = 120
+indent-width = 4
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "COM812",  # trailing commas
+    "ERA001",  # commented code
+    "FBT",     # boolean trap
+    "D105",    # docstring in magic methods
+]
+
+[tool.ruff.lint.pylint]
+max-args = 10
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
