@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  pull_request:
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Generate cache key
+        id: cache-key
+        run: echo "key=venv-${{ runner.os }}-${{ hashFiles('pdm.lock') }}" >> $GITHUB_OUTPUT
+
+      - name: Cache venv
+        id: cache-venv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: ${{ steps.cache-key.outputs.key }}
+
+      - name: Install uv
+        if: steps.cache-venv.outputs.cache-hit != 'true'
+        uses: astral-sh/setup-uv@v6
+
+
+      - name: Install dependencies
+        if: steps.cache-venv.outputs.cache-hit != 'true'
+        run: uv sync --all-groups --all-extras
+
+  lint:
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Restore venv cache
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+          fail-on-cache-miss: true
+
+      - name: Ruff
+        run: .venv/bin/ruff check .
+
+  type-check:
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Restore venv cache
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+          fail-on-cache-miss: true
+
+      - name: Mypy
+        run: .venv/bin/mypy .
+
+  test:
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Restore venv cache
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+          fail-on-cache-miss: true
+
+      - name: Run Tests
+        run: .venv/bin/pytest
