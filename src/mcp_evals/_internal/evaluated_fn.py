@@ -2,9 +2,9 @@
 
 from typing import Any
 
-from pydantic_ai.agent import Agent, OutputDataT
-from pydantic_ai.run import AgentRunResult
-from pydantic_ai.toolsets import CombinedToolset
+from pydantic_ai.agent import Agent, OutputDataT  # type: ignore[import-untyped]
+from pydantic_ai.run import AgentRunResult  # type: ignore[import-untyped]
+from pydantic_ai.toolsets import CombinedToolset  # type: ignore[import-untyped]
 
 from mcp_evals.task import Task
 

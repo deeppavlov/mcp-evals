@@ -1,25 +1,23 @@
 """Task abstraction for evaluation tasks."""
 
 from abc import ABC
-from collections.abc import Sequence
-from contextlib import AbstractAsyncContextManager
 from functools import cached_property
 from types import TracebackType
-from typing import TYPE_CHECKING, ClassVar, Self
+from typing import ClassVar, Self
+
+from pydantic_ai.run import AgentRunResult  # type: ignore[import-untyped]
+from pydantic_evals.evaluators import Evaluator
 
 from mcp_evals.secrets import TaskSecrets
 
-if TYPE_CHECKING:
-    from pydantic_evals.evaluators import Evaluator
 
-
-class Task(AbstractAsyncContextManager, ABC):
+class Task(ABC):
     """Abstract base for evaluation tasks.
 
     Required attributes (class attributes or @property):
     - `name: str`                       - Unique task identifier
     - `goal: str`                       - Prompt/instruction for the agent
-    - `evaluators: Sequence[Evaluator]` - Verification functions
+    - `evaluators: tuple[Evaluator]`    - Verification functions
 
     Optional attributes:
     - `output_type: type | None`        - Pydantic model for structured output
@@ -32,7 +30,7 @@ class Task(AbstractAsyncContextManager, ABC):
 
     name: str
     goal: str
-    evaluators: Sequence["Evaluator"]
+    evaluators: tuple[Evaluator["Task", AgentRunResult]]
 
     output_type: type | None = None
     secrets_type: ClassVar[type[TaskSecrets]] = TaskSecrets
@@ -54,6 +52,8 @@ class Task(AbstractAsyncContextManager, ABC):
 
     async def setup(self) -> None:
         """Override to perform setup before agent execution."""
+        return
 
     async def teardown(self) -> None:
         """Override to perform cleanup after agent execution."""
+        return

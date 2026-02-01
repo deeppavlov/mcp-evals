@@ -1,6 +1,6 @@
 """Benchmark runner for executing evaluation benchmarks."""
 
-from pydantic_ai.agent import Agent
+from pydantic_ai.agent import Agent  # type: ignore[import-untyped]
 from pydantic_evals.reporting import EvaluationReport
 
 from mcp_evals._internal.runner import run_domain

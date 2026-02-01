@@ -3,7 +3,7 @@
 import re
 from pathlib import Path
 
-from pydantic_ai.run import AgentRunResult
+from pydantic_ai.run import AgentRunResult  # type: ignore[import-untyped]
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
 
 from mcp_evals.task import Task
@@ -28,7 +28,7 @@ class FileExists(Evaluator[Task, AgentRunResult]):
         file_path = Path(self.path)
 
         if file_path.exists() and file_path.is_file():
-            return EvaluatorOutput(value=1.0)
+            return 1.0
         return EvaluationReason(
             value=0.0,
             reason=f"File '{self.path}' does not exist or is not a file",
@@ -68,7 +68,7 @@ class ContentMatches(Evaluator[Task, AgentRunResult]):
         try:
             content = file_path.read_text(encoding="utf-8")
             if re.search(self.pattern, content):
-                return EvaluatorOutput(value=1.0)
+                return 1.0
             return EvaluationReason(
                 value=0.0,
                 reason=f"File '{self.path}' content does not match pattern '{self.pattern}'",

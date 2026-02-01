@@ -1,13 +1,12 @@
 """Domain abstraction for evaluation domains."""
 
 from abc import ABC, abstractmethod
-from contextlib import AbstractAsyncContextManager
 from functools import cached_property
 from types import TracebackType
 from typing import TYPE_CHECKING, ClassVar, Self
 
-from pydantic_ai.mcp import MCPServer
-from pydantic_ai.toolsets import CombinedToolset
+from pydantic_ai.mcp import MCPServer  # type: ignore[import-untyped]
+from pydantic_ai.toolsets import CombinedToolset  # type: ignore[import-untyped]
 
 from mcp_evals.secrets import DomainSecrets
 
@@ -15,7 +14,7 @@ if TYPE_CHECKING:
     from mcp_evals.task import Task
 
 
-class Domain(AbstractAsyncContextManager, ABC):
+class Domain(ABC):
     """Abstract base for evaluation domains.
 
     Domain is an async context manager that:
@@ -91,6 +90,8 @@ class Domain(AbstractAsyncContextManager, ABC):
 
     async def setup(self) -> None:
         """Override to perform setup before MCP servers are started."""
+        return
 
     async def teardown(self) -> None:
         """Override to perform cleanup after MCP servers are stopped."""
+        return
