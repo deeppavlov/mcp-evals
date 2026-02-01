@@ -8,7 +8,7 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "pydantic-ai @ git+ssh://git@github.com/voorhs/pydantic-ai.git@d55ae56",
+    "pydantic-ai",
     "pydantic-settings>=2.12.0,<3.0",
 ]
 
@@ -19,6 +19,9 @@ dev = [
     "ruff~=0.14.14",
     "pytest-asyncio~=1.3.0",
 ]
+
+[tool.uv.sources]
+pydantic-ai = { git = "https://github.com/voorhs/pydantic-ai", rev = "d55ae56" }
 
 [build-system]
 requires = ["uv_build>=0.8.8,<0.9.0"]

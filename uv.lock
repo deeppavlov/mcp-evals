@@ -1407,7 +1407,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "pydantic-ai", git = "ssh://git@github.com/voorhs/pydantic-ai.git?rev=d55ae56" },
+    { name = "pydantic-ai", git = "https://github.com/voorhs/pydantic-ai?rev=d55ae56" },
     { name = "pydantic-settings", specifier = ">=2.12.0,<3.0" },
 ]
 
@@ -2043,7 +2043,7 @@ email = [
 [[package]]
 name = "pydantic-ai"
 version = "0.0.1.dev1661+d55ae560"
-source = { git = "ssh://git@github.com/voorhs/pydantic-ai.git?rev=d55ae56#d55ae560278be7979a8e6e0045f6fc05f770d058" }
+source = { git = "https://github.com/voorhs/pydantic-ai?rev=d55ae56#d55ae560278be7979a8e6e0045f6fc05f770d058" }
 dependencies = [
     { name = "pydantic-ai-slim", extra = ["ag-ui", "anthropic", "bedrock", "cli", "cohere", "evals", "fastmcp", "google", "groq", "huggingface", "logfire", "mcp", "mistral", "openai", "retries", "temporal", "ui", "vertexai", "xai"] },
 ]
@@ -2051,7 +2051,7 @@ dependencies = [
 [[package]]
 name = "pydantic-ai-slim"
 version = "0.0.1.dev1661+d55ae560"
-source = { git = "ssh://git@github.com/voorhs/pydantic-ai.git?subdirectory=pydantic_ai_slim&rev=d55ae56#d55ae560278be7979a8e6e0045f6fc05f770d058" }
+source = { git = "https://github.com/voorhs/pydantic-ai?subdirectory=pydantic_ai_slim&rev=d55ae56#d55ae560278be7979a8e6e0045f6fc05f770d058" }
 dependencies = [
     { name = "genai-prices" },
     { name = "griffe" },
@@ -2201,7 +2201,7 @@ wheels = [
 [[package]]
 name = "pydantic-evals"
 version = "0.0.1.dev1661+d55ae560"
-source = { git = "ssh://git@github.com/voorhs/pydantic-ai.git?subdirectory=pydantic_evals&rev=d55ae56#d55ae560278be7979a8e6e0045f6fc05f770d058" }
+source = { git = "https://github.com/voorhs/pydantic-ai?subdirectory=pydantic_evals&rev=d55ae56#d55ae560278be7979a8e6e0045f6fc05f770d058" }
 dependencies = [
     { name = "anyio" },
     { name = "logfire-api" },
@@ -2214,7 +2214,7 @@ dependencies = [
 [[package]]
 name = "pydantic-graph"
 version = "0.0.1.dev1661+d55ae560"
-source = { git = "ssh://git@github.com/voorhs/pydantic-ai.git?subdirectory=pydantic_graph&rev=d55ae56#d55ae560278be7979a8e6e0045f6fc05f770d058" }
+source = { git = "https://github.com/voorhs/pydantic-ai?subdirectory=pydantic_graph&rev=d55ae56#d55ae560278be7979a8e6e0045f6fc05f770d058" }
 dependencies = [
     { name = "httpx" },
     { name = "logfire-api" },
