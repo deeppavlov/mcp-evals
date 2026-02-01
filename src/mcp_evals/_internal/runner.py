@@ -4,8 +4,8 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from functools import partial
 
-from pydantic_ai.agent import Agent  # type: ignore[import-untyped]
-from pydantic_ai.run import AgentRunResult  # type: ignore[import-untyped]
+from pydantic_ai.agent import Agent
+from pydantic_ai.run import AgentRunResult
 from pydantic_evals import Case
 from pydantic_evals.reporting import EvaluationReport
 

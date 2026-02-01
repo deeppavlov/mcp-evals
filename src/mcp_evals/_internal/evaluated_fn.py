@@ -2,7 +2,8 @@
 
 from typing import Any
 
-from pydantic_ai.agent import Agent, OutputDataT
+from pydantic_ai.agent import Agent
+from pydantic_ai.output import OutputDataT
 from pydantic_ai.run import AgentRunResult
 from pydantic_ai.toolsets import CombinedToolset
 

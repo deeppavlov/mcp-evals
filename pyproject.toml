@@ -8,7 +8,7 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "pydantic-ai @ git+ssh://git@github.com/voorhs/pydantic-ai.git@5ab6940",
+    "pydantic-ai @ git+ssh://git@github.com/voorhs/pydantic-ai.git@d55ae56",
     "pydantic-settings>=2.12.0,<3.0",
 ]
 
