@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 from contextlib import AsyncExitStack
-from typing import Self
+from pathlib import Path
 
 import aiofiles
 from pydantic_ai.mcp import MCPServerStdio
@@ -21,7 +21,7 @@ class FilesystemDomain(Domain):
     name = "filesystem"
     _stack: AsyncExitStack | None = None
 
-    async def setup(self) -> Self:
+    async def setup(self) -> None:
         """Creeate tmp dir for filesystem operations."""
         if self._stack is not None:
             msg = "Attempted to create FilesystemDomain again"
@@ -31,7 +31,7 @@ class FilesystemDomain(Domain):
         await self._stack.__aenter__()
 
         tmpdir_ctx = aiofiles.tempfile.TemporaryDirectory(prefix="mcp-filesystem-")
-        self._tmp_dir = await self._stack.enter_async_context(tmpdir_ctx)
+        self._tmp_dir = Path(await self._stack.enter_async_context(tmpdir_ctx))
 
     async def teardown(self) -> None:  # noqa: D102
         if self._stack is None:
@@ -46,7 +46,7 @@ class FilesystemDomain(Domain):
         The server uses FILESYSTEM_ROOT environment variable which is set
         by tasks during setup(). Each task sets it to its isolated workspace.
         """
-        return [MCPServerStdio("npx", ["-y", "@modelcontextprotocol/server-filesystem", self._tmp_dir])]
+        return [MCPServerStdio("npx", ["-y", "@modelcontextprotocol/server-filesystem", str(self._tmp_dir)])]
 
     def tasks(self) -> Sequence[MusicReportTask | DuplicatesSearchingTask]:
         """Return all filesystem tasks."""

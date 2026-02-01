@@ -237,7 +237,7 @@ After completing the task, the directory structure should be:
         fixture_path = await download_fixture(Fixture.FILE_CONTEXT)
 
         # Create isolated workspace - enter context manager into stack
-        workspace_ctx = create_isolated_workspace(fixture_path, self.work_dir)
+        workspace_ctx = create_isolated_workspace(fixture_path, self.root_dir)
         self.work_dir = await self._stack.enter_async_context(workspace_ctx)
 
     async def teardown(self) -> None:
