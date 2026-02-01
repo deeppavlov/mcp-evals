@@ -8,6 +8,7 @@ from enum import StrEnum
 from pathlib import Path
 
 try:
+    import aiofiles
     import aiofiles.tempfile
 except ImportError as e:
     msg = "aiofiles is required for filesystem tasks. Install with: pip install 'mcp-evals[domain-filesystem]'"
@@ -23,6 +24,12 @@ try:
     from appdirs import user_cache_dir  # type: ignore[import-untyped]
 except ImportError as e:
     msg = "appdirs is required for filesystem tasks. Install with: pip install 'mcp-evals[domain-filesystem]'"
+    raise ImportError(msg) from e
+
+try:
+    from tqdm import tqdm
+except ImportError as e:
+    msg = "tqdm is required for filesystem tasks. Install with: pip install 'mcp-evals[domain-filesystem]'"
     raise ImportError(msg) from e
 
 
@@ -92,11 +99,24 @@ async def download_fixture(category: Fixture) -> Path:
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        # Download using httpx
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, follow_redirects=True)
+        # Download using httpx with streaming
+        async with (
+            httpx.AsyncClient(timeout=60) as client,
+            client.stream("GET", url, follow_redirects=True) as response,
+        ):
             response.raise_for_status()
-            zip_path.write_bytes(response.content)
+            total_size = int(response.headers.get("content-length", 0)) or None
+            async with aiofiles.open(zip_path, "wb") as f:
+                with tqdm(
+                    total=total_size,
+                    unit="B",
+                    unit_scale=True,
+                    unit_divisor=1024,
+                    desc=f"Downloading {category}",
+                ) as pbar:
+                    async for chunk in response.aiter_bytes():
+                        await f.write(chunk)
+                        pbar.update(len(chunk))
 
         # Extract ZIP file
         with zipfile.ZipFile(zip_path) as zip_file:
