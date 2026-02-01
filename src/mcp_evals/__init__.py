@@ -1,2 +1,14 @@
-def hello() -> str:
-    return "Hello from mcp-universe-adapted!"
+"""MCP Evals - A code-first evaluation framework for testing LLM agents' ability to use MCP tools."""
+
+from mcp_evals.domain import Domain
+from mcp_evals.runner import BenchmarkRunner
+from mcp_evals.secrets import DomainSecrets, TaskSecrets
+from mcp_evals.task import Task
+
+__all__ = [
+    "BenchmarkRunner",
+    "Domain",
+    "DomainSecrets",
+    "Task",
+    "TaskSecrets",
+]

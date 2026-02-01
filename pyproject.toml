@@ -1,14 +1,68 @@
 [project]
 name = "mcp-evals"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.0.1"
+description = "A code-first evaluation framework for testing LLM agents' ability to use MCP tools"
 readme = "README.md"
 authors = [
     { name = "voorhs", email = "ilya_alekseev_2016@list.ru" }
 ]
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "pydantic-ai",
+    "pydantic-settings>=2.12.0,<3.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest~=9.0.2",
+    "mypy~=1.19.1",
+    "ruff~=0.14.14",
+    "pytest-asyncio~=1.3.0",
+]
+
+[tool.uv.sources]
+pydantic-ai = { git = "https://github.com/voorhs/pydantic-ai", rev = "d55ae56" }
 
 [build-system]
 requires = ["uv_build>=0.8.8,<0.9.0"]
 build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 120
+indent-width = 4
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "COM812",     # trailing commas
+    "ERA001",     # commented code
+    "FBT",        # boolean trap
+    "D105",       # docstring in magic methods
+    "EM101",      # string literal in exception
+    "TRY003",     # strings in exceptions
+    "FIX", "TD"   # todos
+]
+
+[tool.ruff.lint.pylint]
+max-args = 10
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = ["S", "PLR2004", "ERA", "D", "ANN", "SLF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_redundant_casts = true
+warn_unreachable = true
+local_partial_types = true
+plugins = [
+    "pydantic.mypy",
+]
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
