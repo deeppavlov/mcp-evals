@@ -1,6 +1,5 @@
 """Music Report task for filesystem domain."""
 
-import os
 from contextlib import AsyncExitStack
 from pathlib import Path
 
@@ -380,7 +379,7 @@ Create a file named `music_analysis_report.txt` in the `music/` folder with the 
     _stack: AsyncExitStack | None = None
     work_dir: Path | None = None
 
-    def __init__(self) -> None:
+    def __init__(self, root_dir: Path) -> None:
         """Initialize the task with evaluators."""
         self.evaluators = (
             FileExists("music/music_analysis_report.txt"),
@@ -391,6 +390,7 @@ Create a file named `music_analysis_report.txt` in the `music/` folder with the 
             PopularityScoresMatchExpected(),
             Top5Songs(),
         )
+        self.root_dir = root_dir
 
     async def setup(self) -> None:
         """Set up the task environment."""
@@ -405,24 +405,11 @@ Create a file named `music_analysis_report.txt` in the `music/` folder with the 
         fixture_path = await download_fixture(Fixture.DESKTOP)
 
         # Create isolated workspace - enter context manager into stack
-        workspace_ctx = create_isolated_workspace(fixture_path)
+        workspace_ctx = create_isolated_workspace(fixture_path, self.root_dir)
         self.work_dir = await self._stack.enter_async_context(workspace_ctx)
-
-        # Set FILESYSTEM_ROOT for MCP server
-        old_value = os.environ.get("FILESYSTEM_ROOT")
-        os.environ["FILESYSTEM_ROOT"] = str(self.work_dir)
-        self._stack.callback(self._restore_env, "FILESYSTEM_ROOT", old_value)
 
     async def teardown(self) -> None:
         """Clean up the task environment."""
         if self._stack is not None:
             await self._stack.aclose()
             self._stack = None
-
-    @staticmethod
-    def _restore_env(key: str, old_value: str | None) -> None:
-        """Restore environment variable to previous value."""
-        if old_value is None:
-            os.environ.pop(key, None)
-        else:
-            os.environ[key] = old_value

@@ -129,7 +129,7 @@ async def download_fixture(category: Fixture) -> Path:
 
 
 @asynccontextmanager
-async def create_isolated_workspace(fixture_path: Path) -> AsyncIterator[Path]:
+async def create_isolated_workspace(fixture_path: Path, work_dir: Path) -> AsyncIterator[Path]:
     """Create isolated workspace by copying fixture to temp directory.
 
     Returns an async context manager that tasks enter into their AsyncExitStack.
@@ -137,11 +137,12 @@ async def create_isolated_workspace(fixture_path: Path) -> AsyncIterator[Path]:
 
     Args:
         fixture_path: Path to the fixture directory to copy
+        work_dir: Path to the root directory which MCP has access to
 
     Yields:
         Path to the isolated workspace directory
     """
-    async with aiofiles.tempfile.TemporaryDirectory() as temp_dir:
+    async with aiofiles.tempfile.TemporaryDirectory(dir=str(work_dir)) as temp_dir:
         work_dir = Path(temp_dir) / "workspace"
         shutil.copytree(fixture_path, work_dir)
         yield work_dir

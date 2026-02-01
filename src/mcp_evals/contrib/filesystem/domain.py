@@ -16,8 +16,6 @@ class FilesystemDomain(Domain):
     """Domain for filesystem tasks from MCP Universe.
 
     Provides MCP filesystem server and groups related filesystem tasks.
-    The FILESYSTEM_ROOT environment variable is set by individual tasks
-    during their setup() phase.
     """
 
     name = "filesystem"
@@ -26,7 +24,7 @@ class FilesystemDomain(Domain):
     async def setup(self) -> Self:
         """Creeate tmp dir for filesystem operations."""
         if self._stack is not None:
-            msg = "FilesystemDomain created twice"
+            msg = "Attempted to create FilesystemDomain again"
             raise RuntimeError(msg)
 
         self._stack = AsyncExitStack()
@@ -52,4 +50,4 @@ class FilesystemDomain(Domain):
 
     def tasks(self) -> Sequence[MusicReportTask | DuplicatesSearchingTask]:
         """Return all filesystem tasks."""
-        return [MusicReportTask(), DuplicatesSearchingTask()]
+        return [MusicReportTask(self._tmp_dir), DuplicatesSearchingTask(self._tmp_dir)]
