@@ -1,14 +1,33 @@
 [project]
 name = "mcp-evals"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.0.1"
+description = "A code-first evaluation framework for testing LLM agents' ability to use MCP tools"
 readme = "README.md"
 authors = [
     { name = "voorhs", email = "ilya_alekseev_2016@list.ru" }
 ]
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "pydantic-ai-slim[evals,logfire,mcp]>=0.0.1.dev1661",
+    "pydantic-settings>=2.12.0,<3.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest~=9.0.2",
+    "mypy~=1.19.1",
+    "ruff~=0.14.14",
+]
+
+[project.optional-dependencies]
+openai = [
+    "pydantic-ai-slim[openai]>=0.0.1.dev1661",
+]
 
 [build-system]
 requires = ["uv_build>=0.8.8,<0.9.0"]
 build-backend = "uv_build"
+
+[tool.uv.sources]
+pydantic-ai-slim = { git = "https://github.com/voorhs/pydantic-ai.git", branch = "f/case-context-manager", subdirectory = "pydantic_ai_slim"}
+pydantic-evals = { git = "https://github.com/voorhs/pydantic-ai.git", branch = "f/case-context-manager", subdirectory = "pydantic_evals"}
