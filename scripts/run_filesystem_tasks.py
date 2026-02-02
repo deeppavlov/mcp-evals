@@ -50,6 +50,7 @@ import argparse
 import asyncio
 import os
 
+import logfire
 from loguru import logger
 from pydantic import Field, SecretStr
 from pydantic_ai import Agent
@@ -57,6 +58,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from mcp_evals import BenchmarkRunner
 from mcp_evals.contrib.filesystem import FilesystemDomain
+
+logfire.configure(send_to_logfire="if-token-present")
+logfire.instrument_pydantic_ai()
 
 
 class ScriptSettings(BaseSettings):
