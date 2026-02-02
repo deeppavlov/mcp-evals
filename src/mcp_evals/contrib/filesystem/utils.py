@@ -9,6 +9,7 @@ from enum import StrEnum
 from pathlib import Path
 
 from dotenv import load_dotenv
+from loguru import logger
 
 try:
     import aiofiles
@@ -89,7 +90,10 @@ async def download_fixture(category: Fixture) -> Path:
     if category not in FIXTURE_URL_MAPPING:
         supported = ", ".join(f.value for f in FIXTURE_URL_MAPPING)
         msg = f"Unknown category: {category}. Supported: {supported}"
+        logger.error(msg)
         raise ValueError(msg)
+
+    logger.debug(f"Downloading fixture '{category.value}'")
 
     cache_dir = Path(user_cache_dir("mcp-evals", "mcp-evals")) / "fixtures"
     fixture_path = cache_dir / category

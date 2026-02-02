@@ -5,6 +5,7 @@ from contextlib import AsyncExitStack
 from pathlib import Path
 
 import aiofiles
+from loguru import logger
 from pydantic_ai.mcp import MCPServerStdio
 
 from mcp_evals import Domain
@@ -30,12 +31,14 @@ class FilesystemDomain(Domain):
         self._stack = AsyncExitStack()
         await self._stack.__aenter__()
 
+        logger.debug(f"[{self.name}] Creating workspace directory...")
         tmpdir_ctx = aiofiles.tempfile.TemporaryDirectory(prefix="mcp-filesystem-")
         self._tmp_dir = Path(await self._stack.enter_async_context(tmpdir_ctx))
 
     async def teardown(self) -> None:  # noqa: D102
         if self._stack is None:
             msg = "FilesystemDomain wasn't created"
+            logger.exception(msg)
             raise RuntimeError(msg)
 
         await self._stack.aclose()

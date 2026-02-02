@@ -139,7 +139,7 @@ def main() -> None:
             logger.info("\nDomain: filesystem")
             logger.info(f"Total tasks: {len(report.cases)}")
 
-            print(report.render())  # noqa: T201
+            report.print(include_reasons=True, include_output=True)
 
     asyncio.run(run())
 

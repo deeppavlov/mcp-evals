@@ -6,6 +6,7 @@ from functools import cached_property
 from types import TracebackType
 from typing import TYPE_CHECKING, ClassVar, Self
 
+from loguru import logger
 from pydantic_ai.mcp import MCPServer
 from pydantic_ai.toolsets import CombinedToolset
 
@@ -69,12 +70,18 @@ class Domain(ABC):
         # Prevent re-entry
         if self._toolset is not None:
             msg = f"Domain '{self.name}' context already entered"
+            logger.exception(msg)
             raise RuntimeError(msg)
+
+        logger.debug(f"[{self.name}] Entering domain")
 
         await self.setup()
 
+        logger.debug(f"[{self.name}] Connecting to MCP servers...")
         self._toolset = CombinedToolset(self.mcp_servers())
         await self._toolset.__aenter__()
+
+        logger.success(f"[{self.name}] Entered domain!")
 
         return self
 
@@ -82,10 +89,14 @@ class Domain(ABC):
         self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: TracebackType | None
     ) -> bool | None:
         if self._toolset is not None:
+            logger.debug(f"[{self.name}] Disconnecting MCP servers...")
             await self._toolset.__aexit__(exc_type, exc_val, exc_tb)
             self._toolset = None
 
+        logger.debug(f"[{self.name}] Quitting domain...")
         await self.teardown()
+
+        logger.success(f"[{self.name}] Quit domain!")
 
         return None
 
