@@ -139,35 +139,7 @@ def main() -> None:
             logger.info("\nDomain: filesystem")
             logger.info(f"Total tasks: {len(report.cases)}")
 
-            # Count passed cases (check if all evaluators passed)
-            passed_count = 0
-            for case in report.cases:
-                # Check if all evaluator outputs indicate success
-                all_passed = (
-                    all(getattr(eval_output, "value", 0.0) >= 1.0 for eval_output in case.evaluator_outputs)
-                    if hasattr(case, "evaluator_outputs")
-                    else False
-                )
-                if all_passed:
-                    passed_count += 1
-
-            logger.info(f"Passed: {passed_count}/{len(report.cases)}")
-            logger.info("\nTask Results:")
-            for case in report.cases:
-                # Check if all evaluators passed
-                all_passed = (
-                    all(getattr(eval_output, "value", 0.0) >= 1.0 for eval_output in case.evaluator_outputs)
-                    if hasattr(case, "evaluator_outputs")
-                    else False
-                )
-                status = "✓" if all_passed else "✗"
-                logger.info(f"  {status} {case.name}")
-                if not all_passed and hasattr(case, "evaluator_outputs"):
-                    for i, eval_output in enumerate(case.evaluator_outputs):
-                        value = getattr(eval_output, "value", 0.0)
-                        if value < 1.0:
-                            reason = getattr(eval_output, "reason", f"Evaluator {i + 1} failed")
-                            logger.info(f"    - {reason}")
+            print(report.render())  # noqa: T201
 
     asyncio.run(run())
 
