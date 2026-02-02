@@ -1,11 +1,14 @@
 """Utilities for downloading and managing filesystem test fixtures."""
 
+import os
 import shutil
 import zipfile
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from enum import StrEnum
 from pathlib import Path
+
+from dotenv import load_dotenv
 
 try:
     import aiofiles
@@ -62,6 +65,8 @@ FIXTURE_URL_MAPPING: dict[Fixture, str] = {
     Fixture.DESKTOP_TEMPLATE: "https://storage.mcpmark.ai/filesystem/desktop_template.zip",
 }
 
+load_dotenv()
+
 
 async def download_fixture(category: Fixture) -> Path:
     """Download and cache a filesystem test fixture.
@@ -78,6 +83,8 @@ async def download_fixture(category: Fixture) -> Path:
     Raises:
         ValueError: If category is not supported
         RuntimeError: If download or extraction fails
+
+    Note: use `DOWNLOAD_PROXY` env var to load fixtures with proxy.
     """
     if category not in FIXTURE_URL_MAPPING:
         supported = ", ".join(f.value for f in FIXTURE_URL_MAPPING)
@@ -100,8 +107,10 @@ async def download_fixture(category: Fixture) -> Path:
 
     try:
         # Download using httpx with streaming
+        timeout = httpx.Timeout(connect=5.0, read=5.0, write=10.0, pool=5.0)
+        proxy_url = os.getenv("DOWNLOAD_PROXY")
         async with (
-            httpx.AsyncClient(timeout=60) as client,
+            httpx.AsyncClient(timeout=timeout, proxy=proxy_url) as client,
             client.stream("GET", url, follow_redirects=True) as response,
         ):
             response.raise_for_status()

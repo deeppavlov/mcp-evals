@@ -31,6 +31,7 @@ Environment Variables:
     OPENAI_API_KEY: Your OpenAI API key (required if not provided via --api-key)
     OPENAI_BASE_URL: Custom base URL for OpenAI-compatible API (required if not provided via --base-url)
     OPENAI_MODEL: Model name to use (defaults to "gpt-4o" if not provided)
+    DOWNLOAD_PROXY: URL for proxy used for loading setup data
 
 Examples:
     # Run with default settings (gpt-4o)

@@ -41,11 +41,7 @@ class FilesystemDomain(Domain):
         await self._stack.aclose()
 
     def mcp_servers(self) -> Sequence[MCPServerStdio]:
-        """Return MCP filesystem server configuration.
-
-        The server uses FILESYSTEM_ROOT environment variable which is set
-        by tasks during setup(). Each task sets it to its isolated workspace.
-        """
+        """Return MCP filesystem server configuration."""
         return [MCPServerStdio("npx", ["-y", "@modelcontextprotocol/server-filesystem", str(self._tmp_dir)])]
 
     def tasks(self) -> Sequence[MusicReportTask | DuplicatesSearchingTask]:
