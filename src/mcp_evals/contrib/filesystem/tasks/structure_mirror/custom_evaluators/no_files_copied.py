@@ -9,7 +9,7 @@ from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
 
 from mcp_evals.contrib.filesystem.tasks.structure_mirror.constants import MIRROR_DIR_NAME, SOURCE_DIR_NAME
-from mcp_evals.contrib.filesystem.tasks.structure_mirror.task import find_mirror_directory
+from mcp_evals.contrib.filesystem.tasks.structure_mirror.utils import find_mirror_directory
 
 if TYPE_CHECKING:
     from mcp_evals.contrib.filesystem.tasks.structure_mirror.task import StructureMirrorTask

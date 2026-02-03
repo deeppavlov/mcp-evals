@@ -9,7 +9,7 @@ from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
 
 from mcp_evals.contrib.filesystem.tasks.author_folders.constants import MIN_PAPERS_FREQUENT
-from mcp_evals.contrib.filesystem.tasks.author_folders.task import analyze_papers
+from mcp_evals.contrib.filesystem.tasks.author_folders.utils import analyze_papers
 
 if TYPE_CHECKING:
     from mcp_evals.contrib.filesystem.tasks.author_folders.task import AuthorFoldersTask

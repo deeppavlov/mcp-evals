@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
 
-from mcp_evals.contrib.filesystem.tasks.timeline_extraction.task import (
+from mcp_evals.contrib.filesystem.tasks.timeline_extraction.utils import (
     _check_extra_entries,
     _check_missing_entries,
 )

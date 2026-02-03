@@ -10,7 +10,7 @@ from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
 
 from mcp_evals.contrib.filesystem.tasks.budget_computation.constants import EXPECTED_EXPENSES, PRICE_TOLERANCE
-from mcp_evals.contrib.filesystem.tasks.budget_computation.task import path_matches_expected
+from mcp_evals.contrib.filesystem.tasks.budget_computation.utils import path_matches_expected
 
 if TYPE_CHECKING:
     from mcp_evals.contrib.filesystem.tasks.budget_computation.task import BudgetComputationTask

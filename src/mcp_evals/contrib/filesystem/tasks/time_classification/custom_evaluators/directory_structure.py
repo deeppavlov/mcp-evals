@@ -13,7 +13,10 @@ from mcp_evals.contrib.filesystem.tasks.time_classification.constants import (
     EXPECTED_STRUCTURE,
     MONTH_MAPPING,
 )
-from mcp_evals.contrib.filesystem.tasks.time_classification.task import find_day_directory, find_month_directory
+from mcp_evals.contrib.filesystem.tasks.time_classification.utils import (
+    find_day_directory,
+    find_month_directory,
+)
 
 if TYPE_CHECKING:
     from mcp_evals.contrib.filesystem.tasks.time_classification.task import TimeClassificationTask

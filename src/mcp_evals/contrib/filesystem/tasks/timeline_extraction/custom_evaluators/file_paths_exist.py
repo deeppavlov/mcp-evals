@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
 
-from mcp_evals.contrib.filesystem.tasks.timeline_extraction.task import _extract_file_path_from_line
+from mcp_evals.contrib.filesystem.tasks.timeline_extraction.utils import _extract_file_path_from_line
 
 if TYPE_CHECKING:
     from mcp_evals.contrib.filesystem.tasks.timeline_extraction.task import TimelineExtractionTask

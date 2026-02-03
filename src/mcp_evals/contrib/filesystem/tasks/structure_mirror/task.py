@@ -12,14 +12,6 @@ from mcp_evals.contrib.filesystem.tasks.structure_mirror.custom_evaluators impor
 from mcp_evals.contrib.filesystem.utils import Fixture
 
 
-def find_mirror_directory(work_dir: Path) -> Path | None:
-    """Find the mirror directory."""
-    mirror_dir = work_dir / MIRROR_DIR_NAME
-    if mirror_dir.exists() and mirror_dir.is_dir():
-        return mirror_dir
-    return None
-
-
 class StructureMirrorTask(FilesystemTask):
     """Task for mirroring directory structure with smart placeholders.
 

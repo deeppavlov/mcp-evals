@@ -1,6 +1,5 @@
 """Duplicates Searching task for filesystem domain."""
 
-import hashlib
 from contextlib import AsyncExitStack
 from pathlib import Path
 
@@ -8,21 +7,7 @@ from mcp_evals.contrib.filesystem.common_evaluators import DirectoryExists, File
 from mcp_evals.contrib.filesystem.task import FilesystemTask
 from mcp_evals.contrib.filesystem.utils import Fixture
 
-from .custom_evaluators import (
-    ContentIntegrity,
-    DuplicateFilesMoved,
-    NoDuplicatesInOriginal,
-    UniqueFilesRemain,
-)
-
-
-def calculate_file_hash(file_path: Path) -> str | None:
-    """Calculate MD5 hash of file content."""
-    try:
-        with file_path.open("rb") as f:
-            return hashlib.md5(f.read()).hexdigest()  # noqa: S324
-    except (OSError, UnicodeDecodeError):
-        return None
+from .custom_evaluators import ContentIntegrity, DuplicateFilesMoved, NoDuplicatesInOriginal, UniqueFilesRemain
 
 
 class DuplicatesSearchingTask(FilesystemTask):

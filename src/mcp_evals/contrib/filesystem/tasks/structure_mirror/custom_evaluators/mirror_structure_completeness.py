@@ -13,7 +13,7 @@ from mcp_evals.contrib.filesystem.tasks.structure_mirror.constants import (
     MIRROR_DIR_NAME,
     PLACEHOLDER_DIRS,
 )
-from mcp_evals.contrib.filesystem.tasks.structure_mirror.task import find_mirror_directory
+from mcp_evals.contrib.filesystem.tasks.structure_mirror.utils import find_mirror_directory
 
 if TYPE_CHECKING:
     from pathlib import Path

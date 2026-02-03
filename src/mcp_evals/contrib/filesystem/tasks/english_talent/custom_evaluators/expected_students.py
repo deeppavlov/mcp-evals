@@ -9,7 +9,7 @@ from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
 
 from mcp_evals.contrib.filesystem.tasks.english_talent.constants import EXPECTED_STUDENTS
-from mcp_evals.contrib.filesystem.tasks.english_talent.task import parse_qualified_students_file
+from mcp_evals.contrib.filesystem.tasks.english_talent.utils import parse_qualified_students_file
 
 if TYPE_CHECKING:
     from mcp_evals.contrib.filesystem.tasks.english_talent.task import EnglishTalentTask

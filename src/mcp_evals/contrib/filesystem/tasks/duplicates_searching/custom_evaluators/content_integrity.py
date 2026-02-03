@@ -9,7 +9,7 @@ from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
 
 from mcp_evals.contrib.filesystem.tasks.duplicates_searching.constants import EXPECTED_DUPLICATE_GROUPS
-from mcp_evals.contrib.filesystem.tasks.duplicates_searching.task import calculate_file_hash
+from mcp_evals.contrib.filesystem.tasks.duplicates_searching.utils import calculate_file_hash
 
 if TYPE_CHECKING:
     from pathlib import Path

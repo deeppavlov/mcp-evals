@@ -9,7 +9,7 @@ from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
 
 from mcp_evals.contrib.filesystem.tasks.time_classification.constants import EXPECTED_STRUCTURE
-from mcp_evals.contrib.filesystem.tasks.time_classification.task import (
+from mcp_evals.contrib.filesystem.tasks.time_classification.utils import (
     _validate_metadata_line,
     find_day_directory,
     find_month_directory,
