@@ -48,7 +48,6 @@ Examples:
 
 import argparse
 import asyncio
-import os
 
 import logfire
 from loguru import logger
@@ -97,18 +96,6 @@ def main() -> None:
         epilog=__doc__,
     )
     parser.add_argument(
-        "--api-key",
-        type=str,
-        default=None,
-        help="OpenAI API key (overrides OPENAI_API_KEY env var)",
-    )
-    parser.add_argument(
-        "--base-url",
-        type=str,
-        default=None,
-        help="Custom base URL for OpenAI API (overrides OPENAI_BASE_URL env var)",
-    )
-    parser.add_argument(
         "--model",
         type=str,
         default=None,
@@ -121,13 +108,7 @@ def main() -> None:
     settings = ScriptSettings()
 
     # Override with command-line arguments if provided
-    api_key = args.api_key or settings.api_key_str
-    base_url = args.base_url or settings.base_url
     model = args.model or settings.model
-
-    # Set environment variables for pydantic_ai (it reads these for OpenAI client config)
-    os.environ["OPENAI_API_KEY"] = api_key
-    os.environ["OPENAI_BASE_URL"] = base_url
 
     # Create agent with custom base URL
     agent = Agent(
@@ -141,7 +122,6 @@ def main() -> None:
     runner = BenchmarkRunner(agent=agent, domains=[domain])
 
     logger.info(f"Running filesystem tasks with model: {model}")
-    logger.info(f"Using base URL: {base_url}")
 
     # Run benchmark
     async def run() -> None:
