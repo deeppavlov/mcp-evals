@@ -11,6 +11,9 @@ from pydantic_ai.mcp import MCPServerStdio
 from mcp_evals import Domain
 from mcp_evals.contrib.filesystem.tasks.duplicates_searching import DuplicatesSearchingTask
 from mcp_evals.contrib.filesystem.tasks.music_report import MusicReportTask
+from mcp_evals.contrib.filesystem.utils import Fixture
+
+from .task import FilesystemTask
 
 
 class FilesystemDomain(Domain):
@@ -62,6 +65,9 @@ class FilesystemDomain(Domain):
             )
         ]
 
-    def tasks(self) -> Sequence[MusicReportTask | DuplicatesSearchingTask]:
+    def tasks(self) -> Sequence[FilesystemTask]:
         """Return all filesystem tasks."""
-        return [MusicReportTask(self._tmp_dir), DuplicatesSearchingTask(self._tmp_dir)]
+        return [
+            MusicReportTask(self._tmp_dir, fixute=Fixture.DESKTOP),
+            DuplicatesSearchingTask(self._tmp_dir, fixture=Fixture.FILE_CONTEXT),
+        ]

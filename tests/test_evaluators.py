@@ -6,8 +6,22 @@ from tempfile import TemporaryDirectory
 from unittest.mock import MagicMock
 
 import pytest
+from pydantic_ai.run import AgentRunResult
+from pydantic_evals.evaluators import EvaluatorContext
 
-from mcp_evals.evaluators import ContentMatches, EvaluationReason, FileExists
+from mcp_evals.contrib.filesystem.common_evaluators import ContentMatches, FileExists
+from mcp_evals.contrib.filesystem.task import FilesystemTask
+from mcp_evals.contrib.filesystem.utils import Fixture
+from mcp_evals.evaluators import EvaluationReason
+
+
+def create_mock_context(work_dir: Path) -> EvaluatorContext[FilesystemTask, AgentRunResult]:
+    """Create a mock evaluator context with a FilesystemTask."""
+    task = FilesystemTask(work_dir=work_dir, fixture=Fixture.DESKTOP)
+    ctx = MagicMock(spec=EvaluatorContext)
+    ctx.inputs = task
+    ctx.output = MagicMock(spec=AgentRunResult)
+    return ctx
 
 
 @pytest.mark.asyncio
@@ -17,21 +31,24 @@ class TestFileExists:
     async def test_returns_1_when_file_exists(self) -> None:
         """Test that FileExists returns 1.0 when file exists."""
         with TemporaryDirectory() as tmpdir:
-            test_file = Path(tmpdir) / "test.txt"
+            work_dir = Path(tmpdir)
+            test_file = work_dir / "test.txt"
             test_file.write_text("test content")
 
-            evaluator = FileExists(path=str(test_file))
-            result = await evaluator.evaluate(MagicMock())
+            evaluator = FileExists(path="test.txt")
+            ctx = create_mock_context(work_dir)
+            result = await evaluator.evaluate(ctx)
 
             assert result == 1.0
 
     async def test_returns_0_when_file_does_not_exist(self) -> None:
         """Test that FileExists returns 0.0 with reason when file doesn't exist."""
         with TemporaryDirectory() as tmpdir:
-            test_file = Path(tmpdir) / "nonexistent.txt"
+            work_dir = Path(tmpdir)
 
-            evaluator = FileExists(path=str(test_file))
-            result = await evaluator.evaluate(MagicMock())
+            evaluator = FileExists(path="nonexistent.txt")
+            ctx = create_mock_context(work_dir)
+            result = await evaluator.evaluate(ctx)
 
             assert isinstance(result, EvaluationReason)
             assert result.value == 0.0
@@ -41,11 +58,13 @@ class TestFileExists:
     async def test_returns_0_when_path_is_directory(self) -> None:
         """Test that FileExists returns 0.0 when path is directory, not file."""
         with TemporaryDirectory() as tmpdir:
-            test_dir = Path(tmpdir) / "subdir"
+            work_dir = Path(tmpdir)
+            test_dir = work_dir / "subdir"
             test_dir.mkdir()
 
-            evaluator = FileExists(path=str(test_dir))
-            result = await evaluator.evaluate(MagicMock())
+            evaluator = FileExists(path="subdir")
+            ctx = create_mock_context(work_dir)
+            result = await evaluator.evaluate(ctx)
 
             assert isinstance(result, EvaluationReason)
             assert result.value == 0.0
@@ -55,40 +74,42 @@ class TestFileExists:
     async def test_handles_relative_paths(self) -> None:
         """Test that FileExists handles relative paths."""
         with TemporaryDirectory() as tmpdir:
-            original_cwd = Path.cwd()
-            try:
-                os.chdir(tmpdir)
-                test_file = Path("relative_file.txt")
-                test_file.write_text("content")
+            work_dir = Path(tmpdir)
+            test_file = work_dir / "relative_file.txt"
+            test_file.write_text("content")
 
-                evaluator = FileExists(path="relative_file.txt")
-                result = await evaluator.evaluate(MagicMock())
+            evaluator = FileExists(path="relative_file.txt")
+            ctx = create_mock_context(work_dir)
+            result = await evaluator.evaluate(ctx)
 
-                assert result == 1.0
-            finally:
-                os.chdir(original_cwd)
+            assert result == 1.0
 
     async def test_handles_absolute_paths(self) -> None:
         """Test that FileExists handles absolute paths."""
         with TemporaryDirectory() as tmpdir:
-            test_file = Path(tmpdir) / "absolute_file.txt"
+            work_dir = Path(tmpdir)
+            test_file = work_dir / "absolute_file.txt"
             test_file.write_text("content")
 
-            evaluator = FileExists(path=str(test_file.absolute()))
-            result = await evaluator.evaluate(MagicMock())
+            # Paths are resolved relative to work_dir, so use relative path
+            evaluator = FileExists(path="absolute_file.txt")
+            ctx = create_mock_context(work_dir)
+            result = await evaluator.evaluate(ctx)
 
             assert result == 1.0
 
     async def test_handles_nested_paths(self) -> None:
         """Test that FileExists handles nested directory paths."""
         with TemporaryDirectory() as tmpdir:
-            nested_dir = Path(tmpdir) / "nested" / "subdir"
+            work_dir = Path(tmpdir)
+            nested_dir = work_dir / "nested" / "subdir"
             nested_dir.mkdir(parents=True)
             test_file = nested_dir / "file.txt"
             test_file.write_text("content")
 
-            evaluator = FileExists(path=str(test_file))
-            result = await evaluator.evaluate(MagicMock())
+            evaluator = FileExists(path="nested/subdir/file.txt")
+            ctx = create_mock_context(work_dir)
+            result = await evaluator.evaluate(ctx)
 
             assert result == 1.0
 
@@ -100,22 +121,26 @@ class TestContentMatches:
     async def test_returns_1_when_pattern_matches(self) -> None:
         """Test that ContentMatches returns 1.0 when pattern matches."""
         with TemporaryDirectory() as tmpdir:
-            test_file = Path(tmpdir) / "test.txt"
+            work_dir = Path(tmpdir)
+            test_file = work_dir / "test.txt"
             test_file.write_text("The port is 8080")
 
-            evaluator = ContentMatches(path=str(test_file), pattern=r"port.*8080")
-            result = await evaluator.evaluate(MagicMock())
+            evaluator = ContentMatches(path="test.txt", pattern=r"port.*8080")
+            ctx = create_mock_context(work_dir)
+            result = await evaluator.evaluate(ctx)
 
             assert result == 1.0
 
     async def test_returns_0_when_pattern_does_not_match(self) -> None:
         """Test that ContentMatches returns 0.0 when pattern doesn't match."""
         with TemporaryDirectory() as tmpdir:
-            test_file = Path(tmpdir) / "test.txt"
+            work_dir = Path(tmpdir)
+            test_file = work_dir / "test.txt"
             test_file.write_text("The port is 3000")
 
-            evaluator = ContentMatches(path=str(test_file), pattern=r"port.*8080")
-            result = await evaluator.evaluate(MagicMock())
+            evaluator = ContentMatches(path="test.txt", pattern=r"port.*8080")
+            ctx = create_mock_context(work_dir)
+            result = await evaluator.evaluate(ctx)
 
             assert isinstance(result, EvaluationReason)
             assert result.value == 0.0
@@ -125,10 +150,11 @@ class TestContentMatches:
     async def test_returns_0_when_file_does_not_exist(self) -> None:
         """Test that ContentMatches returns 0.0 when file doesn't exist."""
         with TemporaryDirectory() as tmpdir:
-            test_file = Path(tmpdir) / "nonexistent.txt"
+            work_dir = Path(tmpdir)
 
-            evaluator = ContentMatches(path=str(test_file), pattern=r".*")
-            result = await evaluator.evaluate(MagicMock())
+            evaluator = ContentMatches(path="nonexistent.txt", pattern=r".*")
+            ctx = create_mock_context(work_dir)
+            result = await evaluator.evaluate(ctx)
 
             assert isinstance(result, EvaluationReason)
             assert result.value == 0.0
@@ -138,11 +164,13 @@ class TestContentMatches:
     async def test_returns_0_when_path_is_directory(self) -> None:
         """Test that ContentMatches returns 0.0 when path is directory."""
         with TemporaryDirectory() as tmpdir:
-            test_dir = Path(tmpdir) / "subdir"
+            work_dir = Path(tmpdir)
+            test_dir = work_dir / "subdir"
             test_dir.mkdir()
 
-            evaluator = ContentMatches(path=str(test_dir), pattern=r".*")
-            result = await evaluator.evaluate(MagicMock())
+            evaluator = ContentMatches(path="subdir", pattern=r".*")
+            ctx = create_mock_context(work_dir)
+            result = await evaluator.evaluate(ctx)
 
             assert isinstance(result, EvaluationReason)
             assert result.value == 0.0
@@ -152,49 +180,57 @@ class TestContentMatches:
     async def test_handles_regex_special_characters(self) -> None:
         """Test that ContentMatches handles regex special characters correctly."""
         with TemporaryDirectory() as tmpdir:
-            test_file = Path(tmpdir) / "test.txt"
+            work_dir = Path(tmpdir)
+            test_file = work_dir / "test.txt"
             test_file.write_text("Price: $19.99 (20% off)")
 
             # Test with escaped special characters
-            evaluator = ContentMatches(path=str(test_file), pattern=r"\$19\.99.*20%")
-            result = await evaluator.evaluate(MagicMock())
+            evaluator = ContentMatches(path="test.txt", pattern=r"\$19\.99.*20%")
+            ctx = create_mock_context(work_dir)
+            result = await evaluator.evaluate(ctx)
 
             assert result == 1.0
 
     async def test_handles_multiline_content(self) -> None:
         """Test that ContentMatches handles multiline content."""
         with TemporaryDirectory() as tmpdir:
-            test_file = Path(tmpdir) / "test.txt"
+            work_dir = Path(tmpdir)
+            test_file = work_dir / "test.txt"
             test_file.write_text("Line 1\nLine 2\nLine 3")
 
-            evaluator = ContentMatches(path=str(test_file), pattern=r"Line 1.*Line 3")
-            result = await evaluator.evaluate(MagicMock())
+            evaluator = ContentMatches(path="test.txt", pattern=r"Line 1.*Line 3")
+            ctx = create_mock_context(work_dir)
+            result = await evaluator.evaluate(ctx)
 
             assert result == 1.0
 
     async def test_handles_unicode_content(self) -> None:
         """Test that ContentMatches handles unicode content."""
         with TemporaryDirectory() as tmpdir:
-            test_file = Path(tmpdir) / "test.txt"
+            work_dir = Path(tmpdir)
+            test_file = work_dir / "test.txt"
             test_file.write_text("晴天 2.576", encoding="utf-8")
 
-            evaluator = ContentMatches(path=str(test_file), pattern=r"晴天.*2\.576")
-            result = await evaluator.evaluate(MagicMock())
+            evaluator = ContentMatches(path="test.txt", pattern=r"晴天.*2\.576")
+            ctx = create_mock_context(work_dir)
+            result = await evaluator.evaluate(ctx)
 
             assert result == 1.0
 
     async def test_handles_permission_error_gracefully(self) -> None:
         """Test that ContentMatches handles PermissionError gracefully."""
         with TemporaryDirectory() as tmpdir:
-            test_file = Path(tmpdir) / "test.txt"
+            work_dir = Path(tmpdir)
+            test_file = work_dir / "test.txt"
             test_file.write_text("content")
 
             # Make file unreadable (Unix only)
             if os.name != "nt":
                 test_file.chmod(0o000)
                 try:
-                    evaluator = ContentMatches(path=str(test_file), pattern=r".*")
-                    result = await evaluator.evaluate(MagicMock())
+                    evaluator = ContentMatches(path="test.txt", pattern=r".*")
+                    ctx = create_mock_context(work_dir)
+                    result = await evaluator.evaluate(ctx)
 
                     assert isinstance(result, EvaluationReason)
                     assert result.value == 0.0
@@ -206,37 +242,43 @@ class TestContentMatches:
     async def test_case_sensitive_matching(self) -> None:
         """Test that ContentMatches is case sensitive by default."""
         with TemporaryDirectory() as tmpdir:
-            test_file = Path(tmpdir) / "test.txt"
+            work_dir = Path(tmpdir)
+            test_file = work_dir / "test.txt"
             test_file.write_text("Hello World")
 
             # Case sensitive - should not match
-            evaluator = ContentMatches(path=str(test_file), pattern=r"hello")
-            result = await evaluator.evaluate(MagicMock())
+            evaluator = ContentMatches(path="test.txt", pattern=r"hello")
+            ctx = create_mock_context(work_dir)
+            result = await evaluator.evaluate(ctx)
 
             assert isinstance(result, EvaluationReason)
             assert result.value == 0.0
 
             # Case sensitive - should match
-            evaluator = ContentMatches(path=str(test_file), pattern=r"Hello")
-            result = await evaluator.evaluate(MagicMock())
+            evaluator = ContentMatches(path="test.txt", pattern=r"Hello")
+            ctx = create_mock_context(work_dir)
+            result = await evaluator.evaluate(ctx)
 
             assert result == 1.0
 
     async def test_empty_file_handling(self) -> None:
         """Test that ContentMatches handles empty files."""
         with TemporaryDirectory() as tmpdir:
-            test_file = Path(tmpdir) / "empty.txt"
+            work_dir = Path(tmpdir)
+            test_file = work_dir / "empty.txt"
             test_file.write_text("")
 
             # Pattern that matches empty string
-            evaluator = ContentMatches(path=str(test_file), pattern=r"^$")
-            result = await evaluator.evaluate(MagicMock())
+            evaluator = ContentMatches(path="empty.txt", pattern=r"^$")
+            ctx = create_mock_context(work_dir)
+            result = await evaluator.evaluate(ctx)
 
             assert result == 1.0
 
             # Pattern that doesn't match empty string
-            evaluator = ContentMatches(path=str(test_file), pattern=r".+")
-            result = await evaluator.evaluate(MagicMock())
+            evaluator = ContentMatches(path="empty.txt", pattern=r".+")
+            ctx = create_mock_context(work_dir)
+            result = await evaluator.evaluate(ctx)
 
             assert isinstance(result, EvaluationReason)
             assert result.value == 0.0

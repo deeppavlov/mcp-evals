@@ -1,5 +1,7 @@
 """Benchmark runner for executing evaluation benchmarks."""
 
+from typing import Any
+
 from pydantic_ai.agent import Agent
 from pydantic_evals.reporting import EvaluationReport
 
@@ -12,7 +14,7 @@ class BenchmarkRunner:
 
     def __init__(
         self,
-        agent: Agent,
+        agent: Agent[Any, Any],
         domains: list[Domain],
     ) -> None:
         """Initialize the benchmark runner.

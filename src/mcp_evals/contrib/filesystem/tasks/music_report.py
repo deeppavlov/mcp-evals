@@ -1,15 +1,13 @@
 """Music Report task for filesystem domain."""
 
-from contextlib import AsyncExitStack
 from pathlib import Path
 
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
 
-from mcp_evals import Task
-from mcp_evals.contrib.filesystem.common_evaluators import FileContentStructure
-from mcp_evals.contrib.filesystem.utils import Fixture, create_isolated_workspace, download_fixture
-from mcp_evals.evaluators import FileExists
+from mcp_evals.contrib.filesystem.common_evaluators import FileContentStructure, FileExists
+from mcp_evals.contrib.filesystem.task import FilesystemTask
+from mcp_evals.contrib.filesystem.utils import Fixture
 
 # Expected data from MCP Universe verification
 EXPECTED_SONGS = [
@@ -44,8 +42,6 @@ class SongRankingFormat(Evaluator["MusicReportTask", AgentRunResult]):
     async def evaluate(self, ctx: EvaluatorContext["MusicReportTask", AgentRunResult]) -> EvaluatorOutput:  # noqa: C901, PLR0911
         """Verify that lines 1-20 contain songs with scores in correct format."""
         task = ctx.inputs
-        if not hasattr(task, "work_dir") or task.work_dir is None:
-            return EvaluationReason(value=0.0, reason="Task work_dir not set")
 
         report_file = task.work_dir / "music" / "music_analysis_report.txt"
 
@@ -115,8 +111,6 @@ class SongRankingOrder(Evaluator["MusicReportTask", AgentRunResult]):
     async def evaluate(self, ctx: EvaluatorContext["MusicReportTask", AgentRunResult]) -> EvaluatorOutput:
         """Verify that songs are ranked by popularity score in descending order."""
         task = ctx.inputs
-        if not hasattr(task, "work_dir") or task.work_dir is None:
-            return EvaluationReason(value=0.0, reason="Task work_dir not set")
 
         report_file = task.work_dir / "music" / "music_analysis_report.txt"
 
@@ -158,8 +152,6 @@ class SongNamesMatchExpected(Evaluator["MusicReportTask", AgentRunResult]):
     async def evaluate(self, ctx: EvaluatorContext["MusicReportTask", AgentRunResult]) -> EvaluatorOutput:
         """Verify that all expected song names are present in the ranking."""
         task = ctx.inputs
-        if not hasattr(task, "work_dir") or task.work_dir is None:
-            return EvaluationReason(value=0.0, reason="Task work_dir not set")
 
         report_file = task.work_dir / "music" / "music_analysis_report.txt"
 
@@ -203,11 +195,9 @@ class SongNamesMatchExpected(Evaluator["MusicReportTask", AgentRunResult]):
 class PopularityScoresMatchExpected(Evaluator["MusicReportTask", AgentRunResult]):
     """Evaluator that checks popularity scores match expected values."""
 
-    async def evaluate(self, ctx: EvaluatorContext["MusicReportTask", AgentRunResult]) -> EvaluatorOutput:  # noqa: C901
+    async def evaluate(self, ctx: EvaluatorContext["MusicReportTask", AgentRunResult]) -> EvaluatorOutput:
         """Verify that popularity scores match the expected values."""
         task = ctx.inputs
-        if not hasattr(task, "work_dir") or task.work_dir is None:
-            return EvaluationReason(value=0.0, reason="Task work_dir not set")
 
         report_file = task.work_dir / "music" / "music_analysis_report.txt"
 
@@ -261,8 +251,6 @@ class Top5Songs(Evaluator["MusicReportTask", AgentRunResult]):
     async def evaluate(self, ctx: EvaluatorContext["MusicReportTask", AgentRunResult]) -> EvaluatorOutput:  # noqa: C901, PLR0911
         """Verify that lines 21-25 contain the top 5 song names."""
         task = ctx.inputs
-        if not hasattr(task, "work_dir") or task.work_dir is None:
-            return EvaluationReason(value=0.0, reason="Task work_dir not set")
 
         report_file = task.work_dir / "music" / "music_analysis_report.txt"
 
@@ -328,7 +316,7 @@ class Top5Songs(Evaluator["MusicReportTask", AgentRunResult]):
             return 1.0
 
 
-class MusicReportTask(Task):
+class MusicReportTask(FilesystemTask):
     """Task for analyzing music files and generating a popularity report.
 
     The agent must:
@@ -376,11 +364,10 @@ Create a file named `music_analysis_report.txt` in the `music/` folder with the 
 
 **Important**: The file must contain exactly 25 lines with no additional content, headers, or formatting."""
 
-    _stack: AsyncExitStack | None = None
-    work_dir: Path | None = None
-
-    def __init__(self, root_dir: Path) -> None:
+    def __init__(self, work_dir: Path, fixute: Fixture) -> None:
         """Initialize the task with evaluators."""
+        super().__init__(work_dir=work_dir, fixture=fixute)
+
         self.evaluators = (
             FileExists("music/music_analysis_report.txt"),
             FileContentStructure("music/music_analysis_report.txt", expected_lines=25),
@@ -390,26 +377,3 @@ Create a file named `music_analysis_report.txt` in the `music/` folder with the 
             PopularityScoresMatchExpected(),
             Top5Songs(),
         )
-        self.root_dir = root_dir
-
-    async def setup(self) -> None:
-        """Set up the task environment."""
-        if self._stack is not None:
-            msg = f"Task {self.name} context already entered"
-            raise RuntimeError(msg)
-
-        self._stack = AsyncExitStack()
-        await self._stack.__aenter__()
-
-        # Download fixture
-        fixture_path = await download_fixture(Fixture.DESKTOP)
-
-        # Create isolated workspace - enter context manager into stack
-        workspace_ctx = create_isolated_workspace(fixture_path, self.root_dir)
-        self.work_dir = await self._stack.enter_async_context(workspace_ctx)
-
-    async def teardown(self) -> None:
-        """Clean up the task environment."""
-        if self._stack is not None:
-            await self._stack.aclose()
-            self._stack = None

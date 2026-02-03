@@ -8,9 +8,9 @@ from pathlib import Path
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
 
-from mcp_evals import Task
 from mcp_evals.contrib.filesystem.common_evaluators import DirectoryExists, FileCount
-from mcp_evals.contrib.filesystem.utils import Fixture, create_isolated_workspace, download_fixture
+from mcp_evals.contrib.filesystem.task import FilesystemTask
+from mcp_evals.contrib.filesystem.utils import Fixture
 
 # Expected duplicate file groups
 EXPECTED_DUPLICATE_GROUPS = {
@@ -50,8 +50,6 @@ class DuplicateFilesMoved(Evaluator["DuplicatesSearchingTask", AgentRunResult]):
     async def evaluate(self, ctx: EvaluatorContext["DuplicatesSearchingTask", AgentRunResult]) -> EvaluatorOutput:
         """Verify that all duplicate files are in the duplicates directory."""
         task = ctx.inputs
-        if not hasattr(task, "work_dir") or task.work_dir is None:
-            return EvaluationReason(value=0.0, reason="Task work_dir not set")
 
         duplicates_dir = task.work_dir / "duplicates"
 
@@ -81,8 +79,6 @@ class UniqueFilesRemain(Evaluator["DuplicatesSearchingTask", AgentRunResult]):
     async def evaluate(self, ctx: EvaluatorContext["DuplicatesSearchingTask", AgentRunResult]) -> EvaluatorOutput:
         """Verify that unique files remain in the original location."""
         task = ctx.inputs
-        if not hasattr(task, "work_dir") or task.work_dir is None:
-            return EvaluationReason(value=0.0, reason="Task work_dir not set")
 
         missing_files = []
         for filename in EXPECTED_UNIQUE_FILES:
@@ -106,8 +102,6 @@ class NoDuplicatesInOriginal(Evaluator["DuplicatesSearchingTask", AgentRunResult
     async def evaluate(self, ctx: EvaluatorContext["DuplicatesSearchingTask", AgentRunResult]) -> EvaluatorOutput:
         """Verify that no duplicate files remain in the original location."""
         task = ctx.inputs
-        if not hasattr(task, "work_dir") or task.work_dir is None:
-            return EvaluationReason(value=0.0, reason="Task work_dir not set")
 
         remaining_duplicates = []
         for files in EXPECTED_DUPLICATE_GROUPS.values():
@@ -129,11 +123,9 @@ class NoDuplicatesInOriginal(Evaluator["DuplicatesSearchingTask", AgentRunResult
 class ContentIntegrity(Evaluator["DuplicatesSearchingTask", AgentRunResult]):
     """Evaluator that checks file content integrity is maintained after moving."""
 
-    async def evaluate(self, ctx: EvaluatorContext["DuplicatesSearchingTask", AgentRunResult]) -> EvaluatorOutput:  # noqa: C901, PLR0911
+    async def evaluate(self, ctx: EvaluatorContext["DuplicatesSearchingTask", AgentRunResult]) -> EvaluatorOutput:  # noqa: PLR0911
         """Verify that files in each duplicate group have identical content."""
         task = ctx.inputs
-        if not hasattr(task, "work_dir") or task.work_dir is None:
-            return EvaluationReason(value=0.0, reason="Task work_dir not set")
 
         duplicates_dir = task.work_dir / "duplicates"
 
@@ -177,7 +169,7 @@ class ContentIntegrity(Evaluator["DuplicatesSearchingTask", AgentRunResult]):
         return 1.0
 
 
-class DuplicatesSearchingTask(Task):
+class DuplicatesSearchingTask(FilesystemTask):
     """Task for detecting and organizing duplicate files.
 
     The agent must:
@@ -210,10 +202,10 @@ After completing the task, the directory structure should be:
 - Original directory containing only files with unique content"""
 
     _stack: AsyncExitStack | None = None
-    work_dir: Path | None = None
 
-    def __init__(self, root_dir: Path) -> None:
+    def __init__(self, work_dir: Path, fixture: Fixture) -> None:
         """Initialize the task with evaluators."""
+        super().__init__(work_dir=work_dir, fixture=fixture)
         self.evaluators = (
             DirectoryExists("duplicates"),
             FileCount("duplicates", expected=14),
@@ -222,26 +214,3 @@ After completing the task, the directory structure should be:
             NoDuplicatesInOriginal(),
             ContentIntegrity(),
         )
-        self.root_dir = root_dir
-
-    async def setup(self) -> None:
-        """Set up the task environment."""
-        if self._stack is not None:
-            msg = f"Task {self.name} context already entered"
-            raise RuntimeError(msg)
-
-        self._stack = AsyncExitStack()
-        await self._stack.__aenter__()
-
-        # Download fixture
-        fixture_path = await download_fixture(Fixture.FILE_CONTEXT)
-
-        # Create isolated workspace - enter context manager into stack
-        workspace_ctx = create_isolated_workspace(fixture_path, self.root_dir)
-        self.work_dir = await self._stack.enter_async_context(workspace_ctx)
-
-    async def teardown(self) -> None:
-        """Clean up the task environment."""
-        if self._stack is not None:
-            await self._stack.aclose()
-            self._stack = None
