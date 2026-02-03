@@ -17,15 +17,10 @@ Usage:
     uv run python scripts/run_filesystem_tasks.py
 
     # Or use command line arguments
-    uv run python scripts/run_filesystem_tasks.py \\
-        --api-key "your-api-key" \\
-        --base-url "https://your-custom-endpoint.com/v1"
+    uv run python scripts/run_filesystem_tasks.py
 
     # Specify a different model
-    uv run python scripts/run_filesystem_tasks.py \\
-        --model "gpt-4o-mini" \\
-        --api-key "your-api-key" \\
-        --base-url "https://your-custom-endpoint.com/v1"
+    uv run python scripts/run_filesystem_tasks.py --model "gpt-4o-mini"
 
 Environment Variables:
     OPENAI_API_KEY: Your OpenAI API key (required if not provided via --api-key)
