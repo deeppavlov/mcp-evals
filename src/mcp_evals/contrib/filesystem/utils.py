@@ -163,19 +163,47 @@ async def download_fixture(category: Fixture) -> Path:
 
 @asynccontextmanager
 async def create_isolated_workspace(fixture_path: Path, root_dir: Path) -> AsyncIterator[Path]:
-    """Create isolated workspace by copying fixture to temp directory.
+    """Create isolated workspace by copying fixture contents directly to root_dir.
 
     Returns an async context manager that tasks enter into their AsyncExitStack.
-    The temp directory is automatically cleaned up when the context exits.
+    All contents of root_dir are automatically cleaned up when the context exits.
 
     Args:
         fixture_path: Path to the fixture directory to copy
         root_dir: Path to the root directory which MCP has access to
 
     Yields:
-        Path to the isolated workspace directory
+        Path to the root directory (same as root_dir)
     """
-    async with aiofiles.tempfile.TemporaryDirectory(dir=str(root_dir)) as temp_dir:
-        work_dir = Path(temp_dir)
-        shutil.copytree(fixture_path, work_dir, dirs_exist_ok=True)
-        yield work_dir
+    # Ensure root_dir exists
+    root_dir.mkdir(parents=True, exist_ok=True)
+
+    # Copy fixture contents directly to root_dir
+    try:
+        for item in fixture_path.iterdir():
+            src_path = fixture_path / item.name
+            dst_path = root_dir / item.name
+            if src_path.is_dir():
+                shutil.copytree(src_path, dst_path, dirs_exist_ok=True)
+            else:
+                shutil.copy2(src_path, dst_path)
+    except Exception as e:
+        msg = "Failed to copy fixture contents to root_dir"
+        logger.exception(msg)
+        raise RuntimeError(msg) from e
+
+    try:
+        yield root_dir
+    finally:
+        # Clean up all contents of root_dir on exit
+        try:
+            for item in root_dir.iterdir():
+                item_path = root_dir / item.name
+                if item_path.is_dir():
+                    shutil.rmtree(item_path)
+                else:
+                    item_path.unlink()
+        except (OSError, PermissionError) as e:
+            msg = "Error cleaning root_dir on teardown"
+            logger.exception(msg)
+            raise RuntimeError(msg) from e

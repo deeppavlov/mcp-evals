@@ -54,6 +54,8 @@ class FilesystemDomain(Domain):
                     "--rm",
                     "--mount",
                     f"type=bind,src={self._tmp_dir},dst=/projects",
+                    "-w",
+                    "/projects",
                     "mcp/filesystem",
                     "/projects",
                 ],
