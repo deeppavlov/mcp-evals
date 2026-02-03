@@ -1,9 +1,16 @@
 """Top5Songs evaluator for music_report task."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
 
 from mcp_evals.contrib.filesystem.tasks.music_report.constants import EXPECTED_TOP_5
+
+if TYPE_CHECKING:
+    from mcp_evals.contrib.filesystem.tasks.music_report.task import MusicReportTask
 
 
 class Top5Songs(Evaluator["MusicReportTask", AgentRunResult]):
@@ -54,7 +61,7 @@ class Top5Songs(Evaluator["MusicReportTask", AgentRunResult]):
 
         return None
 
-    async def evaluate(self, ctx: EvaluatorContext["MusicReportTask", AgentRunResult]) -> EvaluatorOutput:
+    async def evaluate(self, ctx: EvaluatorContext[MusicReportTask, AgentRunResult]) -> EvaluatorOutput:
         """Verify that lines 21-25 contain the top 5 song names."""
         task = ctx.inputs
 

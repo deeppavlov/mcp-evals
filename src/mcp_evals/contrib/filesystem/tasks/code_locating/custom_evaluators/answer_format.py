@@ -1,16 +1,22 @@
 """AnswerFormat evaluator for code_locating task."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
+
+if TYPE_CHECKING:
+    from mcp_evals.contrib.filesystem.tasks.code_locating.task import CodeLocatingTask
 
 
 @dataclass
 class AnswerFormat(Evaluator["CodeLocatingTask", AgentRunResult]):
     """Evaluator that checks answer file has correct format."""
 
-    async def evaluate(self, ctx: EvaluatorContext["CodeLocatingTask", AgentRunResult]) -> EvaluatorOutput:
+    async def evaluate(self, ctx: EvaluatorContext[CodeLocatingTask, AgentRunResult]) -> EvaluatorOutput:
         """Verify that the answer file has the correct format."""
         task = ctx.inputs
         answer_file = task.work_dir / "answer.txt"

@@ -1,15 +1,22 @@
 """AlphabeticalOrder evaluator for file_merging task."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
 
 from mcp_evals.contrib.filesystem.tasks.file_merging.constants import EXPECTED_FILES
 
+if TYPE_CHECKING:
+    from mcp_evals.contrib.filesystem.tasks.file_merging.task import FileMergingTask
+
 
 class AlphabeticalOrder(Evaluator["FileMergingTask", AgentRunResult]):
     """Evaluator that checks files are in alphabetical order."""
 
-    async def evaluate(self, ctx: EvaluatorContext["FileMergingTask", AgentRunResult]) -> EvaluatorOutput:
+    async def evaluate(self, ctx: EvaluatorContext[FileMergingTask, AgentRunResult]) -> EvaluatorOutput:
         """Verify that files are in alphabetical order."""
         task = ctx.inputs
         merged_file = task.work_dir / "merged_content.txt"

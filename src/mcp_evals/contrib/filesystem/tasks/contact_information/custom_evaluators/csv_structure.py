@@ -1,10 +1,16 @@
 """CSVStructure evaluator for contact_information task."""
 
+from __future__ import annotations
+
 import csv
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
+
+if TYPE_CHECKING:
+    from mcp_evals.contrib.filesystem.tasks.contact_information.task import ContactInformationTask
 
 
 @dataclass
@@ -33,7 +39,7 @@ class CSVStructure(Evaluator["ContactInformationTask", AgentRunResult]):
 
         return None
 
-    async def evaluate(self, ctx: EvaluatorContext["ContactInformationTask", AgentRunResult]) -> EvaluatorOutput:
+    async def evaluate(self, ctx: EvaluatorContext[ContactInformationTask, AgentRunResult]) -> EvaluatorOutput:
         """Verify that the CSV file has the correct structure."""
         task = ctx.inputs
         contact_file = task.work_dir / "contact_info.csv"

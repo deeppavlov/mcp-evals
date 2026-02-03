@@ -1,19 +1,25 @@
 """CSVDataCompleteness evaluator for contact_information task."""
 
+from __future__ import annotations
+
 import csv
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
 
 from mcp_evals.contrib.filesystem.tasks.contact_information.constants import EXPECTED_NAMES
 
+if TYPE_CHECKING:
+    from mcp_evals.contrib.filesystem.tasks.contact_information.task import ContactInformationTask
+
 
 @dataclass
 class CSVDataCompleteness(Evaluator["ContactInformationTask", AgentRunResult]):
     """Evaluator that checks all required data is present and no entries are missing."""
 
-    async def evaluate(self, ctx: EvaluatorContext["ContactInformationTask", AgentRunResult]) -> EvaluatorOutput:
+    async def evaluate(self, ctx: EvaluatorContext[ContactInformationTask, AgentRunResult]) -> EvaluatorOutput:
         """Verify that all required data is present and no entries are missing."""
         task = ctx.inputs
         contact_file = task.work_dir / "contact_info.csv"

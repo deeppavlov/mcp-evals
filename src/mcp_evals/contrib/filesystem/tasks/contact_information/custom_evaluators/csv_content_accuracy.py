@@ -1,12 +1,18 @@
 """CSVContentAccuracy evaluator for contact_information task."""
 
+from __future__ import annotations
+
 import csv
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
 
 from mcp_evals.contrib.filesystem.tasks.contact_information.constants import EXPECTED_DATA
+
+if TYPE_CHECKING:
+    from mcp_evals.contrib.filesystem.tasks.contact_information.task import ContactInformationTask
 
 
 @dataclass
@@ -39,7 +45,7 @@ class CSVContentAccuracy(Evaluator["ContactInformationTask", AgentRunResult]):
                 )
         return None
 
-    async def evaluate(self, ctx: EvaluatorContext["ContactInformationTask", AgentRunResult]) -> EvaluatorOutput:
+    async def evaluate(self, ctx: EvaluatorContext[ContactInformationTask, AgentRunResult]) -> EvaluatorOutput:
         """Verify that the CSV content contains all required data."""
         task = ctx.inputs
         contact_file = task.work_dir / "contact_info.csv"

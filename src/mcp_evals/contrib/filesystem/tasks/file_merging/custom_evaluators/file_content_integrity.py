@@ -1,9 +1,16 @@
 """FileContentIntegrity evaluator for file_merging task."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
 
 from mcp_evals.contrib.filesystem.tasks.file_merging.constants import EXPECTED_FILES
+
+if TYPE_CHECKING:
+    from mcp_evals.contrib.filesystem.tasks.file_merging.task import FileMergingTask
 
 
 class FileContentIntegrity(Evaluator["FileMergingTask", AgentRunResult]):
@@ -25,7 +32,7 @@ class FileContentIntegrity(Evaluator["FileMergingTask", AgentRunResult]):
         return len(lines)
 
     def _validate_file_content(
-        self, task: "FileMergingTask", lines: list[str], expected_file: str
+        self, task: FileMergingTask, lines: list[str], expected_file: str
     ) -> EvaluatorOutput | None:
         """Validate content for a single file."""
         original_file = task.work_dir / expected_file
@@ -56,7 +63,7 @@ class FileContentIntegrity(Evaluator["FileMergingTask", AgentRunResult]):
 
         return None
 
-    async def evaluate(self, ctx: EvaluatorContext["FileMergingTask", AgentRunResult]) -> EvaluatorOutput:
+    async def evaluate(self, ctx: EvaluatorContext[FileMergingTask, AgentRunResult]) -> EvaluatorOutput:
         """Verify that the content of each file is preserved correctly."""
         task = ctx.inputs
         merged_file = task.work_dir / "merged_content.txt"

@@ -1,6 +1,9 @@
 """ExpectedResults evaluator for duplicate_name task."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
@@ -10,6 +13,9 @@ from mcp_evals.contrib.filesystem.tasks.duplicate_name.constants import (
     EXPECTED_DUPLICATES,
 )
 from mcp_evals.contrib.filesystem.tasks.duplicate_name.utils import parse_namesake_file
+
+if TYPE_CHECKING:
+    from mcp_evals.contrib.filesystem.tasks.duplicate_name.task import DuplicateNameTask
 
 
 @dataclass
@@ -76,7 +82,7 @@ class ExpectedResults(Evaluator["DuplicateNameTask", AgentRunResult]):
 
         return None
 
-    async def evaluate(self, ctx: EvaluatorContext["DuplicateNameTask", AgentRunResult]) -> EvaluatorOutput:
+    async def evaluate(self, ctx: EvaluatorContext[DuplicateNameTask, AgentRunResult]) -> EvaluatorOutput:
         """Verify that the results match the expected answer.md content exactly."""
         task = ctx.inputs
 

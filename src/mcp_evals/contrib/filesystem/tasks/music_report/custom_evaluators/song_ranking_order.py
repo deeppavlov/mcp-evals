@@ -1,13 +1,20 @@
 """SongRankingOrder evaluator for music_report task."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
+
+if TYPE_CHECKING:
+    from mcp_evals.contrib.filesystem.tasks.music_report.task import MusicReportTask
 
 
 class SongRankingOrder(Evaluator["MusicReportTask", AgentRunResult]):
     """Evaluator that checks songs are ranked by popularity score in descending order."""
 
-    async def evaluate(self, ctx: EvaluatorContext["MusicReportTask", AgentRunResult]) -> EvaluatorOutput:
+    async def evaluate(self, ctx: EvaluatorContext[MusicReportTask, AgentRunResult]) -> EvaluatorOutput:
         """Verify that songs are ranked by popularity score in descending order."""
         task = ctx.inputs
 
