@@ -1,0 +1,88 @@
+"""Budget Computation task for filesystem domain."""
+
+from pathlib import Path
+
+from mcp_evals.contrib.filesystem.common_evaluators import FileContentStructure, FileExists
+from mcp_evals.contrib.filesystem.task import FilesystemTask
+from mcp_evals.contrib.filesystem.utils import Fixture
+
+from .constants import EXPECTED_TOTAL_LINES
+from .custom_evaluators import (
+    ExpenseEntries,
+    FileFormat,
+    FilePathsAndCounts,
+    IndividualPrices,
+    TotalCalculation,
+    TotalPrice,
+)
+
+
+def path_matches_expected(actual_path: str, expected_path: str) -> bool:
+    """Check if actual path contains the expected path (allowing for prefixes like './')."""
+    normalized_actual = actual_path
+    prefix_tuple = ("./", "../")
+    while normalized_actual.startswith(prefix_tuple):
+        normalized_actual = normalized_actual[2:] if normalized_actual.startswith("./") else normalized_actual[3:]
+
+    return expected_path in normalized_actual or normalized_actual == expected_path
+
+
+class BudgetComputationTask(FilesystemTask):
+    """Task for calculating personal life expenses and creating budget summary.
+
+    The agent must:
+    1. Locate and analyze all files in the desktop environment
+    2. Extract personal life expenses (exclude project/work expenses)
+    3. Create total_budget.txt with format file_path;price
+    4. Add total sum as the last line
+    """
+
+    name = "budget_computation"
+    goal = """Please use FileSystem tools to finish the following task:
+
+### Task Description
+
+You need to analyze all the files in the desktop environment to calculate personal life expenses
+and create a budget summary.
+
+### Task Objectives
+
+1. **Locate and analyze all files** in the desktop environment
+2. **Extract personal life expenses** from the files
+   (such as salary, food, living material, tax, expenses on the internet, ...)
+   (exclude expenses in project/work)
+3. **Create a file named `total_budget.txt`** in the main directory
+4. **Format each expense entry** as `file_path;price` (one per line)
+5. **Add total sum** as the last line, rounded to 2 decimal places
+
+### Output Format
+
+The `total_budget.txt` file should contain:
+
+- One expense per line in format: `file_path;price`
+- File path should be the relative path from the main directory
+- Price should be rounded to 2 decimal places
+- Last line should be the total sum
+- No additional text or explanations
+
+### Important Notes
+
+- Only include personal life expenses (not in project/work)
+- Use the cheapest available price when multiple options exist for one thing
+- The total should match the sum of all individual expenses
+- Hint: If a file contains 1 item for personal consumption,
+  it means that all the entry in entire file is for personal consumption"""
+
+    def __init__(self, work_dir: Path, fixture: Fixture) -> None:
+        """Initialize the task with evaluators."""
+        super().__init__(work_dir=work_dir, fixture=fixture)
+        self.evaluators = (
+            FileExists("total_budget.txt"),
+            FileFormat(),
+            FileContentStructure("total_budget.txt", expected_lines=EXPECTED_TOTAL_LINES),
+            ExpenseEntries(),
+            FilePathsAndCounts(),
+            IndividualPrices(),
+            TotalPrice(),
+            TotalCalculation(),
+        )
