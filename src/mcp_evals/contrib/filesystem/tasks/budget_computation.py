@@ -7,7 +7,7 @@ from pathlib import Path
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
 
-from mcp_evals.contrib.filesystem.common_evaluators import FileContentStructure
+from mcp_evals.contrib.filesystem.common_evaluators import FileContentStructure, FileExists
 from mcp_evals.contrib.filesystem.task import FilesystemTask
 from mcp_evals.contrib.filesystem.utils import Fixture
 
@@ -44,38 +44,63 @@ EXPECTED_EXPENSE_COUNT = 15
 EXPECTED_TOTAL_LINES = 16  # 15 expenses + 1 total
 
 
+PRICE_TOLERANCE = 0.01
+
+MIN_REQUIRED_ROWS = 2
+
+EXPECTED_PARTS = 2
+
+
 def path_matches_expected(actual_path: str, expected_path: str) -> bool:
     """Check if actual path contains the expected path (allowing for prefixes like './')."""
     normalized_actual = actual_path
-    while normalized_actual.startswith("./") or normalized_actual.startswith("../"):
-        if normalized_actual.startswith("./"):
-            normalized_actual = normalized_actual[2:]
-        else:
-            normalized_actual = normalized_actual[3:]
+    prefix_tuple = ("./", "../")
+    while normalized_actual.startswith(prefix_tuple):
+        normalized_actual = normalized_actual[2:] if normalized_actual.startswith("./") else normalized_actual[3:]
 
     return expected_path in normalized_actual or normalized_actual == expected_path
-
-
-@dataclass
-class TotalBudgetFileExists(Evaluator["BudgetComputationTask", AgentRunResult]):
-    """Evaluator that checks total_budget.txt file exists."""
-
-    async def evaluate(self, ctx: EvaluatorContext["BudgetComputationTask", AgentRunResult]) -> EvaluatorOutput:
-        """Verify that the total_budget.txt file exists."""
-        task = ctx.inputs
-        budget_file = task.work_dir / "total_budget.txt"
-
-        if not budget_file.exists():
-            return EvaluationReason(value=0.0, reason="File 'total_budget.txt' not found")
-
-        return 1.0
 
 
 @dataclass
 class FileFormat(Evaluator["BudgetComputationTask", AgentRunResult]):
     """Evaluator that checks total_budget.txt file has proper format."""
 
-    async def evaluate(self, ctx: EvaluatorContext["BudgetComputationTask", AgentRunResult]) -> EvaluatorOutput:  # noqa: PLR0911
+    def _check_expense_line(self, line: str, line_num: int) -> EvaluatorOutput | None:
+        """Check that an expense line has correct format."""
+        if ";" not in line:
+            return EvaluationReason(
+                value=0.0,
+                reason=f"Line {line_num} does not contain ';' separator: {line}",
+            )
+
+        parts = line.split(";")
+        if len(parts) != EXPECTED_PARTS:
+            return EvaluationReason(
+                value=0.0,
+                reason=f"Line {line_num} does not have exactly 2 parts: {line}",
+            )
+
+        try:
+            float(parts[1])
+        except ValueError:
+            return EvaluationReason(
+                value=0.0,
+                reason=f"Line {line_num} price is not a valid number: {parts[1]}",
+            )
+        return None
+
+    def _check_total_line(self, total_line: str) -> EvaluatorOutput | None:
+        """Check that the total line is a valid number."""
+        try:
+            float(total_line)
+        except ValueError:
+            return EvaluationReason(
+                value=0.0,
+                reason=f"Last line is not a valid number: {total_line}",
+            )
+        return None
+
+    async def evaluate(self, ctx: EvaluatorContext["BudgetComputationTask", AgentRunResult]) -> EvaluatorOutput:
         """Verify that the total_budget.txt file has proper format."""
         task = ctx.inputs
         budget_file = task.work_dir / "total_budget.txt"
@@ -84,7 +109,7 @@ class FileFormat(Evaluator["BudgetComputationTask", AgentRunResult]):
             content = budget_file.read_text(encoding="utf-8")
             lines = [line.strip() for line in content.split("\n") if line.strip()]
 
-            if len(lines) < 2:
+            if len(lines) < MIN_REQUIRED_ROWS:
                 return EvaluationReason(
                     value=0.0,
                     reason="File must contain at least 2 lines (expenses + total)",
@@ -92,36 +117,14 @@ class FileFormat(Evaluator["BudgetComputationTask", AgentRunResult]):
 
             # Check that all lines except the last follow the format file_path;price
             for i, line in enumerate(lines[:-1]):
-                if ";" not in line:
-                    return EvaluationReason(
-                        value=0.0,
-                        reason=f"Line {i + 1} does not contain ';' separator: {line}",
-                    )
-
-                parts = line.split(";")
-                if len(parts) != 2:
-                    return EvaluationReason(
-                        value=0.0,
-                        reason=f"Line {i + 1} does not have exactly 2 parts: {line}",
-                    )
-
-                # Check if second part is a valid number
-                try:
-                    float(parts[1])
-                except ValueError:
-                    return EvaluationReason(
-                        value=0.0,
-                        reason=f"Line {i + 1} price is not a valid number: {parts[1]}",
-                    )
+                expense_check = self._check_expense_line(line, i + 1)
+                if expense_check is not None:
+                    return expense_check
 
             # Check if last line is a valid number (total)
-            try:
-                float(lines[-1])
-            except ValueError:
-                return EvaluationReason(
-                    value=0.0,
-                    reason=f"Last line is not a valid number: {lines[-1]}",
-                )
+            total_check = self._check_total_line(lines[-1])
+            if total_check is not None:
+                return total_check
 
         except (OSError, UnicodeDecodeError) as e:
             return EvaluationReason(value=0.0, reason=f"Error reading or parsing file: {e}")
@@ -180,20 +183,16 @@ class FilePathsAndCounts(Evaluator["BudgetComputationTask", AgentRunResult]):
             expense_lines = lines[:-1]
 
             # Extract file paths from expense lines
-            file_paths = []
-            for line in expense_lines:
-                file_path = line.split(";")[0]
-                file_paths.append(file_path)
+            file_paths = [line.split(";")[0] for line in expense_lines]
 
             # Count occurrences of each path
             path_counts = Counter(file_paths)
 
             # Check if all expected paths are present with correct counts
             for expected_path, expected_count in EXPECTED_PATHS.items():
-                matching_paths = []
-                for actual_path in path_counts.keys():
-                    if path_matches_expected(actual_path, expected_path):
-                        matching_paths.append(actual_path)
+                matching_paths = [
+                    actual_path for actual_path in path_counts if path_matches_expected(actual_path, expected_path)
+                ]
 
                 if not matching_paths:
                     return EvaluationReason(
@@ -230,6 +229,59 @@ class FilePathsAndCounts(Evaluator["BudgetComputationTask", AgentRunResult]):
 class IndividualPrices(Evaluator["BudgetComputationTask", AgentRunResult]):
     """Evaluator that checks all individual prices match the expected values."""
 
+    def _check_expected_expenses(
+        self,
+        expected_expenses_counter: Counter[tuple[str, float]],
+        actual_expenses_counter: Counter[tuple[str, float]],
+    ) -> EvaluatorOutput | None:
+        """Check that all expected expenses are present with correct counts."""
+        for expected_expense, expected_count in expected_expenses_counter.items():
+            expected_path, expected_price = expected_expense
+
+            matching_expenses = [
+                actual_expense
+                for actual_expense in actual_expenses_counter
+                if path_matches_expected(actual_expense[0], expected_path)
+                and abs(actual_expense[1] - expected_price) < PRICE_TOLERANCE
+            ]
+
+            if not matching_expenses:
+                return EvaluationReason(
+                    value=0.0,
+                    reason=f"Missing expected expense: {expected_expense}",
+                )
+
+            total_count = sum(actual_expenses_counter[expense] for expense in matching_expenses)
+            if total_count != expected_count:
+                msg = f"Expense {expected_expense} has wrong count: expected {expected_count}, found {total_count}"
+                return EvaluationReason(value=0.0, reason=msg)
+        return None
+
+    def _check_unexpected_expenses(
+        self,
+        expected_expenses_counter: Counter[tuple[str, float]],
+        actual_expenses_counter: Counter[tuple[str, float]],
+    ) -> EvaluatorOutput | None:
+        """Check for unexpected expenses."""
+        all_matching_expenses = set()
+        for expected_expense in expected_expenses_counter:
+            expected_path, expected_price = expected_expense
+            for actual_expense in actual_expenses_counter:
+                actual_path, actual_price = actual_expense
+                if (
+                    path_matches_expected(actual_path, expected_path)
+                    and abs(actual_price - expected_price) < PRICE_TOLERANCE
+                ):
+                    all_matching_expenses.add(actual_expense)
+
+        unexpected_expenses = set(actual_expenses_counter) - all_matching_expenses
+        if unexpected_expenses:
+            return EvaluationReason(
+                value=0.0,
+                reason=f"Unexpected expenses found: {sorted(unexpected_expenses)}",
+            )
+        return None
+
     async def evaluate(self, ctx: EvaluatorContext["BudgetComputationTask", AgentRunResult]) -> EvaluatorOutput:
         """Verify that all individual prices match the expected values."""
         task = ctx.inputs
@@ -241,55 +293,21 @@ class IndividualPrices(Evaluator["BudgetComputationTask", AgentRunResult]):
             expense_lines = lines[:-1]
 
             # Parse actual expenses
-            actual_expenses = []
-            for line in expense_lines:
-                parts = line.split(";")
-                file_path = parts[0]
-                price = float(parts[1])
-                actual_expenses.append((file_path, price))
+            actual_expenses = [(line.split(";")[0], float(line.split(";")[1])) for line in expense_lines]
 
             # Create counters for expected and actual expenses
             expected_expenses_counter = Counter(EXPECTED_EXPENSES)
             actual_expenses_counter = Counter(actual_expenses)
 
             # Check if all expected expenses are present with correct counts
-            for expected_expense, expected_count in expected_expenses_counter.items():
-                expected_path, expected_price = expected_expense
-
-                matching_expenses = []
-                for actual_expense in actual_expenses_counter:
-                    actual_path, actual_price = actual_expense
-                    price_match = abs(actual_price - expected_price) < 0.01
-                    path_match = path_matches_expected(actual_path, expected_path)
-                    if path_match and price_match:
-                        matching_expenses.append(actual_expense)
-
-                if not matching_expenses:
-                    return EvaluationReason(
-                        value=0.0,
-                        reason=f"Missing expected expense: {expected_expense}",
-                    )
-
-                total_count = sum(actual_expenses_counter[expense] for expense in matching_expenses)
-                if total_count != expected_count:
-                    msg = f"Expense {expected_expense} has wrong count: expected {expected_count}, found {total_count}"
-                    return EvaluationReason(value=0.0, reason=msg)
+            expected_check = self._check_expected_expenses(expected_expenses_counter, actual_expenses_counter)
+            if expected_check is not None:
+                return expected_check
 
             # Check if there are any completely unexpected expenses
-            all_matching_expenses = set()
-            for expected_expense in expected_expenses_counter.keys():
-                expected_path, expected_price = expected_expense
-                for actual_expense in actual_expenses_counter.keys():
-                    actual_path, actual_price = actual_expense
-                    if path_matches_expected(actual_path, expected_path) and abs(actual_price - expected_price) < 0.01:
-                        all_matching_expenses.add(actual_expense)
-
-            unexpected_expenses = set(actual_expenses_counter.keys()) - all_matching_expenses
-            if unexpected_expenses:
-                return EvaluationReason(
-                    value=0.0,
-                    reason=f"Unexpected expenses found: {sorted(unexpected_expenses)}",
-                )
+            unexpected_check = self._check_unexpected_expenses(expected_expenses_counter, actual_expenses_counter)
+            if unexpected_check is not None:
+                return unexpected_check
 
         except (OSError, UnicodeDecodeError) as e:
             return EvaluationReason(value=0.0, reason=f"Error checking individual prices: {e}")
@@ -319,7 +337,7 @@ class TotalPrice(Evaluator["BudgetComputationTask", AgentRunResult]):
                     reason=f"Last line is not a valid number: {total_line}",
                 )
 
-            if abs(actual_total - EXPECTED_TOTAL) > 0.01:
+            if abs(actual_total - EXPECTED_TOTAL) > PRICE_TOLERANCE:
                 return EvaluationReason(
                     value=0.0,
                     reason=f"Expected total {EXPECTED_TOTAL}, found {actual_total}",
@@ -352,7 +370,7 @@ class TotalCalculation(Evaluator["BudgetComputationTask", AgentRunResult]):
 
             stated_total = float(lines[-1])
 
-            if abs(calculated_total - stated_total) > 0.01:
+            if abs(calculated_total - stated_total) > PRICE_TOLERANCE:
                 msg = f"Total calculation mismatch: calculated {calculated_total:.2f}, stated {stated_total:.2f}"
                 return EvaluationReason(value=0.0, reason=msg)
 
@@ -377,12 +395,15 @@ class BudgetComputationTask(FilesystemTask):
 
 ### Task Description
 
-You need to analyze all the files in the desktop environment to calculate personal life expenses and create a budget summary.
+You need to analyze all the files in the desktop environment to calculate personal life expenses
+and create a budget summary.
 
 ### Task Objectives
 
 1. **Locate and analyze all files** in the desktop environment
-2. **Extract personal life expenses** from the files (such as salary, food, living material, tax, expenses on the internet, ...) (exclude expenses in project/work)
+2. **Extract personal life expenses** from the files
+   (such as salary, food, living material, tax, expenses on the internet, ...)
+   (exclude expenses in project/work)
 3. **Create a file named `total_budget.txt`** in the main directory
 4. **Format each expense entry** as `file_path;price` (one per line)
 5. **Add total sum** as the last line, rounded to 2 decimal places
@@ -402,13 +423,14 @@ The `total_budget.txt` file should contain:
 - Only include personal life expenses (not in project/work)
 - Use the cheapest available price when multiple options exist for one thing
 - The total should match the sum of all individual expenses
-- Hint: If a file contains 1 item for personal consumption, it means that all the entry in entire file is for personal consumption"""
+- Hint: If a file contains 1 item for personal consumption,
+  it means that all the entry in entire file is for personal consumption"""
 
     def __init__(self, work_dir: Path, fixture: Fixture) -> None:
         """Initialize the task with evaluators."""
         super().__init__(work_dir=work_dir, fixture=fixture)
         self.evaluators = (
-            TotalBudgetFileExists(),
+            FileExists("total_budget.txt"),
             FileFormat(),
             FileContentStructure("total_budget.txt", expected_lines=EXPECTED_TOTAL_LINES),
             ExpenseEntries(),

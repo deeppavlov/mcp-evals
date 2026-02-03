@@ -274,7 +274,9 @@ class FileArrangementTask(FilesystemTask):
 
 ### Task Description
 
-You are tasked with organizing files on an AI researcher's desktop into a structured folder system. You need to create specific folders and move files to their designated locations according to the provided organization scheme.
+You are tasked with organizing files on an AI researcher's desktop into a structured folder system.
+You need to create specific folders and move files to their designated locations
+according to the provided organization scheme.
 
 ### Task Objectives
 
@@ -322,7 +324,8 @@ You are tasked with organizing files on an AI researcher's desktop into a struct
 - All files must be moved from their current locations to the specified folders
 - The `others/` folder is for files that don't fit the other categories
 - Do not modify the contents of any files, only move them to the correct locations
-- If you are not sure about which folder it should belongs to, you can read the context in the files before making decisions
+- If you are not sure about which folder it should belongs to,
+  you can read the context in the files before making decisions
 - **Do not change files' name**"""
 
     def __init__(self, work_dir: Path, fixture: Fixture) -> None:

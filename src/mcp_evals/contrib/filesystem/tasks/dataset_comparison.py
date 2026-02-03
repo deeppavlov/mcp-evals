@@ -39,21 +39,6 @@ EXPECTED_COUNTS = {
 
 
 @dataclass
-class AnalysisFileExists(Evaluator["DatasetComparisonTask", AgentRunResult]):
-    """Evaluator that checks analysis.txt file exists."""
-
-    async def evaluate(self, ctx: EvaluatorContext["DatasetComparisonTask", AgentRunResult]) -> EvaluatorOutput:
-        """Verify that the analysis.txt file exists."""
-        task = ctx.inputs
-        analysis_file = task.work_dir / "analysis.txt"
-
-        if not analysis_file.exists():
-            return EvaluationReason(value=0.0, reason="File 'analysis.txt' not found")
-
-        return 1.0
-
-
-@dataclass
 class FileLocation(Evaluator["DatasetComparisonTask", AgentRunResult]):
     """Evaluator that checks analysis.txt file is in correct location."""
 
@@ -75,6 +60,66 @@ class FileLocation(Evaluator["DatasetComparisonTask", AgentRunResult]):
 class AnalysisFormat(Evaluator["DatasetComparisonTask", AgentRunResult]):
     """Evaluator that checks analysis file has correct format."""
 
+    def _validate_block(self, lines: list[str], line_index: int) -> tuple[EvaluatorOutput | None, int]:
+        """Validate a category block and return error or updated line_index."""
+        if line_index + 1 >= len(lines):
+            return EvaluationReason(value=0.0, reason="Incomplete category block at the end"), line_index
+
+        category_line = lines[line_index].strip()
+        if not category_line:
+            return EvaluationReason(value=0.0, reason=f"Empty category name at line {line_index + 1}"), line_index
+
+        count_line = lines[line_index + 1].strip()
+        if not count_line:
+            return EvaluationReason(value=0.0, reason=f"Empty count at line {line_index + 2}"), line_index
+
+        if not re.search(r"\d+", count_line):
+            return (
+                EvaluationReason(
+                    value=0.0,
+                    reason=f"Count line doesn't contain a number at line {line_index + 2}: '{count_line}'",
+                ),
+                line_index,
+            )
+
+        line_index += 2
+        if line_index < len(lines) and lines[line_index].strip() == "":
+            line_index += 1
+
+        return None, line_index
+
+    def _validate_format(self, content: str, lines: list[str]) -> EvaluatorOutput | None:
+        """Validate file format and return error if invalid."""
+        if not content.strip():
+            return EvaluationReason(value=0.0, reason="Analysis file is empty")
+
+        if len(lines) < 2:  # noqa: PLR2004
+            return EvaluationReason(
+                value=0.0,
+                reason="Analysis file doesn't have enough lines for a category block",
+            )
+
+        line_index = 0
+        block_count = 0
+
+        while line_index < len(lines):
+            while line_index < len(lines) and lines[line_index].strip() == "":
+                line_index += 1
+
+            if line_index >= len(lines):
+                break
+
+            error, line_index = self._validate_block(lines, line_index)
+            if error is not None:
+                return error
+
+            block_count += 1
+
+        if block_count == 0:
+            return EvaluationReason(value=0.0, reason="No valid category blocks found")
+
+        return None
+
     async def evaluate(self, ctx: EvaluatorContext["DatasetComparisonTask", AgentRunResult]) -> EvaluatorOutput:
         """Verify that the analysis file has the correct format."""
         task = ctx.inputs
@@ -84,59 +129,9 @@ class AnalysisFormat(Evaluator["DatasetComparisonTask", AgentRunResult]):
             content = analysis_file.read_text(encoding="utf-8")
             lines = content.split("\n")
 
-            if not content.strip():
-                return EvaluationReason(value=0.0, reason="Analysis file is empty")
-
-            if len(lines) < 2:
-                return EvaluationReason(
-                    value=0.0,
-                    reason="Analysis file doesn't have enough lines for a category block",
-                )
-
-            line_index = 0
-            block_count = 0
-
-            while line_index < len(lines):
-                while line_index < len(lines) and lines[line_index].strip() == "":
-                    line_index += 1
-
-                if line_index >= len(lines):
-                    break
-
-                if line_index + 1 >= len(lines):
-                    return EvaluationReason(
-                        value=0.0,
-                        reason="Incomplete category block at the end",
-                    )
-
-                category_line = lines[line_index].strip()
-                if not category_line:
-                    return EvaluationReason(
-                        value=0.0,
-                        reason=f"Empty category name at line {line_index + 1}",
-                    )
-
-                count_line = lines[line_index + 1].strip()
-                if not count_line:
-                    return EvaluationReason(
-                        value=0.0,
-                        reason=f"Empty count at line {line_index + 2}",
-                    )
-
-                if not re.search(r"\d+", count_line):
-                    return EvaluationReason(
-                        value=0.0,
-                        reason=f"Count line doesn't contain a number at line {line_index + 2}: '{count_line}'",
-                    )
-
-                block_count += 1
-                line_index += 2
-
-                if line_index < len(lines) and lines[line_index].strip() == "":
-                    line_index += 1
-
-            if block_count == 0:
-                return EvaluationReason(value=0.0, reason="No valid category blocks found")
+            error = self._validate_format(content, lines)
+            if error is not None:
+                return error
 
         except (OSError, UnicodeDecodeError) as e:
             return EvaluationReason(value=0.0, reason=f"Error reading analysis file: {e}")
@@ -192,6 +187,56 @@ class RequiredCategories(Evaluator["DatasetComparisonTask", AgentRunResult]):
 class CategoryCounts(Evaluator["DatasetComparisonTask", AgentRunResult]):
     """Evaluator that checks category counts match expected values."""
 
+    def _parse_category_counts(self, lines: list[str]) -> dict[str, int]:
+        """Parse category counts from lines."""
+        category_counts = {}
+        line_index = 0
+
+        while line_index < len(lines):
+            while line_index < len(lines) and lines[line_index].strip() == "":
+                line_index += 1
+
+            if line_index >= len(lines):
+                break
+
+            category_line = lines[line_index].strip()
+            if not category_line:
+                line_index += 1
+                continue
+
+            if line_index + 1 < len(lines):
+                count_line = lines[line_index + 1].strip()
+                if count_line:
+                    count_match = re.search(r"(\d+)", count_line)
+                    if count_match:
+                        category = category_line.lower()
+                        count = int(count_match.group(1))
+                        category_counts[category] = count
+
+            line_index += 2
+            while line_index < len(lines) and lines[line_index].strip() == "":
+                line_index += 1
+
+        return category_counts
+
+    def _validate_counts(self, category_counts: dict[str, int]) -> EvaluatorOutput | None:
+        """Validate category counts match expected values."""
+        for category, expected_count in EXPECTED_COUNTS.items():
+            if category in category_counts:
+                actual_count = category_counts[category]
+                if actual_count != expected_count:
+                    return EvaluationReason(
+                        value=0.0,
+                        reason=(f"Count mismatch for {category}: expected {expected_count}, got {actual_count}"),
+                    )
+            else:
+                return EvaluationReason(
+                    value=0.0,
+                    reason=f"Category {category} not found in analysis",
+                )
+
+        return None
+
     async def evaluate(self, ctx: EvaluatorContext["DatasetComparisonTask", AgentRunResult]) -> EvaluatorOutput:
         """Verify that the category counts match the expected values."""
         task = ctx.inputs
@@ -201,50 +246,10 @@ class CategoryCounts(Evaluator["DatasetComparisonTask", AgentRunResult]):
             content = analysis_file.read_text(encoding="utf-8")
             lines = content.split("\n")
 
-            category_counts = {}
-            line_index = 0
-
-            while line_index < len(lines):
-                while line_index < len(lines) and lines[line_index].strip() == "":
-                    line_index += 1
-
-                if line_index >= len(lines):
-                    break
-
-                category_line = lines[line_index].strip()
-                if not category_line:
-                    line_index += 1
-                    continue
-
-                if line_index + 1 < len(lines):
-                    count_line = lines[line_index + 1].strip()
-                    if count_line:
-                        count_match = re.search(r"(\d+)", count_line)
-                        if count_match:
-                            category = category_line.lower()
-                            count = int(count_match.group(1))
-                            category_counts[category] = count
-
-                line_index += 2
-                while line_index < len(lines) and lines[line_index].strip() == "":
-                    line_index += 1
-
-            for category, expected_count in EXPECTED_COUNTS.items():
-                if category in category_counts:
-                    actual_count = category_counts[category]
-                    if actual_count != expected_count:
-                        return EvaluationReason(
-                            value=0.0,
-                            reason=(
-                                f"Count mismatch for {category}: "
-                                f"expected {expected_count}, got {actual_count}"
-                            ),
-                        )
-                else:
-                    return EvaluationReason(
-                        value=0.0,
-                        reason=f"Category {category} not found in analysis",
-                    )
+            category_counts = self._parse_category_counts(lines)
+            error = self._validate_counts(category_counts)
+            if error is not None:
+                return error
 
         except (OSError, UnicodeDecodeError) as e:
             return EvaluationReason(value=0.0, reason=f"Error verifying category counts: {e}")
@@ -272,8 +277,10 @@ Analyze the codebase to map ScanNet object categories to SUN RGB-D categories an
 ### Task Objectives
 
 1. **Primary Goal**: Use SUN RGB-D's 10-category classification system as the target taxonomy
-2. **Mapping Requirement**: Map each ScanNet object category (using the "category" field, not "raw_category") to the corresponding SUN RGB-D category
-3. **Calculation**: For each SUN RGB-D category, calculate the total count of objects from ScanNet that map to that category (It only counts if the category (not raw category) name are exactly the same (night_stand = nightstand))
+2. **Mapping Requirement**: Map each ScanNet object category (using the "category" field, not "raw_category") to the \
+corresponding SUN RGB-D category
+3. **Calculation**: For each SUN RGB-D category, calculate the total count of objects from ScanNet that map to that \
+category (It only counts if the category (not raw category) name are exactly the same (night_stand = nightstand))
 4. **Output**: Generate an analysis.txt file in the main directory showing the mapping and counts
 
 ### Expected Output
@@ -306,10 +313,9 @@ With correct counts:
         """Initialize the task with evaluators."""
         super().__init__(work_dir=work_dir, fixture=fixture)
         self.evaluators = (
-            AnalysisFileExists(),
+            FileExists("analysis.txt"),
             FileLocation(),
             AnalysisFormat(),
             RequiredCategories(),
             CategoryCounts(),
         )
-

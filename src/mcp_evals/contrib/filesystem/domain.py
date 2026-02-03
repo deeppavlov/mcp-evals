@@ -56,7 +56,7 @@ class FilesystemDomain(Domain):
     _stack: AsyncExitStack | None = None
 
     async def setup(self) -> None:
-        """Creeate tmp dir for filesystem operations."""
+        """Create tmp dir for filesystem operations."""
         if self._stack is not None:
             msg = "Attempted to create FilesystemDomain again"
             raise RuntimeError(msg)

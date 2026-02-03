@@ -6,6 +6,7 @@ from pathlib import Path
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
 
+from mcp_evals.contrib.filesystem.common_evaluators import NoFilesInRoot
 from mcp_evals.contrib.filesystem.task import FilesystemTask
 from mcp_evals.contrib.filesystem.utils import Fixture
 
@@ -21,11 +22,17 @@ REQUIRED_DIRS = ["small_files", "medium_files", "large_files"]
 # System files to ignore
 SYSTEM_FILES = [".DS_Store", "Thumbs.db", ".DS_Store?", "._.DS_Store"]
 
+# Size thresholds
+SMALL_FILE_MAX = 299  # < 300 bytes
+MEDIUM_FILE_MIN = 300  # 300-700 bytes (inclusive)
+MEDIUM_FILE_MAX = 700
+LARGE_FILE_MIN = 701  # > 700 bytes
+
 # Size ranges
 SIZE_RANGES = {
-    "small_files": (0, 299),  # < 300 bytes
-    "medium_files": (300, 700),  # 300-700 bytes (inclusive)
-    "large_files": (701, float("inf")),  # > 700 bytes
+    "small_files": (0, SMALL_FILE_MAX),
+    "medium_files": (MEDIUM_FILE_MIN, MEDIUM_FILE_MAX),
+    "large_files": (LARGE_FILE_MIN, float("inf")),
 }
 
 TOTAL_EXPECTED_FILES = sum(len(files) for files in EXPECTED_CLASSIFICATION.values())
@@ -94,29 +101,6 @@ class FileClassification(Evaluator["SizeClassificationTask", AgentRunResult]):
 
 
 @dataclass
-class NoFilesInRoot(Evaluator["SizeClassificationTask", AgentRunResult]):
-    """Evaluator that checks no files remain in the root test directory."""
-
-    async def evaluate(self, ctx: EvaluatorContext["SizeClassificationTask", AgentRunResult]) -> EvaluatorOutput:
-        """Verify that no files remain in the root test directory."""
-        task = ctx.inputs
-
-        try:
-            root_files = [f for f in task.work_dir.iterdir() if f.is_file()]
-            non_system_files = [f for f in root_files if f.name not in SYSTEM_FILES]
-
-            if non_system_files:
-                return EvaluationReason(
-                    value=0.0,
-                    reason=f"Files still present in root directory: {[f.name for f in non_system_files]}",
-                )
-        except (OSError, PermissionError) as e:
-            return EvaluationReason(value=0.0, reason=f"Error reading root directory: {e}")
-
-        return 1.0
-
-
-@dataclass
 class FileSizes(Evaluator["SizeClassificationTask", AgentRunResult]):
     """Evaluator that checks files are actually in the correct size categories."""
 
@@ -124,7 +108,7 @@ class FileSizes(Evaluator["SizeClassificationTask", AgentRunResult]):
         """Verify that files are actually in the correct size categories."""
         task = ctx.inputs
 
-        for dir_name, (min_size, max_size) in SIZE_RANGES.items():
+        for dir_name in SIZE_RANGES:
             dir_path = task.work_dir / dir_name
 
             try:
@@ -132,15 +116,15 @@ class FileSizes(Evaluator["SizeClassificationTask", AgentRunResult]):
                     if file_path.is_file() and file_path.name not in SYSTEM_FILES:
                         file_size = file_path.stat().st_size
 
-                        if dir_name == "small_files" and file_size >= 300:
+                        if dir_name == "small_files" and file_size >= MEDIUM_FILE_MIN:
                             msg = f"File {file_path.name} in small_files but size is {file_size} bytes"
                             return EvaluationReason(value=0.0, reason=msg)
 
-                        if dir_name == "medium_files" and (file_size < 300 or file_size > 700):
+                        if dir_name == "medium_files" and (file_size < MEDIUM_FILE_MIN or file_size > MEDIUM_FILE_MAX):
                             msg = f"File {file_path.name} in medium_files but size is {file_size} bytes"
                             return EvaluationReason(value=0.0, reason=msg)
 
-                        if dir_name == "large_files" and file_size <= 700:
+                        if dir_name == "large_files" and file_size <= MEDIUM_FILE_MAX:
                             msg = f"File {file_path.name} in large_files but size is {file_size} bytes"
                             return EvaluationReason(value=0.0, reason=msg)
             except (OSError, PermissionError) as e:
@@ -193,7 +177,8 @@ class SizeClassificationTask(FilesystemTask):
 
 ### Task Description
 
-Classify all files in the test directory into three categories based on their file size. Create three subdirectories and move files accordingly.
+Classify all files in the test directory into three categories based on their file size.
+Create three subdirectories and move files accordingly.
 
 ### Task Objectives
 
@@ -220,7 +205,7 @@ After completing the task, the directory structure should be:
         self.evaluators = (
             DirectoriesExist(),
             FileClassification(),
-            NoFilesInRoot(),
+            NoFilesInRoot(SYSTEM_FILES),
             FileSizes(),
             TotalFileCount(),
         )

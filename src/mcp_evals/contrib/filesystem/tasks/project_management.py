@@ -6,6 +6,7 @@ from pathlib import Path
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
 
+from mcp_evals.contrib.filesystem.common_evaluators import FileExists
 from mcp_evals.contrib.filesystem.task import FilesystemTask
 from mcp_evals.contrib.filesystem.utils import Fixture
 
@@ -268,25 +269,6 @@ class ProgressTrackingEmpty(Evaluator["ProjectManagementTask", AgentRunResult]):
 
 
 @dataclass
-class ProjectStructureFileExists(Evaluator["ProjectManagementTask", AgentRunResult]):
-    """Evaluator that checks project_structure.md file exists."""
-
-    async def evaluate(self, ctx: EvaluatorContext["ProjectManagementTask", AgentRunResult]) -> EvaluatorOutput:
-        """Verify that project_structure.md file exists."""
-        task = ctx.inputs
-        organized_dir = task.work_dir / "organized_projects"
-        structure_file = organized_dir / "project_structure.md"
-
-        if not structure_file.exists():
-            return EvaluationReason(value=0.0, reason="'project_structure.md' file not found")
-
-        if not structure_file.is_file():
-            return EvaluationReason(value=0.0, reason="'project_structure.md' exists but is not a file")
-
-        return 1.0
-
-
-@dataclass
 class FileCounts(Evaluator["ProjectManagementTask", AgentRunResult]):
     """Evaluator that checks each directory has the correct number of files."""
 
@@ -371,6 +353,6 @@ class ProjectManagementTask(FilesystemTask):
             EntertainmentMDFilesInEntertainment(),
             MusicMDFilesInCollections(),
             ProgressTrackingEmpty(),
-            ProjectStructureFileExists(),
+            FileExists("organized_projects/project_structure.md"),
             FileCounts(),
         )

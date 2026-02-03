@@ -17,21 +17,6 @@ CORRECT_FIXES = [
 
 
 @dataclass
-class AnswerFileExists(Evaluator["DebuggingTask", AgentRunResult]):
-    """Evaluator that checks answer.txt file exists."""
-
-    async def evaluate(self, ctx: EvaluatorContext["DebuggingTask", AgentRunResult]) -> EvaluatorOutput:
-        """Verify that the answer.txt file exists."""
-        task = ctx.inputs
-        answer_file = task.work_dir / "answer.txt"
-
-        if not answer_file.exists():
-            return EvaluationReason(value=0.0, reason="File 'answer.txt' not found")
-
-        return 1.0
-
-
-@dataclass
 class AnswerFormat(Evaluator["DebuggingTask", AgentRunResult]):
     """Evaluator that checks answer file has correct format."""
 
@@ -87,24 +72,6 @@ class FilePathStructure(Evaluator["DebuggingTask", AgentRunResult]):
 
         except (OSError, UnicodeDecodeError) as e:
             return EvaluationReason(value=0.0, reason=f"Error verifying answer structure: {e}")
-
-        return 1.0
-
-
-@dataclass
-class FileExists(Evaluator["DebuggingTask", AgentRunResult]):
-    """Evaluator that checks identified file actually exists."""
-
-    async def evaluate(self, ctx: EvaluatorContext["DebuggingTask", AgentRunResult]) -> EvaluatorOutput:
-        """Verify that the identified file actually exists."""
-        task = ctx.inputs
-        file_path = task.work_dir / "models/backbone_module.py"
-
-        if not file_path.exists():
-            return EvaluationReason(
-                value=0.0,
-                reason="Expected file does not exist: models/backbone_module.py",
-            )
 
         return 1.0
 
@@ -216,7 +183,8 @@ There is a bug in the VoteNet backbone module that needs to be identified and fi
 
 The bug is in `models/backbone_module.py`:
 - Line containing `self.fp2 = PointnetFPModule(mlp=[256,256,256])`
-- Should be changed to `self.fp2 = PointnetFPModule(mlp=[512,256,256])` or `self.fp2 = PointnetFPModule(mlp=[256+256,256,256])`
+- Should be changed to `self.fp2 = PointnetFPModule(mlp=[512,256,256])` or \
+`self.fp2 = PointnetFPModule(mlp=[256+256,256,256])`
 
 ### Success Criteria
 
@@ -227,10 +195,8 @@ The bug is in `models/backbone_module.py`:
         """Initialize the task with evaluators."""
         super().__init__(work_dir=work_dir, fixture=fixture)
         self.evaluators = (
-            AnswerFileExists(),
+            FileExists("answer.txt"),
             AnswerFormat(),
             FilePathStructure(),
-            FileExists(),
             BugFix(),
         )
-

@@ -15,21 +15,6 @@ EXPECTED_FILE_PATH = "threestudio/models/guidance/zero123_guidance.py"
 
 
 @dataclass
-class AnswerFileExists(Evaluator["OutputAnalysisTask", AgentRunResult]):
-    """Evaluator that checks answer.txt file exists."""
-
-    async def evaluate(self, ctx: EvaluatorContext["OutputAnalysisTask", AgentRunResult]) -> EvaluatorOutput:
-        """Verify that the answer.txt file exists."""
-        task = ctx.inputs
-        answer_file = task.work_dir / "answer.txt"
-
-        if not answer_file.exists():
-            return EvaluationReason(value=0.0, reason="File 'answer.txt' not found")
-
-        return 1.0
-
-
-@dataclass
 class RequiredStrings(Evaluator["OutputAnalysisTask", AgentRunResult]):
     """Evaluator that checks answer contains the four required strings."""
 
@@ -41,11 +26,7 @@ class RequiredStrings(Evaluator["OutputAnalysisTask", AgentRunResult]):
         try:
             content = answer_file.read_text(encoding="utf-8")
 
-            missing_strings = []
-            for string in REQUIRED_STRINGS:
-                if string not in content:
-                    missing_strings.append(string)
-
+            missing_strings = [s for s in REQUIRED_STRINGS if s not in content]
             if missing_strings:
                 return EvaluationReason(
                     value=0.0,
@@ -130,13 +111,17 @@ class OutputAnalysisTask(FilesystemTask):
 
 ### Task Description
 
-ThreeStudio is a comprehensive codebase that implements various diffusion-based text-to-3D models, including NeRF-based rendering stage and diffusion guidance stage. Your task is to explore the codebase and identify the specific file that defines the guidance functionality for the Zero123 model.
+ThreeStudio is a comprehensive codebase that implements various diffusion-based text-to-3D models, including \
+NeRF-based rendering stage and diffusion guidance stage. Your task is to explore the codebase and identify the \
+specific file that defines the guidance functionality for the Zero123 model.
 
 ### Task
 
 What is the output of `guidance_out`, returned by the code at line 137 in `threestudio/systems/zero123.py`?
 
-Clearly state the structure of it and where you find the answer (file and line numbers). Write your answer in a file named `answer.txt` in the test directory root. Do not add extra explanation or formatting beyond what is required by the task.
+Clearly state the structure of it and where you find the answer (file and line numbers). Write your answer in a file \
+named `answer.txt` in the test directory root. Do not add extra explanation or formatting beyond what is required by \
+the task.
 
 ### Expected Output
 
@@ -157,9 +142,8 @@ The answer file should contain:
         """Initialize the task with evaluators."""
         super().__init__(work_dir=work_dir, fixture=fixture)
         self.evaluators = (
-            AnswerFileExists(),
+            FileExists("answer.txt"),
             RequiredStrings(),
             LineNumbers(),
             FilePath(),
         )
-

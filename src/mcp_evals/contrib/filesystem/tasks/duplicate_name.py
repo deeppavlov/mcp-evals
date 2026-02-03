@@ -33,6 +33,38 @@ EXPECTED_DUPLICATES = {
 EXPECTED_DUPLICATE_COUNT = 16
 
 
+def _parse_entry(lines: list[str], current_line: int) -> tuple[tuple[str, dict[str, int | list[str]]] | None, int]:
+    """Parse a single entry and return (name, entry dict) or None, and next line index."""
+    if current_line + 2 >= len(lines):
+        return None, current_line
+
+    name_line = lines[current_line].strip()
+    count_line = lines[current_line + 1].strip()
+    ids_line = lines[current_line + 2].strip()
+
+    if not name_line.startswith("name: "):
+        return None, current_line
+
+    name = name_line.replace("name: ", "").strip()
+
+    if not count_line.startswith("count: "):
+        return None, current_line
+
+    count_str = count_line.replace("count: ", "").strip()
+    try:
+        count = int(count_str)
+    except ValueError:
+        return None, current_line
+
+    if not ids_line.startswith("ids: "):
+        return None, current_line
+
+    ids_str = ids_line.replace("ids: ", "").strip()
+    ids = [i.strip() for i in ids_str.split(",")]
+
+    return (name, {"count": count, "ids": ids}), current_line + 4
+
+
 def parse_namesake_file(work_dir: Path) -> dict[str, dict[str, int | list[str]]]:
     """Parse the namesake.txt file and return structured data."""
     namesake_file = work_dir / "namesake.txt"
@@ -49,61 +81,84 @@ def parse_namesake_file(work_dir: Path) -> dict[str, dict[str, int | list[str]]]
                 current_line += 1
                 continue
 
-            if current_line + 2 >= len(lines):
+            result, next_line = _parse_entry(lines, current_line)
+            if result is None:
                 return {}
 
-            name_line = lines[current_line].strip()
-            count_line = lines[current_line + 1].strip()
-            ids_line = lines[current_line + 2].strip()
+            name, entry = result
+            namesakes[name] = entry
 
-            if not name_line.startswith("name: "):
-                return {}
-
-            name = name_line.replace("name: ", "").strip()
-
-            if not count_line.startswith("count: "):
-                return {}
-
-            count_str = count_line.replace("count: ", "").strip()
-            try:
-                count = int(count_str)
-            except ValueError:
-                return {}
-
-            if not ids_line.startswith("ids: "):
-                return {}
-
-            ids_str = ids_line.replace("ids: ", "").strip()
-            ids = [id.strip() for id in ids_str.split(",")]
-
-            namesakes[name] = {"count": count, "ids": ids}
-
-            current_line += 4
-
-        return namesakes
+            current_line = next_line
 
     except (OSError, UnicodeDecodeError):
         return {}
 
-
-@dataclass
-class NamesakeFileExists(Evaluator["DuplicateNameTask", AgentRunResult]):
-    """Evaluator that checks namesake.txt file exists."""
-
-    async def evaluate(self, ctx: EvaluatorContext["DuplicateNameTask", AgentRunResult]) -> EvaluatorOutput:
-        """Verify that the namesake.txt file exists."""
-        task = ctx.inputs
-        namesake_file = task.work_dir / "namesake.txt"
-
-        if not namesake_file.exists():
-            return EvaluationReason(value=0.0, reason="File 'namesake.txt' not found")
-
-        return 1.0
+    return namesakes
 
 
 @dataclass
 class ExpectedResults(Evaluator["DuplicateNameTask", AgentRunResult]):
     """Evaluator that checks results match expected answer.md content exactly."""
+
+    def _validate_name_presence(self, namesakes: dict[str, dict[str, int | list[str]]]) -> EvaluatorOutput | None:
+        """Validate that all expected names are present and no unexpected names exist."""
+        for expected_name in EXPECTED_DUPLICATES:
+            if expected_name not in namesakes:
+                return EvaluationReason(
+                    value=0.0,
+                    reason=f"Missing expected duplicate name: '{expected_name}'",
+                )
+
+        for name in namesakes:
+            if name not in EXPECTED_DUPLICATES:
+                return EvaluationReason(
+                    value=0.0,
+                    reason=f"Unexpected duplicate name found: '{name}' (not in expected list)",
+                )
+
+        return None
+
+    def _validate_name_data(self, name: str, data: dict[str, int | list[str]]) -> EvaluatorOutput | None:
+        """Validate data for a single name."""
+        expected_ids = set(EXPECTED_DUPLICATES[name])
+        ids = data["ids"]
+        if not isinstance(ids, list):
+            return EvaluationReason(
+                value=0.0,
+                reason=f"Invalid ids type for '{name}': expected list, got {type(ids).__name__}",
+            )
+        stated_ids = set(ids)
+
+        if expected_ids != stated_ids:
+            return EvaluationReason(
+                value=0.0,
+                reason=(f"ID mismatch for '{name}'. Expected: {sorted(expected_ids)}, Stated: {sorted(stated_ids)}"),
+            )
+
+        if data["count"] != 2:  # noqa: PLR2004
+            return EvaluationReason(
+                value=0.0,
+                reason=f"Count mismatch for '{name}': expected 2, got {data['count']}",
+            )
+
+        return None
+
+    def _validate_namesakes(self, namesakes: dict[str, dict[str, int | list[str]]]) -> EvaluatorOutput | None:
+        """Validate namesakes against expected data."""
+        if len(namesakes) != EXPECTED_DUPLICATE_COUNT:
+            reason_msg = f"Expected exactly {EXPECTED_DUPLICATE_COUNT} duplicate names, but found {len(namesakes)}"
+            return EvaluationReason(value=0.0, reason=reason_msg)
+
+        error = self._validate_name_presence(namesakes)
+        if error is not None:
+            return error
+
+        for name, data in namesakes.items():
+            error = self._validate_name_data(name, data)
+            if error is not None:
+                return error
+
+        return None
 
     async def evaluate(self, ctx: EvaluatorContext["DuplicateNameTask", AgentRunResult]) -> EvaluatorOutput:
         """Verify that the results match the expected answer.md content exactly."""
@@ -114,46 +169,9 @@ class ExpectedResults(Evaluator["DuplicateNameTask", AgentRunResult]):
         if not namesakes:
             return EvaluationReason(value=0.0, reason="Failed to parse namesake file")
 
-        if len(namesakes) != EXPECTED_DUPLICATE_COUNT:
-            return EvaluationReason(
-                value=0.0,
-                reason=(
-                    f"Expected exactly {EXPECTED_DUPLICATE_COUNT} duplicate names, "
-                    f"but found {len(namesakes)}"
-                ),
-            )
-
-        for expected_name in EXPECTED_DUPLICATES:
-            if expected_name not in namesakes:
-                return EvaluationReason(
-                    value=0.0,
-                    reason=f"Missing expected duplicate name: '{expected_name}'",
-                )
-
-        for name, data in namesakes.items():
-            if name not in EXPECTED_DUPLICATES:
-                return EvaluationReason(
-                    value=0.0,
-                    reason=f"Unexpected duplicate name found: '{name}' (not in expected list)",
-                )
-
-            expected_ids = set(EXPECTED_DUPLICATES[name])
-            stated_ids = set(data["ids"])
-
-            if expected_ids != stated_ids:
-                return EvaluationReason(
-                    value=0.0,
-                    reason=(
-                        f"ID mismatch for '{name}'. "
-                        f"Expected: {sorted(expected_ids)}, Stated: {sorted(stated_ids)}"
-                    ),
-                )
-
-            if data["count"] != 2:
-                return EvaluationReason(
-                    value=0.0,
-                    reason=f"Count mismatch for '{name}': expected 2, got {data['count']}",
-                )
+        error = self._validate_namesakes(namesakes)
+        if error is not None:
+            return error
 
         return 1.0
 
@@ -171,13 +189,16 @@ class DuplicateNameTask(FilesystemTask):
     name = "duplicate_name"
     goal = """Please use FileSystem tools to finish the following task:
 
-Please help me identify duplicate names from the list of all the 150 students. Do not use python code. Then generate a `namesake.txt` file to record the results in the following format, with each group written in three lines:
+Please help me identify duplicate names from the list of all the 150 students. Do not use python code.
+Then generate a `namesake.txt` file to record the results in the following format,
+with each group written in three lines:
 
 name: xxx
 count: xxx
 ids: xxx, xxx, ...
 
-Leave one blank line between every two groups. If there are multiple duplicates, just list all corresponding IDs in the third line.
+Leave one blank line between every two groups.
+If there are multiple duplicates, just list all corresponding IDs in the third line.
 
 ### Expected Output
 
@@ -191,7 +212,6 @@ Leave one blank line between every two groups. If there are multiple duplicates,
         """Initialize the task with evaluators."""
         super().__init__(work_dir=work_dir, fixture=fixture)
         self.evaluators = (
-            NamesakeFileExists(),
+            FileExists("namesake.txt"),
             ExpectedResults(),
         )
-

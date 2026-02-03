@@ -8,7 +8,7 @@ from pathlib import Path
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
 
-from mcp_evals.contrib.filesystem.common_evaluators import FileContentStructure
+from mcp_evals.contrib.filesystem.common_evaluators import FileContentStructure, FileExists, FileReadable
 from mcp_evals.contrib.filesystem.task import FilesystemTask
 from mcp_evals.contrib.filesystem.utils import Fixture
 
@@ -63,46 +63,6 @@ EXPECTED_LINE_COUNT = 43
 
 
 @dataclass
-class TimelineFileExists(Evaluator["TimelineExtractionTask", AgentRunResult]):
-    """Evaluator that checks timeline.txt file exists in main directory."""
-
-    async def evaluate(self, ctx: EvaluatorContext["TimelineExtractionTask", AgentRunResult]) -> EvaluatorOutput:
-        """Verify that the timeline.txt file exists in the main directory."""
-        task = ctx.inputs
-        timeline_file = task.work_dir / "timeline.txt"
-
-        if not timeline_file.exists():
-            return EvaluationReason(
-                value=0.0,
-                reason="'timeline.txt' file not found in main directory",
-            )
-
-        if not timeline_file.is_file():
-            return EvaluationReason(value=0.0, reason="'timeline.txt' exists but is not a file")
-
-        return 1.0
-
-
-@dataclass
-class TimelineFileReadable(Evaluator["TimelineExtractionTask", AgentRunResult]):
-    """Evaluator that checks timeline.txt file is readable."""
-
-    async def evaluate(self, ctx: EvaluatorContext["TimelineExtractionTask", AgentRunResult]) -> EvaluatorOutput:
-        """Verify that the timeline.txt file is readable."""
-        task = ctx.inputs
-        timeline_file = task.work_dir / "timeline.txt"
-
-        try:
-            content = timeline_file.read_text(encoding="utf-8")
-            if not content.strip():
-                return EvaluationReason(value=0.0, reason="'timeline.txt' file is empty")
-        except (OSError, UnicodeDecodeError) as e:
-            return EvaluationReason(value=0.0, reason=f"Error reading 'timeline.txt' file: {e}")
-
-        return 1.0
-
-
-@dataclass
 class LineCount(Evaluator["TimelineExtractionTask", AgentRunResult]):
     """Evaluator that checks timeline.txt file has exactly 43 lines."""
 
@@ -126,11 +86,29 @@ class LineCount(Evaluator["TimelineExtractionTask", AgentRunResult]):
         return 1.0
 
 
+def _has_path_like_content(line: str) -> bool:
+    """Check if a line contains path-like content."""
+    # Method 1: Split into words and look for path-like content
+    words = line.split()
+    for word in words:
+        if ("/" in word or "." in word) and not re.match(r"^\d{4}-\d{2}-\d{2}$", word.strip()):
+            return True
+
+    # Method 2: Check if line contains path-like content with colon separator
+    if ":" in line:
+        parts = line.split(":")
+        for part in parts:
+            if ("/" in part or "." in part) and not re.match(r"^\d{4}-\d{2}-\d{2}$", part.strip()):
+                return True
+
+    return False
+
+
 @dataclass
 class LineFormat(Evaluator["TimelineExtractionTask", AgentRunResult]):
     """Evaluator that checks each line contains both file path and date time information."""
 
-    async def evaluate(self, ctx: EvaluatorContext["TimelineExtractionTask", AgentRunResult]) -> EvaluatorOutput:  # noqa: C901
+    async def evaluate(self, ctx: EvaluatorContext["TimelineExtractionTask", AgentRunResult]) -> EvaluatorOutput:
         """Verify that each line contains both file path and date time information."""
         task = ctx.inputs
         timeline_file = task.work_dir / "timeline.txt"
@@ -149,24 +127,7 @@ class LineFormat(Evaluator["TimelineExtractionTask", AgentRunResult]):
                     continue
 
                 # Check if line contains path-like content
-                path_found = False
-
-                # Method 1: Split into words and look for path-like content
-                words = line.split()
-                for word in words:
-                    if ("/" in word or "." in word) and not re.match(r"^\d{4}-\d{2}-\d{2}$", word.strip()):
-                        path_found = True
-                        break
-
-                # Method 2: Check if line contains path-like content with colon separator
-                if not path_found and ":" in line:
-                    parts = line.split(":")
-                    for part in parts:
-                        if ("/" in part or "." in part) and not re.match(r"^\d{4}-\d{2}-\d{2}$", part.strip()):
-                            path_found = True
-                            break
-
-                if not path_found:
+                if not _has_path_like_content(line):
                     invalid_lines.append(f"Line {i}: '{line}' (no valid path found)")
 
             if invalid_lines:
@@ -202,7 +163,7 @@ class DateFormat(Evaluator["TimelineExtractionTask", AgentRunResult]):
                         continue
 
                     date_part = date_match.group()
-                    datetime.strptime(date_part, "%Y-%m-%d")
+                    datetime.strptime(date_part, "%Y-%m-%d")  # noqa: DTZ007
                 except (ValueError, IndexError) as e:
                     invalid_dates.append(f"Line {i}: '{line}' (invalid date: {e})")
 
@@ -234,7 +195,7 @@ class ChronologicalOrder(Evaluator["TimelineExtractionTask", AgentRunResult]):
             for line in lines:
                 date_match = re.search(r"\d{4}-\d{2}-\d{2}", line)
                 if date_match:
-                    date_obj = datetime.strptime(date_match.group(), "%Y-%m-%d")
+                    date_obj = datetime.strptime(date_match.group(), "%Y-%m-%d")  # noqa: DTZ007
                     dates.append(date_obj)
 
             # Check if dates are in ascending order
@@ -250,11 +211,64 @@ class ChronologicalOrder(Evaluator["TimelineExtractionTask", AgentRunResult]):
         return 1.0
 
 
+def _extract_path_from_line(line: str) -> str | None:
+    """Extract file path from a timeline line."""
+    words = line.split()
+    for word in words:
+        if ("/" in word or "." in word) and not re.match(r"^\d{4}-\d{2}-\d{2}$", word.strip()):
+            return word
+    return None
+
+
+def _check_missing_entries(actual_lines: list[str]) -> list[str]:
+    """Check for missing expected entries."""
+    missing_entries = []
+    for expected in EXPECTED_ENTRIES:
+        expected_path, expected_date = expected.split(":")
+        found = False
+
+        for actual_line in actual_lines:
+            if expected_path in actual_line and expected_date in actual_line:
+                found = True
+                break
+
+        if not found:
+            missing_entries.append(expected)
+    return missing_entries
+
+
+def _check_extra_entries(actual_lines: list[str]) -> list[str]:
+    """Check for extra unexpected entries."""
+    extra_entries = []
+    for actual_line in actual_lines:
+        date_match = re.search(r"\d{4}-\d{2}-\d{2}", actual_line)
+        if not date_match:
+            continue
+
+        actual_date = date_match.group()
+        actual_path = _extract_path_from_line(actual_line)
+
+        if not actual_path:
+            continue
+
+        # Find if this line matches any expected entry
+        found_expected = False
+        for expected in EXPECTED_ENTRIES:
+            expected_path, expected_date = expected.split(":")
+            if expected_path in actual_path and expected_date == actual_date:
+                found_expected = True
+                break
+
+        if not found_expected:
+            extra_entries.append(actual_line)
+    return extra_entries
+
+
 @dataclass
 class ExpectedEntries(Evaluator["TimelineExtractionTask", AgentRunResult]):
     """Evaluator that checks all expected entries from answer.txt are present."""
 
-    async def evaluate(self, ctx: EvaluatorContext["TimelineExtractionTask", AgentRunResult]) -> EvaluatorOutput:  # noqa: C901, PLR0912
+    async def evaluate(self, ctx: EvaluatorContext["TimelineExtractionTask", AgentRunResult]) -> EvaluatorOutput:
         """Verify that all expected entries from answer.txt are present."""
         task = ctx.inputs
         timeline_file = task.work_dir / "timeline.txt"
@@ -263,55 +277,12 @@ class ExpectedEntries(Evaluator["TimelineExtractionTask", AgentRunResult]):
             content = timeline_file.read_text(encoding="utf-8")
             actual_lines = [line.strip() for line in content.split("\n") if line.strip()]
 
-            # Check if each expected entry is found in actual lines
-            missing_entries = []
-            for expected in EXPECTED_ENTRIES:
-                expected_path, expected_date = expected.split(":")
-                found = False
-
-                for actual_line in actual_lines:
-                    if expected_path in actual_line and expected_date in actual_line:
-                        found = True
-                        break
-
-                if not found:
-                    missing_entries.append(expected)
-
-            # Check for extra entries
-            extra_entries = []
-            for actual_line in actual_lines:
-                date_match = re.search(r"\d{4}-\d{2}-\d{2}", actual_line)
-                if not date_match:
-                    continue
-
-                actual_date = date_match.group()
-
-                # Try to extract file path from the line
-                actual_path = None
-                words = actual_line.split()
-                for word in words:
-                    if ("/" in word or "." in word) and not re.match(r"^\d{4}-\d{2}-\d{2}$", word.strip()):
-                        actual_path = word
-                        break
-
-                if not actual_path:
-                    continue
-
-                # Find if this line matches any expected entry
-                found_expected = False
-                for expected in EXPECTED_ENTRIES:
-                    expected_path, expected_date = expected.split(":")
-                    if expected_path in actual_path and expected_date == actual_date:
-                        found_expected = True
-                        break
-
-                if not found_expected:
-                    extra_entries.append(actual_line)
-
+            missing_entries = _check_missing_entries(actual_lines)
             if missing_entries:
                 msg = f"Missing {len(missing_entries)} expected entries. Examples: {missing_entries[:3]}"
                 return EvaluationReason(value=0.0, reason=msg)
 
+            extra_entries = _check_extra_entries(actual_lines)
             if extra_entries:
                 msg = f"Found {len(extra_entries)} unexpected entries. Examples: {extra_entries[:3]}"
                 return EvaluationReason(value=0.0, reason=msg)
@@ -342,11 +313,37 @@ class NoDuplicates(Evaluator["TimelineExtractionTask", AgentRunResult]):
         return 1.0
 
 
+def _extract_file_path_from_line(line: str) -> str | None:
+    """Extract file path from a timeline line and check if it exists."""
+    # Method 1: Split by colon and check each part
+    if ":" in line:
+        parts = line.split(":")
+        for part_ in parts:
+            part = part_.strip()
+            if part and ("/" in part or "." in part) and not re.match(r"^\d{4}-\d{2}-\d{2}$", part):
+                return part
+
+    # Method 2: Split into words and look for path-like content
+    words = line.split()
+    for word in words:
+        word_ = word.strip()
+        if ("/" in word_ or "." in word_) and not re.match(r"^\d{4}-\d{2}-\d{2}$", word_):
+            return word_
+
+    # Method 3: Use regex to find path-like patterns
+    path_matches = re.findall(r"[a-zA-Z0-9_\-\.\/]+/[a-zA-Z0-9_\-\.\/]+", line)
+    for match in path_matches:
+        if "." in match or "/" in match:
+            return str(match)
+
+    return None
+
+
 @dataclass
 class FilePathsExist(Evaluator["TimelineExtractionTask", AgentRunResult]):
     """Evaluator that checks all file paths mentioned in timeline.txt actually exist."""
 
-    async def evaluate(self, ctx: EvaluatorContext["TimelineExtractionTask", AgentRunResult]) -> EvaluatorOutput:  # noqa: C901, PLR0912
+    async def evaluate(self, ctx: EvaluatorContext["TimelineExtractionTask", AgentRunResult]) -> EvaluatorOutput:
         """Verify that all file paths mentioned in timeline.txt actually exist."""
         task = ctx.inputs
         timeline_file = task.work_dir / "timeline.txt"
@@ -357,43 +354,11 @@ class FilePathsExist(Evaluator["TimelineExtractionTask", AgentRunResult]):
 
             missing_files = []
             for line in lines:
-                file_path_found = False
-
-                # Method 1: Split by colon and check each part
-                if ":" in line:
-                    parts = line.split(":")
-                    for part_ in parts:
-                        part = part_.strip()
-                        if part and ("/" in part or "." in part) and not re.match(r"^\d{4}-\d{2}-\d{2}$", part):
-                            full_path = task.work_dir / part
-                            if not full_path.exists():
-                                missing_files.append(part)
-                            file_path_found = True
-                            break
-
-                # Method 2: Split into words and look for path-like content
-                if not file_path_found:
-                    words = line.split()
-                    for word in words:
-                        word_ = word.strip()
-                        if ("/" in word_ or "." in word_) and not re.match(r"^\d{4}-\d{2}-\d{2}$", word_):
-                            full_path = task.work_dir / word_
-                            if not full_path.exists():
-                                missing_files.append(word_)
-                            file_path_found = True
-                            break
-
-                # Method 3: Use regex to find path-like patterns
-                if not file_path_found:
-                    path_pattern = r"[a-zA-Z0-9_\-\.\/]+/[a-zA-Z0-9_\-\.\/]+"
-                    path_matches = re.findall(path_pattern, line)
-                    for match in path_matches:
-                        if "." in match or "/" in match:
-                            full_path = task.work_dir / match
-                            if not full_path.exists():
-                                missing_files.append(match)
-                            file_path_found = True
-                            break
+                file_path = _extract_file_path_from_line(line)
+                if file_path:
+                    full_path = task.work_dir / file_path
+                    if not full_path.exists():
+                        missing_files.append(file_path)
 
             if missing_files:
                 msg = f"{len(missing_files)} referenced files do not exist. Examples: {missing_files[:3]}"
@@ -438,8 +403,8 @@ the file in the following format.
         """Initialize the task with evaluators."""
         super().__init__(work_dir=work_dir, fixture=fixture)
         self.evaluators = (
-            TimelineFileExists(),
-            TimelineFileReadable(),
+            FileExists("timeline.txt"),
+            FileReadable("timeline.txt"),
             FileContentStructure("timeline.txt", expected_lines=EXPECTED_LINE_COUNT),
             LineFormat(),
             DateFormat(),

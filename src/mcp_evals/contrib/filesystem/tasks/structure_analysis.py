@@ -7,6 +7,7 @@ from pathlib import Path
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
 
+from mcp_evals.contrib.filesystem.common_evaluators import FileExists, FileReadable
 from mcp_evals.contrib.filesystem.task import FilesystemTask
 from mcp_evals.contrib.filesystem.utils import Fixture
 
@@ -18,40 +19,6 @@ SIZE_TOLERANCE = 1000
 EXPECTED_DEPTH = 7
 EXPECTED_TXT_COUNT = 68
 EXPECTED_PY_COUNT = 1
-
-
-@dataclass
-class StructureAnalysisFileExists(Evaluator["StructureAnalysisTask", AgentRunResult]):
-    """Evaluator that checks structure_analysis.txt file exists."""
-
-    async def evaluate(self, ctx: EvaluatorContext["StructureAnalysisTask", AgentRunResult]) -> EvaluatorOutput:
-        """Verify that the structure_analysis.txt file exists."""
-        task = ctx.inputs
-        analysis_file = task.work_dir / "structure_analysis.txt"
-
-        if not analysis_file.exists():
-            return EvaluationReason(value=0.0, reason="File 'structure_analysis.txt' not found")
-
-        return 1.0
-
-
-@dataclass
-class StructureAnalysisFileReadable(Evaluator["StructureAnalysisTask", AgentRunResult]):
-    """Evaluator that checks structure_analysis.txt file is readable."""
-
-    async def evaluate(self, ctx: EvaluatorContext["StructureAnalysisTask", AgentRunResult]) -> EvaluatorOutput:
-        """Verify that the structure_analysis.txt file is readable."""
-        task = ctx.inputs
-        analysis_file = task.work_dir / "structure_analysis.txt"
-
-        try:
-            content = analysis_file.read_text(encoding="utf-8")
-            if not content.strip():
-                return EvaluationReason(value=0.0, reason="structure_analysis.txt file is empty")
-        except (OSError, UnicodeDecodeError) as e:
-            return EvaluationReason(value=0.0, reason=f"Error reading structure_analysis.txt file: {e}")
-
-        return 1.0
 
 
 @dataclass
@@ -106,6 +73,64 @@ class FileStatistics(Evaluator["StructureAnalysisTask", AgentRunResult]):
 class DepthAnalysis(Evaluator["StructureAnalysisTask", AgentRunResult]):
     """Evaluator that checks depth analysis is correct."""
 
+    def _extract_depth(self, content: str) -> tuple[int | None, EvaluatorOutput | None]:
+        """Extract depth from content."""
+        depth_match = re.search(r"depth:\s*(\d+)", content, re.IGNORECASE)
+
+        if not depth_match:
+            return None, EvaluationReason(
+                value=0.0,
+                reason="Could not extract depth from structure_analysis.txt",
+            )
+
+        depth = int(depth_match.group(1))
+
+        if depth != EXPECTED_DEPTH:
+            return None, EvaluationReason(
+                value=0.0,
+                reason=f"Depth must be {EXPECTED_DEPTH}, found: {depth}",
+            )
+
+        return depth, None
+
+    def _extract_and_validate_path(
+        self, content: str, depth: int, task: "StructureAnalysisTask"
+    ) -> tuple[str | None, EvaluatorOutput | None]:
+        """Extract path and validate it."""
+        lines = content.split("\n")
+        path_line = None
+        for i, line in enumerate(lines):
+            if line.strip() == f"depth: {depth}" and i + 1 < len(lines):
+                path_line = lines[i + 1].strip()
+                break
+
+        if not path_line:
+            return None, EvaluationReason(
+                value=0.0,
+                reason="Could not find path line after depth specification",
+            )
+
+        # Verify that the path depth matches the declared depth
+        path_parts = path_line.split("/")
+        actual_depth = len(path_parts)
+
+        if actual_depth != depth:
+            msg = f"Path depth mismatch: declared depth is {depth}, but path has {actual_depth} levels"
+            return None, EvaluationReason(value=0.0, reason=msg)
+
+        # Verify that this path exists in the test environment
+        expected_path = task.work_dir / path_line
+        if not expected_path.exists():
+            return None, EvaluationReason(value=0.0, reason=f"Path does not exist: {path_line}")
+
+        if not expected_path.is_dir():
+            return None, EvaluationReason(
+                value=0.0,
+                reason=f"Path exists but is not a directory: {path_line}",
+            )
+
+        return path_line, None
+
     async def evaluate(self, ctx: EvaluatorContext["StructureAnalysisTask", AgentRunResult]) -> EvaluatorOutput:
         """Verify subtask 2: Depth Analysis."""
         task = ctx.inputs
@@ -114,55 +139,15 @@ class DepthAnalysis(Evaluator["StructureAnalysisTask", AgentRunResult]):
         try:
             content = analysis_file.read_text(encoding="utf-8")
 
-            depth_match = re.search(r"depth:\s*(\d+)", content, re.IGNORECASE)
+            depth, error = self._extract_depth(content)
+            if error is not None:
+                return error
+            if depth is None:
+                return EvaluationReason(value=0.0, reason="Could not extract depth")
 
-            if not depth_match:
-                return EvaluationReason(
-                    value=0.0,
-                    reason="Could not extract depth from structure_analysis.txt",
-                )
-
-            depth = int(depth_match.group(1))
-
-            if depth != EXPECTED_DEPTH:
-                return EvaluationReason(
-                    value=0.0,
-                    reason=f"Depth must be {EXPECTED_DEPTH}, found: {depth}",
-                )
-
-            # Extract the path (it should be on a separate line after "depth: 7")
-            lines = content.split("\n")
-            path_line = None
-            for i, line in enumerate(lines):
-                if line.strip() == f"depth: {depth}":
-                    if i + 1 < len(lines):
-                        path_line = lines[i + 1].strip()
-                        break
-
-            if not path_line:
-                return EvaluationReason(
-                    value=0.0,
-                    reason="Could not find path line after depth specification",
-                )
-
-            # Verify that the path depth matches the declared depth
-            path_parts = path_line.split("/")
-            actual_depth = len(path_parts)
-
-            if actual_depth != depth:
-                msg = f"Path depth mismatch: declared depth is {depth}, but path has {actual_depth} levels"
-                return EvaluationReason(value=0.0, reason=msg)
-
-            # Verify that this path exists in the test environment
-            expected_path = task.work_dir / path_line
-            if not expected_path.exists():
-                return EvaluationReason(value=0.0, reason=f"Path does not exist: {path_line}")
-
-            if not expected_path.is_dir():
-                return EvaluationReason(
-                    value=0.0,
-                    reason=f"Path exists but is not a directory: {path_line}",
-                )
+            _, error = self._extract_and_validate_path(content, depth, task)
+            if error is not None:
+                return error
 
         except (OSError, UnicodeDecodeError, ValueError) as e:
             return EvaluationReason(value=0.0, reason=f"Error verifying depth analysis: {e}")
@@ -225,7 +210,7 @@ class FileFormat(Evaluator["StructureAnalysisTask", AgentRunResult]):
             content = analysis_file.read_text(encoding="utf-8")
             lines = content.split("\n")
 
-            if len(lines) < 5:
+            if len(lines) < 5:  # noqa: PLR2004
                 return EvaluationReason(
                     value=0.0,
                     reason="File seems too short to contain all required information",
@@ -252,9 +237,10 @@ class StructureAnalysisTask(FilesystemTask):
     name = "structure_analysis"
     goal = """Please use FileSystem tools to finish the following task:
 
-You need to recursively traverse the entire folder structure under the main directory and generate a detailed statistical report in a file named `structure_analysis.txt`.
+You need to recursively traverse the entire folder structure under the main directory and generate a \
+detailed statistical report in a file named `structure_analysis.txt`.
 
-**Important**: 
+**Important**:
 - In all tasks, ignore `.DS_Store` files (except for subtask 1 total size calculation).
 - You should not change or delete any existed files.
 - Do not try to use python code.
@@ -279,7 +265,9 @@ total size of all files: Z
 
 Identify the deepest folder path(s) in the directory and calculate its depth level.
 - Use relative paths based on main directory.
-- **Write the folder path only up to the folder, not including the file name. For example, if the file path is `./complex_structure/A/B/C/def.txt`, then the path in your report should be `complex_structure/A/B/C`, and the depth is `4`.**
+- **Write the folder path only up to the folder, not including the file name. For example, if the file path \
+is `./complex_structure/A/B/C/def.txt`, then the path in your report should be `complex_structure/A/B/C`, \
+and the depth is `4`.**
 - If multiple deepest paths exist, list only one.
 
 **Format (one item per line):**
@@ -290,7 +278,8 @@ PATH
 
 ### 3. File Type Classification
 
-Categorize files by their extensions and count the number of files for each type. Files without extensions should also be included.
+Categorize files by their extensions and count the number of files for each type. Files without extensions \
+should also be included.
 
 **Format (one extension per line):**
 txt: count
@@ -303,8 +292,8 @@ mov: count
         """Initialize the task with evaluators."""
         super().__init__(work_dir=work_dir, fixture=fixture)
         self.evaluators = (
-            StructureAnalysisFileExists(),
-            StructureAnalysisFileReadable(),
+            FileExists("structure_analysis.txt"),
+            FileReadable("structure_analysis.txt"),
             FileStatistics(),
             DepthAnalysis(),
             FileTypeClassification(),

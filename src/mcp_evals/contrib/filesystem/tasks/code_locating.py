@@ -1,6 +1,5 @@
 """Code Locating task for filesystem domain."""
 
-import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -10,21 +9,6 @@ from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorCont
 from mcp_evals.contrib.filesystem.common_evaluators import FileExists
 from mcp_evals.contrib.filesystem.task import FilesystemTask
 from mcp_evals.contrib.filesystem.utils import Fixture
-
-
-@dataclass
-class AnswerFileExists(Evaluator["CodeLocatingTask", AgentRunResult]):
-    """Evaluator that checks answer.txt file exists."""
-
-    async def evaluate(self, ctx: EvaluatorContext["CodeLocatingTask", AgentRunResult]) -> EvaluatorOutput:
-        """Verify that the answer.txt file exists."""
-        task = ctx.inputs
-        answer_file = task.work_dir / "answer.txt"
-
-        if not answer_file.exists():
-            return EvaluationReason(value=0.0, reason="File 'answer.txt' not found")
-
-        return 1.0
 
 
 @dataclass
@@ -94,41 +78,6 @@ class FilePathStructure(Evaluator["CodeLocatingTask", AgentRunResult]):
 
 
 @dataclass
-class FileExists(Evaluator["CodeLocatingTask", AgentRunResult]):
-    """Evaluator that checks identified file actually exists."""
-
-    async def evaluate(self, ctx: EvaluatorContext["CodeLocatingTask", AgentRunResult]) -> EvaluatorOutput:
-        """Verify that the identified file actually exists."""
-        task = ctx.inputs
-        answer_file = task.work_dir / "answer.txt"
-
-        try:
-            content = answer_file.read_text(encoding="utf-8").strip()
-
-            file_path = task.work_dir / content
-
-            if not file_path.exists():
-                if content.startswith("threestudio/models/"):
-                    corrected_path = content.replace(
-                        "threestudio/models/",
-                        "threestudio/threestudio/models/",
-                    )
-                    file_path = task.work_dir / corrected_path
-                    if file_path.exists():
-                        return 1.0
-
-                return EvaluationReason(
-                    value=0.0,
-                    reason=f"Identified file does not exist: {content}",
-                )
-
-        except (OSError, UnicodeDecodeError) as e:
-            return EvaluationReason(value=0.0, reason=f"Error verifying file: {e}")
-
-        return 1.0
-
-
-@dataclass
 class Zero123GuidanceContent(Evaluator["CodeLocatingTask", AgentRunResult]):
     """Evaluator that checks identified file contains Zero123 guidance implementation."""
 
@@ -142,13 +91,12 @@ class Zero123GuidanceContent(Evaluator["CodeLocatingTask", AgentRunResult]):
 
             file_path = task.work_dir / content
 
-            if not file_path.exists():
-                if content.startswith("threestudio/models/"):
-                    corrected_path = content.replace(
-                        "threestudio/models/",
-                        "threestudio/threestudio/models/",
-                    )
-                    file_path = task.work_dir / corrected_path
+            if not file_path.exists() and content.startswith("threestudio/models/"):
+                corrected_path = content.replace(
+                    "threestudio/models/",
+                    "threestudio/threestudio/models/",
+                )
+                file_path = task.work_dir / corrected_path
 
             if not file_path.exists():
                 return EvaluationReason(
@@ -159,8 +107,7 @@ class Zero123GuidanceContent(Evaluator["CodeLocatingTask", AgentRunResult]):
             file_content = file_path.read_text(encoding="utf-8")
 
             is_main_implementation = (
-                "class Zero123Guidance" in file_content
-                and '@threestudio.register("zero123-guidance")' in file_content
+                "class Zero123Guidance" in file_content and '@threestudio.register("zero123-guidance")' in file_content
             )
 
             if not is_main_implementation:
@@ -194,7 +141,9 @@ class CodeLocatingTask(FilesystemTask):
 
 ### Task Description
 
-ThreeStudio is a comprehensive codebase that implements various diffusion-based text-to-3D models, including NeRF-based rendering stage and diffusion guidance stage. Your task is to explore the codebase and identify the specific file that defines the guidance functionality for the Zero123 model.
+ThreeStudio is a comprehensive codebase that implements various diffusion-based text-to-3D models, including \
+NeRF-based rendering stage and diffusion guidance stage. Your task is to explore the codebase and identify the \
+specific file that defines the guidance functionality for the Zero123 model.
 
 ### Task Objectives
 
@@ -224,10 +173,8 @@ The answer file should contain the path to `zero123_guidance.py` which:
         """Initialize the task with evaluators."""
         super().__init__(work_dir=work_dir, fixture=fixture)
         self.evaluators = (
-            AnswerFileExists(),
+            FileExists("answer.txt"),
             AnswerFormat(),
             FilePathStructure(),
-            FileExists(),
             Zero123GuidanceContent(),
         )
-

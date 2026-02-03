@@ -6,6 +6,7 @@ from pathlib import Path
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
 
+from mcp_evals.contrib.filesystem.common_evaluators import NoFilesInRoot
 from mcp_evals.contrib.filesystem.task import FilesystemTask
 from mcp_evals.contrib.filesystem.utils import Fixture
 
@@ -82,7 +83,7 @@ class DirectoryStructure(Evaluator["TimeClassificationTask", AgentRunResult]):
                     reason=f"Month directory not found. Expected one of: {valid_names}",
                 )
 
-            for day, _ in days.items():
+            for day in days:
                 day_dir = find_day_directory(month_dir, day)
                 if day_dir is None:
                     valid_day_names = DAY_MAPPING.get(day, [day])
@@ -144,11 +145,84 @@ class FilesInDirectories(Evaluator["TimeClassificationTask", AgentRunResult]):
         return 1.0
 
 
+def _get_expected_filename(expected_month: str, day: str, line_num: int) -> str | list[str] | None:
+    """Get expected filename(s) for a given month/day/line combination."""
+    if expected_month == "07" and day == "09":
+        return "sg.jpg"
+    if expected_month == "07" and day == "25":
+        return "bus.mov"
+    if expected_month == "07" and day == "26":
+        return "road.mov"
+    if expected_month == "08" and day == "06":
+        if line_num == 1:
+            return "bear.jpg"
+        return ["random_file_1.txt", "random_file_2.txt", "random_file_3.txt"]
+    return None
+
+
+def _get_month_letters(expected_month: str) -> list[str] | None:
+    """Get month letters for a given month."""
+    if expected_month == "07":
+        return ["jul", "7"]
+    if expected_month == "08":
+        return ["aug", "8"]
+    return None
+
+
+def _validate_metadata_line(
+    line: str,
+    line_num: int,
+    expected_month: str,
+    day: str,
+    month_dir_name: str,
+    day_dir_name: str,
+) -> EvaluationReason | None:
+    """Validate a single line from metadata_analyse.txt."""
+    line_lower = line.lower()
+
+    # Check filename
+    expected_filename = _get_expected_filename(expected_month, day, line_num)
+    if expected_filename is None:
+        pass  # No filename requirement for this line
+    elif isinstance(expected_filename, list):
+        if not any(filename in line_lower for filename in expected_filename):
+            msg = (
+                f"Line {line_num} in '{month_dir_name}/{day_dir_name}' "
+                f"should contain one of {expected_filename}: {line}"
+            )
+            return EvaluationReason(value=0.0, reason=msg)
+    elif expected_filename not in line_lower:
+        msg = f"Line {line_num} in '{month_dir_name}/{day_dir_name}' should contain '{expected_filename}': {line}"
+        return EvaluationReason(value=0.0, reason=msg)
+
+    # Check month letters
+    month_letters = _get_month_letters(expected_month)
+    if month_letters and not any(letter in line_lower for letter in month_letters):
+        msg = f"Line {line_num} in '{month_dir_name}/{day_dir_name}' should contain month letters: {line}"
+        return EvaluationReason(value=0.0, reason=msg)
+
+    # Check year (2025)
+    if "2025" not in line_lower:
+        msg = f"Line {line_num} in '{month_dir_name}/{day_dir_name}' should contain '2025': {line}"
+        return EvaluationReason(value=0.0, reason=msg)
+
+    # Check day number
+    valid_day_names = DAY_MAPPING.get(day, [day])
+    if not any(day_name in line_lower for day_name in valid_day_names):
+        msg = (
+            f"Line {line_num} in '{month_dir_name}/{day_dir_name}' "
+            f"should contain day '{day}' (or {valid_day_names}): {line}"
+        )
+        return EvaluationReason(value=0.0, reason=msg)
+
+    return None
+
+
 @dataclass
 class MetadataAnalysisFiles(Evaluator["TimeClassificationTask", AgentRunResult]):
     """Evaluator that checks metadata_analyse.txt files exist and have correct content."""
 
-    async def evaluate(self, ctx: EvaluatorContext["TimeClassificationTask", AgentRunResult]) -> EvaluatorOutput:  # noqa: PLR0911
+    async def evaluate(self, ctx: EvaluatorContext["TimeClassificationTask", AgentRunResult]) -> EvaluatorOutput:
         """Verify that metadata_analyse.txt files exist and have correct content."""
         task = ctx.inputs
 
@@ -157,7 +231,7 @@ class MetadataAnalysisFiles(Evaluator["TimeClassificationTask", AgentRunResult])
             if month_dir is None:
                 continue  # Already handled in DirectoryStructure
 
-            for day, _ in days.items():
+            for day in days:
                 day_dir = find_day_directory(month_dir, day)
                 if day_dir is None:
                     continue  # Already handled in DirectoryStructure
@@ -174,7 +248,7 @@ class MetadataAnalysisFiles(Evaluator["TimeClassificationTask", AgentRunResult])
                     content = metadata_file.read_text(encoding="utf-8").strip()
                     lines = content.split("\n")
 
-                    if len(lines) != 2:
+                    if len(lines) != 2:  # noqa: PLR2004
                         msg = (
                             f"metadata_analyse.txt in '{month_dir.name}/{day_dir.name}' "
                             f"has {len(lines)} lines, expected 2"
@@ -183,96 +257,17 @@ class MetadataAnalysisFiles(Evaluator["TimeClassificationTask", AgentRunResult])
 
                     # Check each line
                     for line_num, line in enumerate(lines, 1):
-                        line_lower = line.lower()
-
-                        # Check filename based on expected_month and day
-                        expected_filename = None
-                        if expected_month == "07" and day == "09":
-                            expected_filename = "sg.jpg"
-                        elif expected_month == "07" and day == "25":
-                            expected_filename = "bus.mov"
-                        elif expected_month == "07" and day == "26":
-                            expected_filename = "road.mov"
-                        elif expected_month == "08" and day == "06":
-                            if line_num == 1:
-                                expected_filename = "bear.jpg"
-                            else:
-                                expected_filenames = [
-                                    "random_file_1.txt",
-                                    "random_file_2.txt",
-                                    "random_file_3.txt",
-                                ]
-                                if not any(filename in line_lower for filename in expected_filenames):
-                                    msg = (
-                                        f"Line {line_num} in '{month_dir.name}/{day_dir.name}' "
-                                        f"should contain one of {expected_filenames}: {line}"
-                                    )
-                                    return EvaluationReason(value=0.0, reason=msg)
-                                continue
-
-                        if expected_filename and expected_filename not in line_lower:
-                            msg = (
-                                f"Line {line_num} in '{month_dir.name}/{day_dir.name}' "
-                                f"should contain '{expected_filename}': {line}"
-                            )
-                            return EvaluationReason(value=0.0, reason=msg)
-
-                        # Check month letters
-                        month_letters = None
-                        if expected_month == "07":
-                            month_letters = ["jul", "7"]
-                        elif expected_month == "08":
-                            month_letters = ["aug", "8"]
-
-                        if month_letters and not any(letter in line_lower for letter in month_letters):
-                            msg = (
-                                f"Line {line_num} in '{month_dir.name}/{day_dir.name}' "
-                                f"should contain month letters: {line}"
-                            )
-                            return EvaluationReason(value=0.0, reason=msg)
-
-                        # Check year (2025)
-                        if "2025" not in line_lower:
-                            msg = f"Line {line_num} in '{month_dir.name}/{day_dir.name}' should contain '2025': {line}"
-                            return EvaluationReason(value=0.0, reason=msg)
-
-                        # Check day number
-                        valid_day_names = DAY_MAPPING.get(day, [day])
-                        if not any(day_name in line_lower for day_name in valid_day_names):
-                            msg = (
-                                f"Line {line_num} in '{month_dir.name}/{day_dir.name}' "
-                                f"should contain day '{day}' (or {valid_day_names}): {line}"
-                            )
-                            return EvaluationReason(value=0.0, reason=msg)
+                        error = _validate_metadata_line(
+                            line, line_num, expected_month, day, month_dir.name, day_dir.name
+                        )
+                        if error:
+                            return error
 
                 except (OSError, UnicodeDecodeError) as e:
                     return EvaluationReason(
                         value=0.0,
                         reason=f"Error reading metadata_analyse.txt in '{month_dir.name}/{day_dir.name}': {e}",
                     )
-
-        return 1.0
-
-
-@dataclass
-class NoFilesInRoot(Evaluator["TimeClassificationTask", AgentRunResult]):
-    """Evaluator that checks no files remain in the root test directory."""
-
-    async def evaluate(self, ctx: EvaluatorContext["TimeClassificationTask", AgentRunResult]) -> EvaluatorOutput:
-        """Verify that no files remain in the root test directory."""
-        task = ctx.inputs
-
-        try:
-            root_files = [f for f in task.work_dir.iterdir() if f.is_file()]
-            non_system_files = [f for f in root_files if f.name not in SYSTEM_FILES]
-
-            if non_system_files:
-                return EvaluationReason(
-                    value=0.0,
-                    reason=f"Files still present in root directory: {[f.name for f in non_system_files]}",
-                )
-        except (OSError, PermissionError) as e:
-            return EvaluationReason(value=0.0, reason=f"Error reading root directory: {e}")
 
         return 1.0
 
@@ -325,7 +320,8 @@ class TimeClassificationTask(FilesystemTask):
 
 ### Task Description
 
-Analyze the creation time (ctime) of all files in the test directory and organize them into a hierarchical directory structure based on their creation dates.
+Analyze the creation time (ctime) of all files in the test directory and organize them into a hierarchical \
+directory structure based on their creation dates.
 
 ### Task Objectives
 
@@ -358,6 +354,6 @@ Each line should include the filename, month, day, and year (2025)."""
             DirectoryStructure(),
             FilesInDirectories(),
             MetadataAnalysisFiles(),
-            NoFilesInRoot(),
+            NoFilesInRoot(SYSTEM_FILES),
             TotalFileCount(),
         )

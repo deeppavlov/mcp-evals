@@ -6,45 +6,11 @@ from pathlib import Path
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
 
-from mcp_evals.contrib.filesystem.common_evaluators import FileExists
+from mcp_evals.contrib.filesystem.common_evaluators import FileExists, FileReadable
 from mcp_evals.contrib.filesystem.task import FilesystemTask
 from mcp_evals.contrib.filesystem.utils import Fixture
 
 REQUIRED_DEPS = ["einops", "kornia", "taming", "openai", "clip"]
-
-
-@dataclass
-class RequirementsFileExists(Evaluator["RequirementsCompletionTask", AgentRunResult]):
-    """Evaluator that checks requirements.txt file exists."""
-
-    async def evaluate(self, ctx: EvaluatorContext["RequirementsCompletionTask", AgentRunResult]) -> EvaluatorOutput:
-        """Verify that the requirements.txt file exists."""
-        task = ctx.inputs
-        requirements_file = task.work_dir / "requirements.txt"
-
-        if not requirements_file.exists():
-            return EvaluationReason(value=0.0, reason="File 'requirements.txt' not found")
-
-        return 1.0
-
-
-@dataclass
-class RequirementsFileReadable(Evaluator["RequirementsCompletionTask", AgentRunResult]):
-    """Evaluator that checks requirements.txt file is readable."""
-
-    async def evaluate(self, ctx: EvaluatorContext["RequirementsCompletionTask", AgentRunResult]) -> EvaluatorOutput:
-        """Verify that the requirements.txt file is readable."""
-        task = ctx.inputs
-        requirements_file = task.work_dir / "requirements.txt"
-
-        try:
-            content = requirements_file.read_text(encoding="utf-8")
-            if not content.strip():
-                return EvaluationReason(value=0.0, reason="Requirements.txt file is empty")
-        except (OSError, UnicodeDecodeError) as e:
-            return EvaluationReason(value=0.0, reason=f"Error reading requirements.txt file: {e}")
-
-        return 1.0
 
 
 @dataclass
@@ -165,7 +131,7 @@ class NoDuplicateEntries(Evaluator["RequirementsCompletionTask", AgentRunResult]
         try:
             content = requirements_file.read_text(encoding="utf-8")
 
-            if len(content) < 10:
+            if len(content) < 10:  # noqa: PLR2004
                 return EvaluationReason(value=0.0, reason="File seems too short to be valid")
 
         except (OSError, UnicodeDecodeError) as e:
@@ -190,7 +156,9 @@ class RequirementsCompletionTask(FilesystemTask):
 
 ### Task Description
 
-The `requirements.txt` file in the ThreeStudio project is used to install necessary Python libraries. However, the Zero123-related dependencies were accidentally deleted from the file. Your task is to restore these missing dependencies.
+The `requirements.txt` file in the ThreeStudio project is used to install necessary Python libraries. \
+However, the Zero123-related dependencies were accidentally deleted from the file. Your task is to \
+restore these missing dependencies.
 
 ### Task Objectives
 
@@ -225,11 +193,10 @@ The `requirements.txt` file should:
         """Initialize the task with evaluators."""
         super().__init__(work_dir=work_dir, fixture=fixture)
         self.evaluators = (
-            RequirementsFileExists(),
-            RequirementsFileReadable(),
+            FileExists("requirements.txt"),
+            FileReadable("requirements.txt"),
             RequiredDependenciesPresent(),
             SpecificDependencyEntries(),
             FileFormat(),
             NoDuplicateEntries(),
         )
-

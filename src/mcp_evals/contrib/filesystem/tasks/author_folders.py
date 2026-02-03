@@ -4,7 +4,6 @@ import re
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import Dict, List
 
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
@@ -18,8 +17,9 @@ class ArxivHTMLParser(HTMLParser):
     """Parser to extract author and date information from arXiv HTML papers."""
 
     def __init__(self) -> None:
+        """Initialize the parser with empty authors list and no publication date."""
         super().__init__()
-        self.authors: List[str] = []
+        self.authors: list[str] = []
         self.publication_date: str | None = None
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
@@ -36,7 +36,7 @@ class ArxivHTMLParser(HTMLParser):
                     self.publication_date = content
 
 
-def extract_paper_info(html_file: Path) -> tuple[List[str], str | None]:
+def extract_paper_info(html_file: Path) -> tuple[list[str], str | None]:
     """Extract authors and publication year from an HTML paper."""
     try:
         with html_file.open("r", encoding="utf-8", errors="ignore") as f:
@@ -45,16 +45,22 @@ def extract_paper_info(html_file: Path) -> tuple[List[str], str | None]:
         parser = ArxivHTMLParser()
         parser.feed(content)
 
-        year = None
         if parser.publication_date:
             year_match = re.search(r"(\d{4})", parser.publication_date)
-            if year_match:
-                year = year_match.group(1)
-
-        return parser.authors, year
+            year = year_match.group(1) if year_match else None
+        else:
+            year = None
 
     except (OSError, UnicodeDecodeError):
         return [], None
+    else:
+        return parser.authors, year
+
+
+# Constants for author name normalization
+SPLIT_PARTS_COUNT = 2
+MIN_PAPERS_FREQUENT = 4
+MIN_PAPERS_2025 = 3
 
 
 def normalize_author_name(author: str) -> str:
@@ -62,7 +68,7 @@ def normalize_author_name(author: str) -> str:
     author = author.strip()
 
     parts = author.split(",", 1)
-    if len(parts) == 2:
+    if len(parts) == SPLIT_PARTS_COUNT:
         last_name = parts[0].strip()
         first_names = parts[1].strip()
         first_name_parts = first_names.split()
@@ -79,10 +85,10 @@ def normalize_author_name(author: str) -> str:
     return normalized.lower()
 
 
-def analyze_papers(work_dir: Path) -> tuple[Dict[str, List[Path]], Dict[str, List[Path]]]:
+def analyze_papers(work_dir: Path) -> tuple[dict[str, list[Path]], dict[str, list[Path]]]:
     """Analyze all HTML papers and return author-paper mappings."""
-    author_papers: Dict[str, List[Path]] = {}
-    author_2025_papers: Dict[str, List[Path]] = {}
+    author_papers: dict[str, list[Path]] = {}
+    author_2025_papers: dict[str, list[Path]] = {}
 
     html_files = list(work_dir.glob("*.html"))
 
@@ -160,7 +166,9 @@ class FrequentAuthorsOrganization(Evaluator["AuthorFoldersTask", AgentRunResult]
 
         author_papers, _ = analyze_papers(task.work_dir)
 
-        frequent_authors = {author: papers for author, papers in author_papers.items() if len(papers) >= 4}
+        frequent_authors = {
+            author: papers for author, papers in author_papers.items() if len(papers) >= MIN_PAPERS_FREQUENT
+        }
 
         if not frequent_authors:
             return 1.0  # No frequent authors is acceptable
@@ -187,14 +195,17 @@ class FrequentAuthorsOrganization(Evaluator["AuthorFoldersTask", AgentRunResult]
             for item in frequent_authors_dir.iterdir():
                 if item.is_dir():
                     dir_name = item.name
-                    if dir_name not in frequent_authors:
-                        if dir_name in author_papers and len(author_papers[dir_name]) < 4:
-                            msg = (
-                                f"Author {dir_name} has only "
-                                f"{len(author_papers[dir_name])} papers but has "
-                                f"a folder in frequent_authors"
-                            )
-                            return EvaluationReason(value=0.0, reason=msg)
+                    if (
+                        dir_name not in frequent_authors
+                        and dir_name in author_papers
+                        and len(author_papers[dir_name]) < MIN_PAPERS_FREQUENT
+                    ):
+                        msg = (
+                            f"Author {dir_name} has only "
+                            f"{len(author_papers[dir_name])} papers but has "
+                            f"a folder in frequent_authors"
+                        )
+                        return EvaluationReason(value=0.0, reason=msg)
         except (OSError, PermissionError) as e:
             return EvaluationReason(value=0.0, reason=f"Error checking frequent_authors directory: {e}")
 
@@ -213,7 +224,7 @@ class Authors2025Organization(Evaluator["AuthorFoldersTask", AgentRunResult]):
         _, author_2025_papers = analyze_papers(task.work_dir)
 
         prolific_2025_authors = {
-            author: papers for author, papers in author_2025_papers.items() if len(papers) >= 3
+            author: papers for author, papers in author_2025_papers.items() if len(papers) >= MIN_PAPERS_2025
         }
 
         if not prolific_2025_authors:
@@ -241,14 +252,17 @@ class Authors2025Organization(Evaluator["AuthorFoldersTask", AgentRunResult]):
             for item in authors_2025_dir.iterdir():
                 if item.is_dir():
                     dir_name = item.name
-                    if dir_name not in prolific_2025_authors:
-                        if dir_name in author_2025_papers and len(author_2025_papers[dir_name]) < 3:
-                            msg = (
-                                f"Author {dir_name} has only "
-                                f"{len(author_2025_papers[dir_name])} papers in 2025 "
-                                f"but has a folder in 2025_authors"
-                            )
-                            return EvaluationReason(value=0.0, reason=msg)
+                    if (
+                        dir_name not in prolific_2025_authors
+                        and dir_name in author_2025_papers
+                        and len(author_2025_papers[dir_name]) < MIN_PAPERS_2025
+                    ):
+                        msg = (
+                            f"Author {dir_name} has only "
+                            f"{len(author_2025_papers[dir_name])} papers in 2025 "
+                            f"but has a folder in 2025_authors"
+                        )
+                        return EvaluationReason(value=0.0, reason=msg)
         except (OSError, PermissionError) as e:
             return EvaluationReason(value=0.0, reason=f"Error checking 2025_authors directory: {e}")
 
@@ -270,20 +284,14 @@ class NamingConvention(Evaluator["AuthorFoldersTask", AgentRunResult]):
                 if author_dir.is_dir():
                     name = author_dir.name
                     if not re.match(r"^[a-z0-9_]+$", name):
-                        msg = (
-                            f"Invalid folder name in frequent_authors: {name} "
-                            f"(should be lowercase with underscores)"
-                        )
+                        msg = f"Invalid folder name in frequent_authors: {name} (should be lowercase with underscores)"
                         return EvaluationReason(value=0.0, reason=msg)
 
             for author_dir in authors_2025_dir.iterdir():
                 if author_dir.is_dir():
                     name = author_dir.name
                     if not re.match(r"^[a-z0-9_]+$", name):
-                        msg = (
-                            f"Invalid folder name in 2025_authors: {name} "
-                            f"(should be lowercase with underscores)"
-                        )
+                        msg = f"Invalid folder name in 2025_authors: {name} (should be lowercase with underscores)"
                         return EvaluationReason(value=0.0, reason=msg)
         except (OSError, PermissionError) as e:
             return EvaluationReason(value=0.0, reason=f"Error checking naming convention: {e}")
@@ -306,7 +314,9 @@ class AuthorFoldersTask(FilesystemTask):
 
 ### Task Description
 
-You are given a directory containing multiple paper files. You have a collection of academic papers in HTML format from arXiv. Your task is to analyze these papers, identify authors who have published multiple papers, and organize them into author-specific folders based on specified criteria.
+You are given a directory containing multiple paper files. You have a collection of academic papers in HTML format \
+from arXiv. Your task is to analyze these papers, identify authors who have published multiple papers, and organize \
+them into author-specific folders based on specified criteria.
 
 ### Task Objectives
 
@@ -345,7 +355,8 @@ You are given a directory containing multiple paper files. You have a collection
 ```
 
 #### Requirements:
-- Author folder names should be **lowercase** with underscores replacing spaces/commas (e.g., `smith_john`, `williams_david`)
+- Author folder names should be **lowercase** with underscores replacing spaces/commas
+  (e.g., `smith_john`, `williams_david`)
 - Papers should be **copied** (not moved) to preserve originals
 - Author extraction should handle various name formats correctly"""
 
@@ -360,4 +371,3 @@ You are given a directory containing multiple paper files. You have a collection
             Authors2025Organization(),
             NamingConvention(),
         )
-

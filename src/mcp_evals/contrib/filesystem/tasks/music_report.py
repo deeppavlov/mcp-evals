@@ -39,7 +39,62 @@ EXPECTED_TOP_5 = ["晴天", "七里香", "江南", "夜曲", "一千年以后"]
 class SongRankingFormat(Evaluator["MusicReportTask", AgentRunResult]):
     """Evaluator that checks lines 1-20 have correct song:score format."""
 
-    async def evaluate(self, ctx: EvaluatorContext["MusicReportTask", AgentRunResult]) -> EvaluatorOutput:  # noqa: C901, PLR0911
+    def _validate_score(self, score_str: str, line_num: int) -> EvaluatorOutput | None:
+        """Validate score format and range."""
+        try:
+            score = float(score_str.strip())
+            if score < 0 or score > 5:  # noqa: PLR2004
+                return EvaluationReason(
+                    value=0.0,
+                    reason=f"Line {line_num} has invalid score range: {score}",
+                )
+        except ValueError:
+            return EvaluationReason(
+                value=0.0,
+                reason=f"Line {line_num} has invalid score format: '{score_str}'",
+            )
+        return None
+
+    def _validate_line(self, line: str, line_num: int) -> EvaluatorOutput | None:
+        """Validate a single line format."""
+        if not line:
+            return EvaluationReason(value=0.0, reason=f"Line {line_num} is empty")
+
+        if ":" not in line:
+            return EvaluationReason(
+                value=0.0,
+                reason=f"Line {line_num} missing colon separator: '{line}'",
+            )
+
+        parts = line.split(":", 1)
+        if len(parts) != 2:  # noqa: PLR2004
+            return EvaluationReason(
+                value=0.0,
+                reason=f"Line {line_num} has incorrect format: '{line}'",
+            )
+
+        song_name, score_str = parts
+
+        if not song_name.strip():
+            return EvaluationReason(
+                value=0.0,
+                reason=f"Line {line_num} has empty song name: '{line}'",
+            )
+
+        return self._validate_score(score_str, line_num)
+
+    def _validate_all_lines(self, lines: list[str]) -> EvaluatorOutput | None:
+        """Validate all lines 1-20."""
+        for i in range(20):
+            if i >= len(lines):
+                return EvaluationReason(value=0.0, reason=f"Line {i + 1} is missing")
+
+            error = self._validate_line(lines[i].strip(), i + 1)
+            if error is not None:
+                return error
+        return None
+
+    async def evaluate(self, ctx: EvaluatorContext["MusicReportTask", AgentRunResult]) -> EvaluatorOutput:
         """Verify that lines 1-20 contain songs with scores in correct format."""
         task = ctx.inputs
 
@@ -52,57 +107,17 @@ class SongRankingFormat(Evaluator["MusicReportTask", AgentRunResult]):
             content = report_file.read_text(encoding="utf-8")
             lines = content.strip().split("\n")
 
-            # Check lines 1-20 (index 0-19)
-            for i in range(20):
-                if i >= len(lines):
-                    return EvaluationReason(value=0.0, reason=f"Line {i + 1} is missing")
-
-                line = lines[i].strip()
-                if not line:
-                    return EvaluationReason(value=0.0, reason=f"Line {i + 1} is empty")
-
-                # Check format: songname:popularity_score
-                if ":" not in line:
-                    return EvaluationReason(
-                        value=0.0,
-                        reason=f"Line {i + 1} missing colon separator: '{line}'",
-                    )
-
-                parts = line.split(":", 1)
-                if len(parts) != 2:  # noqa: PLR2004
-                    return EvaluationReason(
-                        value=0.0,
-                        reason=f"Line {i + 1} has incorrect format: '{line}'",
-                    )
-
-                song_name, score_str = parts
-
-                if not song_name.strip():
-                    return EvaluationReason(
-                        value=0.0,
-                        reason=f"Line {i + 1} has empty song name: '{line}'",
-                    )
-
-                try:
-                    score = float(score_str.strip())
-                    if score < 0 or score > 5:  # noqa: PLR2004
-                        return EvaluationReason(
-                            value=0.0,
-                            reason=f"Line {i + 1} has invalid score range: {score}",
-                        )
-                except ValueError:
-                    return EvaluationReason(
-                        value=0.0,
-                        reason=f"Line {i + 1} has invalid score format: '{score_str}'",
-                    )
+            error = self._validate_all_lines(lines)
+            if error is not None:
+                return error
 
         except (ValueError, OSError, UnicodeDecodeError) as e:
             return EvaluationReason(
                 value=0.0,
                 reason=f"Error checking song ranking format: {e}",
             )
-        else:
-            return 1.0
+
+        return 1.0
 
 
 class SongRankingOrder(Evaluator["MusicReportTask", AgentRunResult]):
@@ -248,7 +263,52 @@ class PopularityScoresMatchExpected(Evaluator["MusicReportTask", AgentRunResult]
 class Top5Songs(Evaluator["MusicReportTask", AgentRunResult]):
     """Evaluator that checks lines 21-25 contain top 5 song names."""
 
-    async def evaluate(self, ctx: EvaluatorContext["MusicReportTask", AgentRunResult]) -> EvaluatorOutput:  # noqa: C901, PLR0911
+    def _validate_top5_lines(self, lines: list[str]) -> tuple[list[str] | None, EvaluatorOutput | None]:
+        """Validate top 5 lines format and return found songs or error."""
+        found_top_5 = []
+        for i in range(5):
+            line_num = i + 21
+            if i + 20 >= len(lines):
+                return None, EvaluationReason(value=0.0, reason=f"Line {line_num} is missing")
+
+            line = lines[i + 20].strip()
+
+            if not line:
+                return None, EvaluationReason(value=0.0, reason=f"Line {line_num} is empty")
+
+            if ":" in line:
+                return None, EvaluationReason(
+                    value=0.0,
+                    reason=f"Line {line_num} should not contain colon: '{line}'",
+                )
+
+            found_top_5.append(line)
+
+        return found_top_5, None
+
+    def _validate_top5_content(self, found_top_5: list[str]) -> EvaluatorOutput | None:
+        """Validate top 5 songs content and order."""
+        missing_songs = [expected_song for expected_song in EXPECTED_TOP_5 if expected_song not in found_top_5]
+
+        if missing_songs:
+            return EvaluationReason(
+                value=0.0,
+                reason=f"Missing expected top 5 songs: {missing_songs}",
+            )
+
+        # Check if the order is valid (allowing equal scores to be swapped)
+        valid_orders = [
+            ["晴天", "七里香", "江南", "夜曲", "一千年以后"],  # Original order
+            ["晴天", "江南", "七里香", "夜曲", "一千年以后"],  # Swapped 七里香 and 江南
+        ]
+
+        if found_top_5 not in valid_orders:
+            msg = f"Top 5 songs order is invalid. Found: {found_top_5}, Expected one of: {valid_orders}"
+            return EvaluationReason(value=0.0, reason=msg)
+
+        return None
+
+    async def evaluate(self, ctx: EvaluatorContext["MusicReportTask", AgentRunResult]) -> EvaluatorOutput:
         """Verify that lines 21-25 contain the top 5 song names."""
         task = ctx.inputs
 
@@ -261,59 +321,23 @@ class Top5Songs(Evaluator["MusicReportTask", AgentRunResult]):
             content = report_file.read_text(encoding="utf-8")
             lines = content.strip().split("\n")
 
-            # Check lines 21-25 (index 20-24)
-            found_top_5 = []
-            for i in range(5):
-                line_num = i + 21
-                if i + 20 >= len(lines):
-                    return EvaluationReason(value=0.0, reason=f"Line {line_num} is missing")
+            found_top_5, error = self._validate_top5_lines(lines)
+            if error is not None:
+                return error
+            if found_top_5 is None:
+                raise RuntimeError("Couldn't extract top 5 songs")
 
-                line = lines[i + 20].strip()
-
-                if not line:
-                    return EvaluationReason(value=0.0, reason=f"Line {line_num} is empty")
-
-                if ":" in line:
-                    return EvaluationReason(
-                        value=0.0,
-                        reason=f"Line {line_num} should not contain colon: '{line}'",
-                    )
-
-                found_top_5.append(line)
-
-            # Check if all expected top 5 songs are present
-            missing_songs = [expected_song for expected_song in EXPECTED_TOP_5 if expected_song not in found_top_5]
-
-            if missing_songs:
-                return EvaluationReason(
-                    value=0.0,
-                    reason=f"Missing expected top 5 songs: {missing_songs}",
-                )
-
-            # Check if the order is valid (allowing equal scores to be swapped)
-            # Since 七里香 and 江南 both have score 2.488, they can be in either order
-            valid_orders = [
-                ["晴天", "七里香", "江南", "夜曲", "一千年以后"],  # Original order
-                ["晴天", "江南", "七里香", "夜曲", "一千年以后"],  # Swapped 七里香 and 江南
-            ]
-
-            order_valid = False
-            for valid_order in valid_orders:
-                if found_top_5 == valid_order:
-                    order_valid = True
-                    break
-
-            if not order_valid:
-                msg = f"Top 5 songs order is invalid. Found: {found_top_5}, Expected one of: {valid_orders}"
-                return EvaluationReason(value=0.0, reason=msg)
+            error = self._validate_top5_content(found_top_5)
+            if error is not None:
+                return error
 
         except (ValueError, OSError, UnicodeDecodeError) as e:
             return EvaluationReason(
                 value=0.0,
                 reason=f"Error checking top 5 songs: {e}",
             )
-        else:
-            return 1.0
+
+        return 1.0
 
 
 class MusicReportTask(FilesystemTask):
@@ -364,9 +388,9 @@ Create a file named `music_analysis_report.txt` in the `music/` folder with the 
 
 **Important**: The file must contain exactly 25 lines with no additional content, headers, or formatting."""
 
-    def __init__(self, work_dir: Path, fixute: Fixture) -> None:
+    def __init__(self, work_dir: Path, fixture: Fixture) -> None:
         """Initialize the task with evaluators."""
-        super().__init__(work_dir=work_dir, fixture=fixute)
+        super().__init__(work_dir=work_dir, fixture=fixture)
 
         self.evaluators = (
             FileExists("music/music_analysis_report.txt"),

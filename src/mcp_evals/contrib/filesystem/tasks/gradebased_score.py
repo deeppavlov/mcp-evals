@@ -7,16 +7,31 @@ from pathlib import Path
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
 
-from mcp_evals.contrib.filesystem.common_evaluators import FileExists
 from mcp_evals.contrib.filesystem.task import FilesystemTask
 from mcp_evals.contrib.filesystem.utils import Fixture
 
 # Expected numbers from answer.md
 EXPECTED_NUMBERS = [
     150,  # Total students
-    42, 37, 43, 28, 122, 28,  # Chinese: A(42), B(37), C(43), D(28), Pass(122), Fail(28)
-    31, 38, 47, 34, 116, 34,  # Math: A(31), B(38), C(47), D(34), Pass(116), Fail(34)
-    32, 38, 38, 41, 1, 108, 42,  # English: A(32), B(38), C(38), D(41), F(1), Pass(108), Fail(42)
+    42,
+    37,
+    43,
+    28,
+    122,
+    28,  # Chinese: A(42), B(37), C(43), D(28), Pass(122), Fail(28)
+    31,
+    38,
+    47,
+    34,
+    116,
+    34,  # Math: A(31), B(38), C(47), D(34), Pass(116), Fail(34)
+    32,
+    38,
+    38,
+    41,
+    1,
+    108,
+    42,  # English: A(32), B(38), C(38), D(41), F(1), Pass(108), Fail(42)
 ]
 
 
@@ -73,11 +88,7 @@ class ThreeSubjectsPresent(Evaluator["GradebasedScoreTask", AgentRunResult]):
             content = grade_summary_file.read_text(encoding="utf-8")
 
             subjects = ["chinese", "math", "english"]
-            missing_subjects = []
-
-            for subject in subjects:
-                if subject.lower() not in content.lower():
-                    missing_subjects.append(subject)
+            missing_subjects = [subject for subject in subjects if subject.lower() not in content.lower()]
 
             if missing_subjects:
                 return EvaluationReason(
@@ -108,10 +119,7 @@ class GradeSummaryContent(Evaluator["GradebasedScoreTask", AgentRunResult]):
             if not found_numbers:
                 return EvaluationReason(value=0.0, reason="No numbers found in grade_summary.txt")
 
-            missing_numbers = []
-            for expected in EXPECTED_NUMBERS:
-                if expected not in found_numbers:
-                    missing_numbers.append(expected)
+            missing_numbers = [expected for expected in EXPECTED_NUMBERS if expected not in found_numbers]
 
             if missing_numbers:
                 return EvaluationReason(
@@ -126,10 +134,7 @@ class GradeSummaryContent(Evaluator["GradebasedScoreTask", AgentRunResult]):
                 if found_count < expected_count:
                     return EvaluationReason(
                         value=0.0,
-                        reason=(
-                            f"Number {expected} appears {found_count} times, "
-                            f"expected {expected_count} times"
-                        ),
+                        reason=(f"Number {expected} appears {found_count} times, expected {expected_count} times"),
                     )
 
         except (OSError, UnicodeDecodeError) as e:
@@ -192,4 +197,3 @@ class GradebasedScoreTask(FilesystemTask):
             ThreeSubjectsPresent(),
             GradeSummaryContent(),
         )
-

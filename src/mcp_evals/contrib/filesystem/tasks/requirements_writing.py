@@ -6,45 +6,11 @@ from pathlib import Path
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
 
-from mcp_evals.contrib.filesystem.common_evaluators import FileExists
+from mcp_evals.contrib.filesystem.common_evaluators import FileExists, FileReadable
 from mcp_evals.contrib.filesystem.task import FilesystemTask
 from mcp_evals.contrib.filesystem.utils import Fixture
 
 REQUIRED_DEPS = ["matplotlib", "opencv", "plyfile", "trimesh", "pointnet2", "networkx"]
-
-
-@dataclass
-class RequirementsFileExists(Evaluator["RequirementsWritingTask", AgentRunResult]):
-    """Evaluator that checks requirements.txt file exists."""
-
-    async def evaluate(self, ctx: EvaluatorContext["RequirementsWritingTask", AgentRunResult]) -> EvaluatorOutput:
-        """Verify that the requirements.txt file exists."""
-        task = ctx.inputs
-        requirements_file = task.work_dir / "requirements.txt"
-
-        if not requirements_file.exists():
-            return EvaluationReason(value=0.0, reason="File 'requirements.txt' not found")
-
-        return 1.0
-
-
-@dataclass
-class RequirementsFileReadable(Evaluator["RequirementsWritingTask", AgentRunResult]):
-    """Evaluator that checks requirements.txt file is readable."""
-
-    async def evaluate(self, ctx: EvaluatorContext["RequirementsWritingTask", AgentRunResult]) -> EvaluatorOutput:
-        """Verify that the requirements.txt file is readable."""
-        task = ctx.inputs
-        requirements_file = task.work_dir / "requirements.txt"
-
-        try:
-            content = requirements_file.read_text(encoding="utf-8")
-            if not content.strip():
-                return EvaluationReason(value=0.0, reason="Requirements.txt file is empty")
-        except (OSError, UnicodeDecodeError) as e:
-            return EvaluationReason(value=0.0, reason=f"Error reading requirements.txt file: {e}")
-
-        return 1.0
 
 
 @dataclass
@@ -97,7 +63,7 @@ class FileFormat(Evaluator["RequirementsWritingTask", AgentRunResult]):
                 return EvaluationReason(value=0.0, reason="File is completely empty")
 
             non_empty_lines = [line.strip() for line in lines if line.strip()]
-            if len(non_empty_lines) < 3:
+            if len(non_empty_lines) < 3:  # noqa: PLR2004
                 return EvaluationReason(
                     value=0.0,
                     reason="File seems to have too few dependencies",
@@ -150,7 +116,8 @@ class RequirementsWritingTask(FilesystemTask):
 
 ### Task Description
 
-The VoteNet project is a 3D object detection framework for point clouds. Your task is to create a `requirements.txt` file that lists all the necessary Python dependencies for running this codebase.
+The VoteNet project is a 3D object detection framework for point clouds. Your task is to create a `requirements.txt` \
+file that lists all the necessary Python dependencies for running this codebase.
 
 ### Task Objectives
 
@@ -158,7 +125,8 @@ The VoteNet project is a 3D object detection framework for point clouds. Your ta
 2. **Include all essential dependencies** needed to run the VoteNet codebase
 3. **Ensure the file format is correct** (one dependency per line)
 4. **Save the file as `requirements.txt`** in the current working directory
-5. **Not just** pip install or conda install, your answer should contain **every necessary dependencies in the whole process of VoteNet**.
+5. **Not just** pip install or conda install, your answer should contain **every necessary dependencies in the whole \
+process of VoteNet**.
 
 ### Requirements
 
@@ -195,10 +163,9 @@ And should have:
         """Initialize the task with evaluators."""
         super().__init__(work_dir=work_dir, fixture=fixture)
         self.evaluators = (
-            RequirementsFileExists(),
-            RequirementsFileReadable(),
+            FileExists("requirements.txt"),
+            FileReadable("requirements.txt"),
             RequiredDependenciesPresent(),
             FileFormat(),
             NoDuplicateEntries(),
         )
-

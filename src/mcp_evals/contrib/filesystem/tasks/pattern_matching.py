@@ -57,7 +57,41 @@ def find_30_plus_char_matches(test_dir: Path) -> dict[str, int]:
 class AnswerFormat(Evaluator["PatternMatchingTask", AgentRunResult]):
     """Evaluator that checks answer file has correct format."""
 
-    async def evaluate(self, ctx: EvaluatorContext["PatternMatchingTask", AgentRunResult]) -> EvaluatorOutput:  # noqa: PLR0911
+    def _validate_line(self, line: str, line_num: int) -> EvaluatorOutput | None:
+        """Validate a single line format."""
+        parts = line.split(",")
+        if len(parts) != 2:  # noqa: PLR2004
+            return EvaluationReason(
+                value=0.0,
+                reason=f"Line {line_num} has incorrect format '{line}'. Expected format: filename.txt,start_position",
+            )
+
+        filename, start_pos = parts
+
+        # Check filename format
+        if not filename.endswith(".txt") or not filename.startswith("file_"):
+            return EvaluationReason(
+                value=0.0,
+                reason=f"Line {line_num} has invalid filename: '{filename}'",
+            )
+
+        # Check position format (should be integer)
+        try:
+            start_int = int(start_pos)
+            if start_int <= 0:
+                return EvaluationReason(
+                    value=0.0,
+                    reason=f"Line {line_num} has invalid position: {start_pos}",
+                )
+        except ValueError:
+            return EvaluationReason(
+                value=0.0,
+                reason=f"Line {line_num} has non-integer position: '{start_pos}'",
+            )
+
+        return None
+
+    async def evaluate(self, ctx: EvaluatorContext["PatternMatchingTask", AgentRunResult]) -> EvaluatorOutput:
         """Verify that the answer file has the correct format."""
         task = ctx.inputs
         answer_file = task.work_dir / "answer.txt"
@@ -79,36 +113,9 @@ class AnswerFormat(Evaluator["PatternMatchingTask", AgentRunResult]):
                 if not line_:
                     continue
 
-                # Check format: filename.txt,start_position
-                parts = line_.split(",")
-                if len(parts) != 2:  # noqa: PLR2004
-                    return EvaluationReason(
-                        value=0.0,
-                        reason=f"Line {i} has incorrect format '{line_}'. Expected format: filename.txt,start_position",
-                    )
-
-                filename, start_pos = parts
-
-                # Check filename format
-                if not filename.endswith(".txt") or not filename.startswith("file_"):
-                    return EvaluationReason(
-                        value=0.0,
-                        reason=f"Line {i} has invalid filename: '{filename}'",
-                    )
-
-                # Check position format (should be integer)
-                try:
-                    start_int = int(start_pos)
-                    if start_int <= 0:
-                        return EvaluationReason(
-                            value=0.0,
-                            reason=f"Line {i} has invalid position: {start_pos}",
-                        )
-                except ValueError:
-                    return EvaluationReason(
-                        value=0.0,
-                        reason=f"Line {i} has non-integer position: '{start_pos}'",
-                    )
+                error = self._validate_line(line_, i)
+                if error is not None:
+                    return error
 
         except (OSError, UnicodeDecodeError) as e:
             return EvaluationReason(value=0.0, reason=f"Error reading answer file: {e}")
@@ -214,7 +221,44 @@ class MatchLengthIs30Plus(Evaluator["PatternMatchingTask", AgentRunResult]):
 class MatchesAreCorrect(Evaluator["PatternMatchingTask", AgentRunResult]):
     """Evaluator that checks matches found in answer.txt are actually correct."""
 
-    async def evaluate(self, ctx: EvaluatorContext["PatternMatchingTask", AgentRunResult]) -> EvaluatorOutput:  # noqa: C901, PLR0911
+    def _parse_answer_matches(self, content: str) -> dict[str, int]:
+        """Parse answer matches from content."""
+        answer_matches: dict[str, int] = {}
+        lines = content.split("\n")
+        for line in lines:
+            line_ = line.strip()
+            if not line_:
+                continue
+            filename, start_pos = line_.split(",")
+            answer_matches[filename] = int(start_pos)
+        return answer_matches
+
+    def _validate_matches(
+        self, answer_matches: dict[str, int], expected_matches: dict[str, int]
+    ) -> EvaluatorOutput | None:
+        """Validate that answer matches match expected matches."""
+        # Check if all answer matches are correct
+        for filename, start_pos in answer_matches.items():
+            if filename not in expected_matches:
+                msg = f"File {filename} listed in answer but has no valid 30+ character match"
+                return EvaluationReason(value=0.0, reason=msg)
+
+            expected_start = expected_matches[filename]
+            if start_pos != expected_start:
+                msg = f"Incorrect match position for {filename}. Expected: {expected_start}, Found: {start_pos}"
+                return EvaluationReason(value=0.0, reason=msg)
+
+        # Check if all expected matches are in answer
+        for filename in expected_matches:
+            if filename not in answer_matches:
+                return EvaluationReason(
+                    value=0.0,
+                    reason=f"Missing match for {filename} in answer file",
+                )
+
+        return None
+
+    async def evaluate(self, ctx: EvaluatorContext["PatternMatchingTask", AgentRunResult]) -> EvaluatorOutput:
         """Verify that the matches found in answer.txt are actually correct."""
         task = ctx.inputs
         answer_file = task.work_dir / "answer.txt"
@@ -233,37 +277,12 @@ class MatchesAreCorrect(Evaluator["PatternMatchingTask", AgentRunResult]):
                     return EvaluationReason(value=0.0, reason=msg)
                 return 1.0
 
-            # Parse answer file
-            answer_matches: dict[str, int] = {}
-            lines = content.split("\n")
-            for line in lines:
-                line_ = line.strip()
-                if not line_:
-                    continue
-                filename, start_pos = line_.split(",")
-                answer_matches[filename] = int(start_pos)
-
-            # Get expected matches
+            answer_matches = self._parse_answer_matches(content)
             expected_matches = find_30_plus_char_matches(task.work_dir)
 
-            # Check if all answer matches are correct
-            for filename, start_pos in answer_matches.items():
-                if filename not in expected_matches:
-                    msg = f"File {filename} listed in answer but has no valid 30+ character match"
-                    return EvaluationReason(value=0.0, reason=msg)
-
-                expected_start = expected_matches[filename]
-                if start_pos != expected_start:
-                    msg = f"Incorrect match position for {filename}. Expected: {expected_start}, Found: {start_pos}"
-                    return EvaluationReason(value=0.0, reason=msg)
-
-            # Check if all expected matches are in answer
-            for filename in expected_matches:
-                if filename not in answer_matches:
-                    return EvaluationReason(
-                        value=0.0,
-                        reason=f"Missing match for {filename} in answer file",
-                    )
+            error = self._validate_matches(answer_matches, expected_matches)
+            if error is not None:
+                return error
 
         except (ValueError, OSError, UnicodeDecodeError) as e:
             return EvaluationReason(value=0.0, reason=f"Error verifying matches: {e}")

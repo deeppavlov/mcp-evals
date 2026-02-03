@@ -7,6 +7,7 @@ from pathlib import Path
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
 
+from mcp_evals.contrib.filesystem.common_evaluators import FileExists
 from mcp_evals.contrib.filesystem.task import FilesystemTask
 from mcp_evals.contrib.filesystem.utils import Fixture
 
@@ -49,42 +50,6 @@ EXPECTED_NAMES = [
 
 
 @dataclass
-class ContactInfoCSVExists(Evaluator["ContactInformationTask", AgentRunResult]):
-    """Evaluator that checks contact_info.csv file exists in main directory."""
-
-    async def evaluate(self, ctx: EvaluatorContext["ContactInformationTask", AgentRunResult]) -> EvaluatorOutput:
-        """Verify that the contact_info.csv file exists in the main directory."""
-        task = ctx.inputs
-        contact_file = task.work_dir / "contact_info.csv"
-
-        if not contact_file.exists():
-            return EvaluationReason(
-                value=0.0,
-                reason="File 'contact_info.csv' not found in main directory",
-            )
-
-        return 1.0
-
-
-@dataclass
-class AnswerTXTExists(Evaluator["ContactInformationTask", AgentRunResult]):
-    """Evaluator that checks answer.txt file exists in main directory."""
-
-    async def evaluate(self, ctx: EvaluatorContext["ContactInformationTask", AgentRunResult]) -> EvaluatorOutput:
-        """Verify that the answer.txt file exists in the main directory."""
-        task = ctx.inputs
-        answer_file = task.work_dir / "answer.txt"
-
-        if not answer_file.exists():
-            return EvaluationReason(
-                value=0.0,
-                reason="File 'answer.txt' not found in main directory",
-            )
-
-        return 1.0
-
-
-@dataclass
 class FilesInCorrectLocations(Evaluator["ContactInformationTask", AgentRunResult]):
     """Evaluator that checks files are in correct locations."""
 
@@ -113,7 +78,29 @@ class FilesInCorrectLocations(Evaluator["ContactInformationTask", AgentRunResult
 class CSVStructure(Evaluator["ContactInformationTask", AgentRunResult]):
     """Evaluator that checks CSV file has correct structure."""
 
-    async def evaluate(self, ctx: EvaluatorContext["ContactInformationTask", AgentRunResult]) -> EvaluatorOutput:  # noqa: PLR0911
+    def _validate_structure(self, rows: list[list[str]]) -> EvaluatorOutput | None:
+        """Validate CSV structure and return error if invalid."""
+        min_required_rows = 2
+        if len(rows) < min_required_rows:
+            return EvaluationReason(value=0.0, reason="CSV file has insufficient rows")
+
+        headers = rows[0]
+        if not headers:
+            return EvaluationReason(value=0.0, reason="CSV file has no headers")
+
+        if headers[0].lower() != "name":
+            return EvaluationReason(value=0.0, reason="First column is not 'Name'")
+
+        header_lower = [h.lower() for h in headers]
+        if "email" not in header_lower:
+            return EvaluationReason(value=0.0, reason="'Email' column not found")
+
+        if "phone" not in header_lower:
+            return EvaluationReason(value=0.0, reason="'Phone' column not found")
+
+        return None
+
+    async def evaluate(self, ctx: EvaluatorContext["ContactInformationTask", AgentRunResult]) -> EvaluatorOutput:
         """Verify that the CSV file has the correct structure."""
         task = ctx.inputs
         contact_file = task.work_dir / "contact_info.csv"
@@ -123,22 +110,9 @@ class CSVStructure(Evaluator["ContactInformationTask", AgentRunResult]):
                 reader = csv.reader(f)
                 rows = list(reader)
 
-            if len(rows) < 2:
-                return EvaluationReason(value=0.0, reason="CSV file has insufficient rows")
-
-            headers = rows[0]
-            if not headers:
-                return EvaluationReason(value=0.0, reason="CSV file has no headers")
-
-            if headers[0].lower() != "name":
-                return EvaluationReason(value=0.0, reason="First column is not 'Name'")
-
-            header_lower = [h.lower() for h in headers]
-            if "email" not in header_lower:
-                return EvaluationReason(value=0.0, reason="'Email' column not found")
-
-            if "phone" not in header_lower:
-                return EvaluationReason(value=0.0, reason="'Phone' column not found")
+            error = self._validate_structure(rows)
+            if error is not None:
+                return error
 
         except (OSError, UnicodeDecodeError) as e:
             return EvaluationReason(value=0.0, reason=f"Error reading CSV file: {e}")
@@ -150,6 +124,32 @@ class CSVStructure(Evaluator["ContactInformationTask", AgentRunResult]):
 class CSVContentAccuracy(Evaluator["ContactInformationTask", AgentRunResult]):
     """Evaluator that checks CSV content contains all required data."""
 
+    def _check_duplicate(self, row_name: str, found_entries: set[str]) -> EvaluatorOutput | None:
+        """Check for duplicate entries."""
+        if row_name in found_entries:
+            return EvaluationReason(
+                value=0.0,
+                reason=f"Duplicate name found: '{row_name}'",
+            )
+        return None
+
+    def _check_row_columns(
+        self, row_name: str, row: dict[str, str], expected: dict[str, str]
+    ) -> EvaluatorOutput | None:
+        """Check that row columns match expected values."""
+        for key, expected_value in expected.items():
+            if key in row:
+                actual_value = row[key] if row[key] else ""
+                if actual_value != expected_value:
+                    msg = f"Entry '{row_name}', column '{key}': expected '{expected_value}', got '{actual_value}'"
+                    return EvaluationReason(value=0.0, reason=msg)
+            else:
+                return EvaluationReason(
+                    value=0.0,
+                    reason=f"Entry '{row_name}' missing column '{key}'",
+                )
+        return None
+
     async def evaluate(self, ctx: EvaluatorContext["ContactInformationTask", AgentRunResult]) -> EvaluatorOutput:
         """Verify that the CSV content contains all required data."""
         task = ctx.inputs
@@ -160,40 +160,25 @@ class CSVContentAccuracy(Evaluator["ContactInformationTask", AgentRunResult]):
                 reader = csv.DictReader(f)
                 rows = list(reader)
 
-            expected_dict = {}
-            for entry in EXPECTED_DATA:
-                expected_dict[entry["Name"]] = entry
+            expected_dict = {entry["Name"]: entry for entry in EXPECTED_DATA}
 
-            found_entries = set()
+            found_entries: set[str] = set()
             for row in rows:
                 row_name = row.get("Name", "")
                 if not row_name:
                     continue
 
                 if row_name in expected_dict:
-                    if row_name in found_entries:
-                        return EvaluationReason(
-                            value=0.0,
-                            reason=f"Duplicate name found: '{row_name}'",
-                        )
+                    duplicate_check = self._check_duplicate(row_name, found_entries)
+                    if duplicate_check is not None:
+                        return duplicate_check
 
                     found_entries.add(row_name)
                     expected = expected_dict[row_name]
 
-                    for key, expected_value in expected.items():
-                        if key in row:
-                            actual_value = row[key] if row[key] else ""
-                            if actual_value != expected_value:
-                                msg = (
-                                    f"Entry '{row_name}', column '{key}': "
-                                    f"expected '{expected_value}', got '{actual_value}'"
-                                )
-                                return EvaluationReason(value=0.0, reason=msg)
-                        else:
-                            return EvaluationReason(
-                                value=0.0,
-                                reason=f"Entry '{row_name}' missing column '{key}'",
-                            )
+                    column_check = self._check_row_columns(row_name, row, expected)
+                    if column_check is not None:
+                        return column_check
 
             if len(found_entries) != len(EXPECTED_DATA):
                 missing = set(expected_dict.keys()) - found_entries
@@ -254,8 +239,6 @@ class AnswerContent(Evaluator["ContactInformationTask", AgentRunResult]):
         except (OSError, UnicodeDecodeError) as e:
             return EvaluationReason(value=0.0, reason=f"Error reading answer.txt: {e}")
 
-        return 1.0
-
 
 class ContactInformationTask(FilesystemTask):
     """Task for compiling contact information from all files into a CSV table.
@@ -272,7 +255,8 @@ class ContactInformationTask(FilesystemTask):
 
 ### Task Description
 
-Your task is to compile all contact information from all the files into a single CSV table. You need to extract all people's contact information and organize it systematically.
+Your task is to compile all contact information from all the files into a single CSV table.
+You need to extract all people's contact information and organize it systematically.
 
 ### Task Objectives
 
@@ -310,8 +294,8 @@ Write your answer in a file named `answer.txt` in the main directory.
         """Initialize the task with evaluators."""
         super().__init__(work_dir=work_dir, fixture=fixture)
         self.evaluators = (
-            ContactInfoCSVExists(),
-            AnswerTXTExists(),
+            FileExists("contact_info.csv"),
+            FileExists("answer.txt"),
             FilesInCorrectLocations(),
             CSVStructure(),
             CSVContentAccuracy(),
