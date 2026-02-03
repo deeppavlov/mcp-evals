@@ -2,11 +2,11 @@
 
 from pathlib import Path
 
-from mcp_evals.contrib.filesystem.common_evaluators import FileExists
+from mcp_evals.contrib.filesystem.common_evaluators import FileExists, FilePathContains, SingleLineAnswerFormat
 from mcp_evals.contrib.filesystem.task import FilesystemTask
 from mcp_evals.contrib.filesystem.utils import Fixture
 
-from .custom_evaluators import AnswerFormat, BugFix, FilePathStructure
+from .custom_evaluators import BugFix
 
 
 class DebuggingTask(FilesystemTask):
@@ -63,7 +63,13 @@ The bug is in `models/backbone_module.py`:
         super().__init__(work_dir=work_dir, fixture=fixture)
         self.evaluators = (
             FileExists("answer.txt"),
-            AnswerFormat(),
-            FilePathStructure(),
+            SingleLineAnswerFormat(
+                file_path="answer.txt",
+                must_contain="models/backbone_module.py",
+            ),
+            FilePathContains(
+                file_path="answer.txt",
+                required_components=["models", "backbone_module.py"],
+            ),
             BugFix(),
         )

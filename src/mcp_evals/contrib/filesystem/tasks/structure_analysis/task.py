@@ -2,11 +2,10 @@
 
 from pathlib import Path
 
-from mcp_evals.contrib.filesystem.common_evaluators import FileExists, FileReadable
+from mcp_evals.contrib.filesystem.common_evaluators import FileContentStructure, FileExists, FileReadable
 from mcp_evals.contrib.filesystem.task import FilesystemTask
 from mcp_evals.contrib.filesystem.tasks.structure_analysis.custom_evaluators import (
     DepthAnalysis,
-    FileFormat,
     FileStatistics,
     FileTypeClassification,
 )
@@ -82,8 +81,8 @@ mov: count
         self.evaluators = (
             FileExists("structure_analysis.txt"),
             FileReadable("structure_analysis.txt"),
+            FileContentStructure("structure_analysis.txt", min_lines=5),
             FileStatistics(),
             DepthAnalysis(),
             FileTypeClassification(),
-            FileFormat(),
         )

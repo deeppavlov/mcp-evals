@@ -2,11 +2,11 @@
 
 from pathlib import Path
 
-from mcp_evals.contrib.filesystem.common_evaluators import FileExists
+from mcp_evals.contrib.filesystem.common_evaluators import FileExists, FilePathContains, SingleLineAnswerFormat
 from mcp_evals.contrib.filesystem.task import FilesystemTask
 from mcp_evals.contrib.filesystem.utils import Fixture
 
-from .custom_evaluators import AnswerFormat, FilePathStructure, Zero123GuidanceContent
+from .custom_evaluators import Zero123GuidanceContent
 
 
 class CodeLocatingTask(FilesystemTask):
@@ -57,7 +57,14 @@ The answer file should contain the path to `zero123_guidance.py` which:
         super().__init__(work_dir=work_dir, fixture=fixture)
         self.evaluators = (
             FileExists("answer.txt"),
-            AnswerFormat(),
-            FilePathStructure(),
+            SingleLineAnswerFormat(
+                file_path="answer.txt",
+                must_be_relative_path=True,
+                must_use_forward_slashes=True,
+            ),
+            FilePathContains(
+                file_path="answer.txt",
+                required_components=["threestudio", "models", "guidance", "zero123_guidance.py"],
+            ),
             Zero123GuidanceContent(),
         )

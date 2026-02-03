@@ -2,17 +2,16 @@
 
 from pathlib import Path
 
-from mcp_evals.contrib.filesystem.common_evaluators import NoFilesInRoot
+from mcp_evals.contrib.filesystem.common_evaluators import (
+    DirectoriesExist,
+    NoFilesInRoot,
+    TotalFileCountAcrossDirectories,
+)
 from mcp_evals.contrib.filesystem.task import FilesystemTask
 from mcp_evals.contrib.filesystem.utils import Fixture
 
-from .constants import SYSTEM_FILES
-from .custom_evaluators import (
-    DirectoriesExist,
-    FileClassification,
-    FileSizes,
-    TotalFileCount,
-)
+from .constants import REQUIRED_DIRS, SYSTEM_FILES, TOTAL_EXPECTED_FILES
+from .custom_evaluators import FileClassification, FileSizes
 
 
 class SizeClassificationTask(FilesystemTask):
@@ -55,9 +54,9 @@ After completing the task, the directory structure should be:
         """Initialize the task with evaluators."""
         super().__init__(work_dir=work_dir, fixture=fixture)
         self.evaluators = (
-            DirectoriesExist(),
+            DirectoriesExist(REQUIRED_DIRS),
             FileClassification(),
             NoFilesInRoot(SYSTEM_FILES),
             FileSizes(),
-            TotalFileCount(),
+            TotalFileCountAcrossDirectories(REQUIRED_DIRS, TOTAL_EXPECTED_FILES, SYSTEM_FILES),
         )

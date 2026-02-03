@@ -2,17 +2,11 @@
 
 from pathlib import Path
 
-from mcp_evals.contrib.filesystem.common_evaluators import FileExists
+from mcp_evals.contrib.filesystem.common_evaluators import FileExists, FileInDirectory
 from mcp_evals.contrib.filesystem.task import FilesystemTask
 from mcp_evals.contrib.filesystem.utils import Fixture
 
-from .custom_evaluators import (
-    AnswerContent,
-    CSVContentAccuracy,
-    CSVDataCompleteness,
-    CSVStructure,
-    FilesInCorrectLocations,
-)
+from .custom_evaluators import AnswerContent, CSVContentAccuracy, CSVDataCompleteness, CSVStructure
 
 
 class ContactInformationTask(FilesystemTask):
@@ -71,7 +65,8 @@ Write your answer in a file named `answer.txt` in the main directory.
         self.evaluators = (
             FileExists("contact_info.csv"),
             FileExists("answer.txt"),
-            FilesInCorrectLocations(),
+            FileInDirectory("contact_info.csv", expected_directory=None),
+            FileInDirectory("answer.txt", expected_directory=None),
             CSVStructure(),
             CSVContentAccuracy(),
             CSVDataCompleteness(),

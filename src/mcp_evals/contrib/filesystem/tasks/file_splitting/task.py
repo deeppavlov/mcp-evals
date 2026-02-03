@@ -2,16 +2,12 @@
 
 from pathlib import Path
 
-from mcp_evals.contrib.filesystem.common_evaluators import DirectoryExists
+from mcp_evals.contrib.filesystem.common_evaluators import DirectoryExists, FilesExistInDirectory
 from mcp_evals.contrib.filesystem.task import FilesystemTask
 from mcp_evals.contrib.filesystem.utils import Fixture
 
-from .custom_evaluators import (
-    AllSplitFilesExist,
-    ContentIntegrity,
-    EqualFileLengths,
-    NoExtraFiles,
-)
+from .constants import EXPECTED_SPLIT_FILES
+from .custom_evaluators import ContentIntegrity, EqualFileLengths, NoExtraFiles
 
 
 class FileSplittingTask(FilesystemTask):
@@ -53,7 +49,7 @@ creating a new directory and splitting the content into exactly 10 files.
         super().__init__(work_dir=work_dir, fixture=fixture)
         self.evaluators = (
             DirectoryExists("split"),
-            AllSplitFilesExist(),
+            FilesExistInDirectory("split", EXPECTED_SPLIT_FILES),
             EqualFileLengths(),
             ContentIntegrity(),
             NoExtraFiles(),

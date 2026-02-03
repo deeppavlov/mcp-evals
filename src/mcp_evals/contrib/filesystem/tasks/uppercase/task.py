@@ -2,13 +2,13 @@
 
 from pathlib import Path
 
-from mcp_evals.contrib.filesystem.common_evaluators import DirectoryExists, FileExists
+from mcp_evals.contrib.filesystem.common_evaluators import DirectoryExists, FileExists, FilesExistInDirectory
 from mcp_evals.contrib.filesystem.task import FilesystemTask
+from mcp_evals.contrib.filesystem.tasks.uppercase.constants import EXPECTED_FILES
 from mcp_evals.contrib.filesystem.tasks.uppercase.custom_evaluators import (
     AllFilesAreIncluded,
     AnswerFormat,
     UppercaseContent,
-    UppercaseFilesExist,
     WordCountsAreCorrect,
 )
 from mcp_evals.contrib.filesystem.utils import Fixture
@@ -63,7 +63,7 @@ Create a file named `answer.txt` in the `uppercase/` directory
         super().__init__(work_dir=work_dir, fixture=fixture)
         self.evaluators = (
             DirectoryExists("uppercase"),
-            UppercaseFilesExist(),
+            FilesExistInDirectory("uppercase", EXPECTED_FILES),
             UppercaseContent(),
             FileExists("uppercase/answer.txt"),
             AnswerFormat(),

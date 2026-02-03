@@ -2,12 +2,12 @@
 
 from pathlib import Path
 
-from mcp_evals.contrib.filesystem.common_evaluators import CSVFormat, FileExists
+from mcp_evals.contrib.filesystem.common_evaluators import CSVContentMatches, CSVFormat, FileExists
 from mcp_evals.contrib.filesystem.task import FilesystemTask
 from mcp_evals.contrib.filesystem.utils import Fixture
 
-from .constants import EXPECTED_COLUMN_COUNT
-from .custom_evaluators import CSVContent, DataAccuracy
+from .constants import EXPECTED_COLUMN_COUNT, EXPECTED_DATA, EXPECTED_HEADER_COLUMNS
+from .custom_evaluators import DataAccuracy
 
 
 class IndividualCommentsTask(FilesystemTask):
@@ -56,6 +56,12 @@ person and each clause. If there are no comments, write 0."""
         self.evaluators = (
             FileExists("individual_comment.csv"),
             CSVFormat("individual_comment.csv", expected_columns=EXPECTED_COLUMN_COUNT),
-            CSVContent(),
+            CSVContentMatches(
+                file_path="individual_comment.csv",
+                expected_data=EXPECTED_DATA,
+                expected_header_columns=EXPECTED_HEADER_COLUMNS,
+                expected_column_count=EXPECTED_COLUMN_COUNT,
+                header_start_index=1,
+            ),
             DataAccuracy(),
         )

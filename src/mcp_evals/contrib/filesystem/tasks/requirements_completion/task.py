@@ -2,16 +2,17 @@
 
 from pathlib import Path
 
-from mcp_evals.contrib.filesystem.common_evaluators import FileExists, FileReadable
+from mcp_evals.contrib.filesystem.common_evaluators import (
+    FileExists,
+    FileReadable,
+    RequiredDependenciesPresent,
+    RequirementsFileFormat,
+)
 from mcp_evals.contrib.filesystem.task import FilesystemTask
 from mcp_evals.contrib.filesystem.utils import Fixture
 
-from .custom_evaluators import (
-    FileFormat,
-    NoDuplicateEntries,
-    RequiredDependenciesPresent,
-    SpecificDependencyEntries,
-)
+from .constants import REQUIRED_DEPS
+from .custom_evaluators import SpecificDependencyEntries
 
 
 class RequirementsCompletionTask(FilesystemTask):
@@ -69,8 +70,7 @@ The `requirements.txt` file should:
         self.evaluators = (
             FileExists("requirements.txt"),
             FileReadable("requirements.txt"),
-            RequiredDependenciesPresent(),
+            RequiredDependenciesPresent("requirements.txt", REQUIRED_DEPS),
             SpecificDependencyEntries(),
-            FileFormat(),
-            NoDuplicateEntries(),
+            RequirementsFileFormat("requirements.txt"),
         )

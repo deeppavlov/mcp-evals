@@ -4,7 +4,7 @@ import re
 from html.parser import HTMLParser
 from pathlib import Path
 
-from mcp_evals.contrib.filesystem.common_evaluators import DirectoryExists
+from mcp_evals.contrib.filesystem.common_evaluators import DirectoriesExist
 from mcp_evals.contrib.filesystem.task import FilesystemTask
 from mcp_evals.contrib.filesystem.utils import Fixture
 
@@ -178,8 +178,7 @@ them into author-specific folders based on specified criteria.
         """Initialize the task with evaluators."""
         super().__init__(work_dir=work_dir, fixture=fixture)
         self.evaluators = (
-            DirectoryExists("frequent_authors"),
-            DirectoryExists("2025_authors"),
+            DirectoriesExist(["frequent_authors", "2025_authors"]),
             OriginalFilesIntact(),
             FrequentAuthorsOrganization(),
             Authors2025Organization(),

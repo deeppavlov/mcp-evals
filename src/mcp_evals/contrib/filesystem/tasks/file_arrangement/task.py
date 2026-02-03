@@ -2,19 +2,12 @@
 
 from pathlib import Path
 
+from mcp_evals.contrib.filesystem.common_evaluators import DirectoriesExist, DirectoryExists, FilesExistInDirectory
 from mcp_evals.contrib.filesystem.task import FilesystemTask
 from mcp_evals.contrib.filesystem.utils import Fixture
 
-from .custom_evaluators import (
-    ArchivesFolderFiles,
-    FolderStructure,
-    LifeFolderFiles,
-    NoDuplicateRequiredFiles,
-    OthersFolderExists,
-    RequiredFilesInCorrectFolders,
-    TempFolderFiles,
-    WorkFolderFiles,
-)
+from .constants import REQUIRED_FILE_MAPPING, REQUIRED_FOLDERS
+from .custom_evaluators import NoDuplicateRequiredFiles, RequiredFilesInCorrectFolders
 
 
 class FileArrangementTask(FilesystemTask):
@@ -90,12 +83,12 @@ according to the provided organization scheme.
         """Initialize the task with evaluators."""
         super().__init__(work_dir=work_dir, fixture=fixture)
         self.evaluators = (
-            FolderStructure(),
-            WorkFolderFiles(),
-            LifeFolderFiles(),
-            ArchivesFolderFiles(),
-            TempFolderFiles(),
-            OthersFolderExists(),
+            DirectoriesExist(REQUIRED_FOLDERS),
+            FilesExistInDirectory("work", REQUIRED_FILE_MAPPING["work"]),
+            FilesExistInDirectory("life", REQUIRED_FILE_MAPPING["life"]),
+            FilesExistInDirectory("archives", REQUIRED_FILE_MAPPING["archives"]),
+            FilesExistInDirectory("temp", REQUIRED_FILE_MAPPING["temp"]),
+            DirectoryExists("others"),
             RequiredFilesInCorrectFolders(),
             NoDuplicateRequiredFiles(),
         )

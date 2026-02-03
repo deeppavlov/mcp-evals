@@ -2,11 +2,11 @@
 
 from pathlib import Path
 
-from mcp_evals.contrib.filesystem.common_evaluators import FileExists
+from mcp_evals.contrib.filesystem.common_evaluators import FileExists, FileInDirectory
 from mcp_evals.contrib.filesystem.task import FilesystemTask
 from mcp_evals.contrib.filesystem.utils import Fixture
 
-from .custom_evaluators import AnalysisFormat, CategoryCounts, FileLocation, RequiredCategories
+from .custom_evaluators import AnalysisFormat, CategoryCounts, RequiredCategories
 
 
 class DatasetComparisonTask(FilesystemTask):
@@ -66,7 +66,10 @@ With correct counts:
         super().__init__(work_dir=work_dir, fixture=fixture)
         self.evaluators = (
             FileExists("analysis.txt"),
-            FileLocation(),
+            FileInDirectory(
+                file_path="analysis.txt",
+                expected_directory=None,  # None means root/work_dir
+            ),
             AnalysisFormat(),
             RequiredCategories(),
             CategoryCounts(),

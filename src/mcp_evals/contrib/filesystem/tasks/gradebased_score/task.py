@@ -2,10 +2,11 @@
 
 from pathlib import Path
 
+from mcp_evals.contrib.filesystem.common_evaluators import FileExists, FileReadable
 from mcp_evals.contrib.filesystem.task import FilesystemTask
 from mcp_evals.contrib.filesystem.utils import Fixture
 
-from .custom_evaluators import GradeSummaryContent, GradeSummaryExists, GradeSummaryReadable, ThreeSubjectsPresent
+from .custom_evaluators import GradeSummaryContent, ThreeSubjectsPresent
 
 
 class GradebasedScoreTask(FilesystemTask):
@@ -57,8 +58,8 @@ class GradebasedScoreTask(FilesystemTask):
         """Initialize the task with evaluators."""
         super().__init__(work_dir=work_dir, fixture=fixture)
         self.evaluators = (
-            GradeSummaryExists(),
-            GradeSummaryReadable(),
+            FileExists("grade_summary.txt"),
+            FileReadable("grade_summary.txt"),
             ThreeSubjectsPresent(),
             GradeSummaryContent(),
         )

@@ -1,11 +1,5 @@
 """Custom evaluators for requirements_writing task."""
 
-from .file_format import FileFormat
-from .no_duplicate_entries import NoDuplicateEntries
-from .required_dependencies_present import RequiredDependenciesPresent
+# All evaluators have been moved to common_evaluators
 
-__all__ = [
-    "FileFormat",
-    "NoDuplicateEntries",
-    "RequiredDependenciesPresent",
-]
+__all__: list[str] = []
