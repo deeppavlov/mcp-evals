@@ -13,4 +13,3 @@ EXPECTED_FILES = [
     "file_19.txt",
     "file_20.txt",
 ]
-

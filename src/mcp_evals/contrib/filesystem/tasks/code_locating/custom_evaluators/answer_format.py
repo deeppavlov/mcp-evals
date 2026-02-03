@@ -49,4 +49,3 @@ class AnswerFormat(Evaluator["CodeLocatingTask", AgentRunResult]):
             return EvaluationReason(value=0.0, reason=f"Error reading answer file: {e}")
 
         return 1.0
-

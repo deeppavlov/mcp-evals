@@ -59,4 +59,3 @@ class Zero123GuidanceContent(Evaluator["CodeLocatingTask", AgentRunResult]):
             return EvaluationReason(value=0.0, reason=f"Error verifying file: {e}")
 
         return 1.0
-

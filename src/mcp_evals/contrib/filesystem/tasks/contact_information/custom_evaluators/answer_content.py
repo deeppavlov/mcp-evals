@@ -34,4 +34,3 @@ class AnswerContent(Evaluator["ContactInformationTask", AgentRunResult]):
 
         except (OSError, UnicodeDecodeError) as e:
             return EvaluationReason(value=0.0, reason=f"Error reading answer.txt: {e}")
-

@@ -77,4 +77,3 @@ Write your answer in a file named `answer.txt` in the main directory.
             CSVDataCompleteness(),
             AnswerContent(),
         )
-

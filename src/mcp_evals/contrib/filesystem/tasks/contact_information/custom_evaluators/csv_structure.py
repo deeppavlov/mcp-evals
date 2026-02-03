@@ -57,4 +57,3 @@ class CSVStructure(Evaluator["ContactInformationTask", AgentRunResult]):
             return EvaluationReason(value=0.0, reason=f"Error reading CSV file: {e}")
 
         return 1.0
-

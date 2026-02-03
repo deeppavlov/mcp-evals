@@ -35,4 +35,3 @@ class FilesInCorrectLocations(Evaluator["ContactInformationTask", AgentRunResult
             )
 
         return 1.0
-

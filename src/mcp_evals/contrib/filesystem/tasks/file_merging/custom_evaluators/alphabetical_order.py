@@ -47,4 +47,3 @@ class AlphabeticalOrder(Evaluator["FileMergingTask", AgentRunResult]):
             return EvaluationReason(value=0.0, reason=f"Error verifying alphabetical order: {e}")
 
         return 1.0
-

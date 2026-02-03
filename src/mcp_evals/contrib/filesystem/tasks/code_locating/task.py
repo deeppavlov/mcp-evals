@@ -61,4 +61,3 @@ The answer file should contain the path to `zero123_guidance.py` which:
             FilePathStructure(),
             Zero123GuidanceContent(),
         )
-

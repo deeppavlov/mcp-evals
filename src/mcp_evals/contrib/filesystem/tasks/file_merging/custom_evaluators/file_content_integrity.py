@@ -84,4 +84,3 @@ class FileContentIntegrity(Evaluator["FileMergingTask", AgentRunResult]):
             return EvaluationReason(value=0.0, reason=f"Error verifying content integrity: {e}")
 
         return 1.0
-

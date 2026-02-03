@@ -64,4 +64,3 @@ def parse_namesake_file(work_dir: Path) -> dict[str, dict[str, int | list[str]]]
         return {}
 
     return namesakes
-

@@ -39,4 +39,3 @@ class FilenameHeaders(Evaluator["FileMergingTask", AgentRunResult]):
             return EvaluationReason(value=0.0, reason=f"Error verifying filename headers: {e}")
 
         return 1.0
-

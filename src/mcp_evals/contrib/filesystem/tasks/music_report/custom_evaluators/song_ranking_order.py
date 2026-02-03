@@ -50,4 +50,3 @@ class SongRankingOrder(Evaluator["MusicReportTask", AgentRunResult]):
             )
         else:
             return 1.0
-

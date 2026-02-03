@@ -76,4 +76,3 @@ Create a file named `music_analysis_report.txt` in the `music/` folder with the 
             PopularityScoresMatchExpected(),
             Top5Songs(),
         )
-

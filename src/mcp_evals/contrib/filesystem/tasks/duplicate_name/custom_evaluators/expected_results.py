@@ -96,4 +96,3 @@ class ExpectedResults(Evaluator["DuplicateNameTask", AgentRunResult]):
             return error
 
         return 1.0
-

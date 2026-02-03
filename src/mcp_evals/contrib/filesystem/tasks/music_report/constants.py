@@ -25,4 +25,3 @@ EXPECTED_SONGS = [
 ]
 
 EXPECTED_TOP_5 = ["晴天", "七里香", "江南", "夜曲", "一千年以后"]
-

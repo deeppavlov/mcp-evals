@@ -36,4 +36,3 @@ EXPECTED_NAMES = [
     "Dentist",
     "Pharmacy",
 ]
-

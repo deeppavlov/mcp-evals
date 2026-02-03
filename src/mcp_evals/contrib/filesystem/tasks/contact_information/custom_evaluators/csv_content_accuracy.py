@@ -83,4 +83,3 @@ class CSVContentAccuracy(Evaluator["ContactInformationTask", AgentRunResult]):
             return EvaluationReason(value=0.0, reason=f"Error verifying CSV content: {e}")
 
         return 1.0
-

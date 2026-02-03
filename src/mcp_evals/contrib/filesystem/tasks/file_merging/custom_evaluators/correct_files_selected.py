@@ -46,4 +46,3 @@ class CorrectFilesSelected(Evaluator["FileMergingTask", AgentRunResult]):
             return EvaluationReason(value=0.0, reason=f"Error verifying file selection: {e}")
 
         return 1.0
-

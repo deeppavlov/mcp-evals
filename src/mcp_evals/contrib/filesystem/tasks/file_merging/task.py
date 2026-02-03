@@ -59,4 +59,3 @@ with proper formatting.
             FilenameHeaders(),
             FileContentIntegrity(),
         )
-

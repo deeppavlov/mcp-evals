@@ -91,4 +91,3 @@ class Top5Songs(Evaluator["MusicReportTask", AgentRunResult]):
             )
 
         return 1.0
-

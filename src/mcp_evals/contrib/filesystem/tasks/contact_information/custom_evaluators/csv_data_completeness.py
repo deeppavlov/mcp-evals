@@ -39,4 +39,3 @@ class CSVDataCompleteness(Evaluator["ContactInformationTask", AgentRunResult]):
             return EvaluationReason(value=0.0, reason=f"Error checking data completeness: {e}")
 
         return 1.0
-
