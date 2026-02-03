@@ -51,4 +51,5 @@ async def run_domain(domain: Domain, agent: Agent) -> EvaluationReport:
             evaluated_fn,
             max_concurrency=1,  # Sequential by default for stateful tasks
             case_context_manager=task_lifecycle,  # Task context wraps task + evaluators
+            progress=False,
         )
