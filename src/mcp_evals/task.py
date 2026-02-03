@@ -5,6 +5,7 @@ from functools import cached_property
 from types import TracebackType
 from typing import ClassVar, Self
 
+from loguru import logger
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import Evaluator
 
@@ -31,7 +32,7 @@ class Task(ABC):
 
     name: str
     goal: str
-    evaluators: tuple[Evaluator["Task", AgentRunResult], ...]
+    evaluators: tuple[Evaluator[Self, AgentRunResult], ...]
 
     output_type: type | None = None
     secrets_type: ClassVar[type[TaskSecrets]] = TaskSecrets
@@ -42,13 +43,17 @@ class Task(ABC):
         return self.secrets_type()
 
     async def __aenter__(self) -> Self:
+        logger.debug(f"[{self.name}] Entering task...")
         await self.setup()
+        logger.success(f"[{self.name}] Entered task!")
         return self
 
     async def __aexit__(
         self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: TracebackType | None
     ) -> bool | None:
+        logger.debug(f"[{self.name}] Quitting task...")
         await self.teardown()
+        logger.success(f"[{self.name}] Quit task!")
         return None
 
     async def setup(self) -> None:
