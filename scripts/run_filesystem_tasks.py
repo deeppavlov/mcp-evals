@@ -151,6 +151,12 @@ def main() -> None:
             logger.info(f"Total tasks: {len(report.cases)}")
 
             report.print(include_reasons=True, include_output=True)
+            for case in report.cases:
+                passed = all(eval_res.value == 1.0 for eval_res in case.scores.values())
+                if passed:
+                    logger.success(f"Task {case.name} passed")
+                else:
+                    logger.warning(f"Task {case.name} failed")
 
     asyncio.run(run())
 
