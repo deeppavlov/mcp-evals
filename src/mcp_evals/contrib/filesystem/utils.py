@@ -93,16 +93,16 @@ async def download_fixture(category: Fixture) -> Path:
         logger.error(msg)
         raise ValueError(msg)
 
-    logger.debug(f"Downloading fixture '{category.value}'")
-
     cache_dir = Path(user_cache_dir("mcp-evals", "mcp-evals")) / "fixtures"
     fixture_path = cache_dir / category
 
     # Return cached fixture if it exists
     if fixture_path.exists() and fixture_path.is_dir():
+        logger.debug(f"Using cached fixture '{category.value}'")
         return fixture_path
 
     # Download fixture
+    logger.debug(f"Downloading fixture '{category.value}'")
     url = FIXTURE_URL_MAPPING[category]
     zip_path = cache_dir / f"{category}.zip"
 
@@ -162,7 +162,7 @@ async def download_fixture(category: Fixture) -> Path:
 
 
 @asynccontextmanager
-async def create_isolated_workspace(fixture_path: Path, work_dir: Path) -> AsyncIterator[Path]:
+async def create_isolated_workspace(fixture_path: Path, root_dir: Path) -> AsyncIterator[Path]:
     """Create isolated workspace by copying fixture to temp directory.
 
     Returns an async context manager that tasks enter into their AsyncExitStack.
@@ -170,12 +170,12 @@ async def create_isolated_workspace(fixture_path: Path, work_dir: Path) -> Async
 
     Args:
         fixture_path: Path to the fixture directory to copy
-        work_dir: Path to the root directory which MCP has access to
+        root_dir: Path to the root directory which MCP has access to
 
     Yields:
         Path to the isolated workspace directory
     """
-    async with aiofiles.tempfile.TemporaryDirectory(dir=str(work_dir)) as temp_dir:
-        work_dir = Path(temp_dir) / "workspace"
-        shutil.copytree(fixture_path, work_dir)
+    async with aiofiles.tempfile.TemporaryDirectory(dir=str(root_dir)) as temp_dir:
+        work_dir = Path(temp_dir)
+        shutil.copytree(fixture_path, work_dir, dirs_exist_ok=True)
         yield work_dir

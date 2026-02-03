@@ -45,7 +45,20 @@ class FilesystemDomain(Domain):
 
     def mcp_servers(self) -> Sequence[MCPServerStdio]:
         """Return MCP filesystem server configuration."""
-        return [MCPServerStdio("npx", ["-y", "@modelcontextprotocol/server-filesystem", str(self._tmp_dir)])]
+        return [
+            MCPServerStdio(
+                "docker",
+                [
+                    "run",
+                    "-i",
+                    "--rm",
+                    "--mount",
+                    f"type=bind,src={self._tmp_dir},dst=/projects",
+                    "mcp/filesystem",
+                    "/projects",
+                ],
+            )
+        ]
 
     def tasks(self) -> Sequence[MusicReportTask | DuplicatesSearchingTask]:
         """Return all filesystem tasks."""
