@@ -52,7 +52,7 @@ import os
 
 import logfire
 from loguru import logger
-from pydantic import Field, SecretStr
+from pydantic import BaseModel, Field, SecretStr
 from pydantic_ai import Agent
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -81,6 +81,12 @@ class ScriptSettings(BaseSettings):
     def api_key_str(self) -> str:
         """Get the API key as a plain string."""
         return self.api_key.get_secret_value()
+
+
+class FinishTask(BaseModel):
+    """Call this tool when done with the task."""
+
+    answer: str | None = Field(None, description="Optional answer")
 
 
 def main() -> None:
@@ -127,6 +133,7 @@ def main() -> None:
     agent = Agent(
         f"openai:{model}",
         system_prompt="You are a helpful assistant that can use filesystem tools to complete tasks.",
+        output_type=FinishTask,
     )
 
     # Create domain and runner
