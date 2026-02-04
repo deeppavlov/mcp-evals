@@ -3,7 +3,7 @@
 from abc import ABC
 from functools import cached_property
 from types import TracebackType
-from typing import ClassVar, Self
+from typing import ClassVar, Self, TypeVar, cast
 
 from loguru import logger
 from pydantic_ai.run import AgentRunResult
@@ -11,9 +11,10 @@ from pydantic_evals.evaluators import Evaluator
 
 from mcp_evals.secrets import TaskSecrets
 
+SecretsT = TypeVar("SecretsT", bound=TaskSecrets)
 
-# TODO make it generic to secrets type
-class Task(ABC):
+
+class Task[SecretsT](ABC):
     """Abstract base for evaluation tasks.
 
     Required attributes (class attributes or @property):
@@ -35,10 +36,10 @@ class Task(ABC):
     evaluators: tuple[Evaluator[Self, AgentRunResult], ...]
 
     output_type: type | None = None
-    secrets_type: ClassVar[type[TaskSecrets]] = TaskSecrets
+    secrets_type: ClassVar[type[SecretsT]] = cast("type[SecretsT]", TaskSecrets)
 
     @cached_property
-    def secrets(self) -> TaskSecrets:
+    def secrets(self) -> SecretsT:
         """Load and cache secrets from environment."""
         return self.secrets_type()
 

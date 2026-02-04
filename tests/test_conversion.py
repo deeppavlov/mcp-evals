@@ -10,28 +10,29 @@ from pydantic_evals.evaluators import Evaluator
 
 from mcp_evals._internal.conversion import domain_to_dataset
 from mcp_evals.domain import Domain
+from mcp_evals.secrets import DomainSecrets, TaskSecrets
 from mcp_evals.task import Task
 
 
-class ConcreteTask(Task):
+class ConcreteTask(Task[TaskSecrets]):
     """Concrete Task implementation for testing."""
 
     name = "test_task"
     goal = "Test goal"
-    evaluators: tuple[Evaluator[Task, AgentRunResult], ...] = ()
+    evaluators: tuple[Evaluator[Task[TaskSecrets], AgentRunResult], ...] = ()
 
     def __init__(
         self,
         name: str = "test_task",
         goal: str = "Test goal",
-        evaluators: tuple[Evaluator[Task, AgentRunResult], ...] | None = None,
+        evaluators: tuple[Evaluator[Task[TaskSecrets], AgentRunResult], ...] | None = None,
     ) -> None:
         self.name = name
         self.goal = goal
         self.evaluators = evaluators or ()
 
 
-class ConcreteDomain(Domain):
+class ConcreteDomain(Domain[DomainSecrets]):
     """Concrete Domain implementation for testing."""
 
     name = "test_domain"

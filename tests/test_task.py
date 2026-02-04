@@ -10,18 +10,18 @@ from mcp_evals.secrets import TaskSecrets
 from mcp_evals.task import Task
 
 
-class ConcreteTask(Task):
+class ConcreteTask(Task[TaskSecrets]):
     """Concrete Task implementation for testing."""
 
     name = "test_task"
     goal = "Test goal"
-    evaluators: tuple[Evaluator[Task, AgentRunResult], ...] = ()
+    evaluators: tuple[Evaluator[Task[TaskSecrets], AgentRunResult], ...] = ()
 
     def __init__(
         self,
         name: str = "test_task",
         goal: str = "Test goal",
-        evaluators: tuple[Evaluator[Task, AgentRunResult], ...] | None = None,
+        evaluators: tuple[Evaluator[Task[TaskSecrets], AgentRunResult], ...] | None = None,
     ) -> None:
         self.name = name
         self.goal = goal

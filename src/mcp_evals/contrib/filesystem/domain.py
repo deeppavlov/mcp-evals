@@ -10,6 +10,7 @@ from pydantic_ai.mcp import MCPServerStdio
 
 from mcp_evals import Domain
 from mcp_evals.contrib.filesystem.utils import Fixture
+from mcp_evals.secrets import DomainSecrets
 
 from .task import FilesystemTask
 from .tasks import (
@@ -46,7 +47,7 @@ from .tasks import (
 )
 
 
-class FilesystemDomain(Domain):
+class FilesystemDomain(Domain[DomainSecrets]):
     """Domain for filesystem tasks from MCP Universe.
 
     Provides MCP filesystem server and groups related filesystem tasks.

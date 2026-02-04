@@ -11,7 +11,7 @@ from mcp_evals.task import Task
 
 
 async def run_agent_on_task(
-    task: Task,
+    task: Task[Any],
     *,
     agent: Agent[Any, OutputDataT],
     toolset: CombinedToolset[Any],

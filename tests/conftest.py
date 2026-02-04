@@ -14,6 +14,7 @@ from pydantic_ai.toolsets import CombinedToolset
 from pydantic_evals.evaluators import Evaluator
 
 from mcp_evals.domain import Domain
+from mcp_evals.secrets import DomainSecrets, TaskSecrets
 from mcp_evals.task import Task
 
 
@@ -46,25 +47,25 @@ def mock_mcp_server() -> MCPServer:
 
 
 @pytest.fixture
-def mock_evaluator() -> Evaluator[Task, AgentRunResult]:
+def mock_evaluator() -> Evaluator[Task[TaskSecrets], AgentRunResult]:
     """Create a mock Evaluator."""
     evaluator = MagicMock(spec=Evaluator)
     evaluator.evaluate = AsyncMock(return_value=1.0)
     return evaluator
 
 
-class MockTask(Task):
+class MockTask(Task[TaskSecrets]):
     """Mock Task implementation for testing."""
 
     name = "mock_task"
     goal = "Mock task goal"
-    evaluators: tuple[Evaluator[Task, AgentRunResult], ...] = ()
+    evaluators: tuple[Evaluator[Task[TaskSecrets], AgentRunResult], ...] = ()
 
     def __init__(
         self,
         name: str = "mock_task",
         goal: str = "Mock task goal",
-        evaluators: tuple[Evaluator[Task, AgentRunResult], ...] | None = None,
+        evaluators: tuple[Evaluator[Task[TaskSecrets], AgentRunResult], ...] | None = None,
         setup_called: list[bool] | None = None,
         teardown_called: list[bool] | None = None,
     ) -> None:
@@ -83,7 +84,7 @@ class MockTask(Task):
         self._teardown_called.append(True)
 
 
-class MockDomain(Domain):
+class MockDomain(Domain[DomainSecrets]):
     """Mock Domain implementation for testing."""
 
     name = "mock_domain"
@@ -92,7 +93,7 @@ class MockDomain(Domain):
         self,
         name: str = "mock_domain",
         mcp_servers: list[MCPServer] | None = None,
-        tasks: list[Task] | None = None,
+        tasks: list[Task[TaskSecrets]] | None = None,
         toolset: CombinedToolset | None = None,
         setup_called: list[bool] | None = None,
         teardown_called: list[bool] | None = None,
@@ -109,7 +110,7 @@ class MockDomain(Domain):
         """Return mock MCP servers."""
         return self._mcp_servers
 
-    def tasks(self) -> list[Task]:
+    def tasks(self) -> list[Task[TaskSecrets]]:
         """Return mock tasks."""
         return self._tasks
 
