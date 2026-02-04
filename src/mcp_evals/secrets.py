@@ -48,7 +48,8 @@ class TaskSecrets(BaseSettings):
         class MyTask(Task[MySecrets]):
             secrets_type = MySecrets
 
-            async def setup(self):
+            async def setup(self, stack):
+                # Register cleanup on stack; use stack.enter_async_context(...) etc.
                 print(self.secrets.api_key)  # Type-safe access
     ```
     """

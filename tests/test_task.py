@@ -1,6 +1,7 @@
 """Tests for Task class."""
 
-from typing import Self, TypeVar
+from contextlib import AsyncExitStack
+from typing import Any, Self, TypeVar
 from unittest.mock import MagicMock
 
 import pytest
@@ -40,7 +41,7 @@ class TestTaskContextManager:
         setup_called = []
 
         class TestTask(ConcreteTask[str]):
-            async def setup(self) -> None:
+            async def setup(self, stack: AsyncExitStack[Any]) -> None:  # noqa: ARG002
                 setup_called.append(True)
 
         task: ConcreteTask[str] = TestTask()
@@ -49,12 +50,15 @@ class TestTaskContextManager:
             assert setup_called[0] is True
 
     async def test_aexit_calls_teardown(self) -> None:
-        """Test that __aexit__ calls teardown()."""
+        """Test that __aexit__ runs cleanup registered in setup(stack)."""
         teardown_called = []
 
         class TestTask(ConcreteTask[str]):
-            async def teardown(self) -> None:
-                teardown_called.append(True)
+            async def setup(self, stack: AsyncExitStack[Any]) -> None:
+                async def on_exit() -> None:
+                    teardown_called.append(True)
+
+                stack.push_async_callback(on_exit)
 
         task: ConcreteTask[str] = TestTask()
         async with task:
@@ -69,11 +73,13 @@ class TestTaskContextManager:
         teardown_calls = []
 
         class TestTask(ConcreteTask[str]):
-            async def setup(self) -> None:
+            async def setup(self, stack: AsyncExitStack[Any]) -> None:
                 setup_calls.append(True)
 
-            async def teardown(self) -> None:
-                teardown_calls.append(True)
+                async def on_exit() -> None:
+                    teardown_calls.append(True)
+
+                stack.push_async_callback(on_exit)
 
         task: ConcreteTask[str] = TestTask()
 
@@ -92,7 +98,7 @@ class TestTaskContextManager:
         """Test that exceptions in setup() propagate correctly."""
 
         class TestTask(ConcreteTask[str]):
-            async def setup(self) -> None:
+            async def setup(self, stack: AsyncExitStack[Any]) -> None:  # noqa: ARG002
                 raise ValueError("Setup failed")
 
         task: ConcreteTask[str] = TestTask()
@@ -102,17 +108,20 @@ class TestTaskContextManager:
                 pass
 
     async def test_teardown_exception_does_not_prevent_exit(self) -> None:
-        """Test that exceptions in teardown() don't prevent exit."""
+        """Test that exceptions in exit callback don't prevent context exit."""
         teardown_called = []
 
         class TestTask(ConcreteTask[str]):
-            async def teardown(self) -> None:
-                teardown_called.append(True)
-                raise ValueError("Teardown failed")
+            async def setup(self, stack: AsyncExitStack[Any]) -> None:
+                async def on_exit() -> None:
+                    teardown_called.append(True)
+                    raise ValueError("Teardown failed")
+
+                stack.push_async_callback(on_exit)
 
         task: ConcreteTask[str] = TestTask()
 
-        # Exception in teardown should be raised, but context should exit
+        # Exception in exit callback should be raised, but context should exit
         with pytest.raises(ValueError, match="Teardown failed"):
             async with task:
                 pass
@@ -208,7 +217,7 @@ class TestTaskLifecycle:
         setup_data = []
 
         class TestTask(ConcreteTask[str]):
-            async def setup(self) -> None:
+            async def setup(self, stack: AsyncExitStack[Any]) -> None:  # noqa: ARG002
                 setup_data.append("setup_executed")
 
         task: ConcreteTask[str] = TestTask()
@@ -216,12 +225,15 @@ class TestTaskLifecycle:
             assert setup_data == ["setup_executed"]
 
     async def test_custom_teardown_executes(self) -> None:
-        """Test that custom teardown logic executes."""
+        """Test that cleanup registered in setup(stack) executes on exit."""
         teardown_data = []
 
         class TestTask(ConcreteTask[str]):
-            async def teardown(self) -> None:
-                teardown_data.append("teardown_executed")
+            async def setup(self, stack: AsyncExitStack[Any]) -> None:
+                async def on_exit() -> None:
+                    teardown_data.append("teardown_executed")
+
+                stack.push_async_callback(on_exit)
 
         task: ConcreteTask[str] = TestTask()
         async with task:
@@ -234,11 +246,13 @@ class TestTaskLifecycle:
         call_order = []
 
         class TestTask(ConcreteTask[str]):
-            async def setup(self) -> None:
+            async def setup(self, stack: AsyncExitStack[Any]) -> None:
                 call_order.append("setup")
 
-            async def teardown(self) -> None:
-                call_order.append("teardown")
+                async def on_exit() -> None:
+                    call_order.append("teardown")
+
+                stack.push_async_callback(on_exit)
 
         task: ConcreteTask[str] = TestTask()
         async with task:
