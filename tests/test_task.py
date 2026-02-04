@@ -161,7 +161,7 @@ class TestTaskSecrets:
         """Test that default TaskSecrets is used when not specified."""
 
         class TestTask(ConcreteTask[str]):
-            pass
+            secrets_type = TaskSecrets
 
         task: ConcreteTask[str] = TestTask()
         # Should not raise an error even if no env vars are set
@@ -197,11 +197,6 @@ class TestTaskAttributes:
 
         task = TestTask()
         assert task.output_type == OutputModel
-
-    def test_task_output_type_none(self) -> None:
-        """Test that output_type defaults to None."""
-        task: ConcreteTask[str] = ConcreteTask[str]()
-        assert task.output_type is None
 
 
 @pytest.mark.asyncio

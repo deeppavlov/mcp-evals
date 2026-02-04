@@ -3,7 +3,7 @@
 from abc import ABC
 from functools import cached_property
 from types import TracebackType
-from typing import ClassVar, Generic, Self, TypeVar
+from typing import TYPE_CHECKING, ClassVar, Generic, Self, TypeVar
 
 from loguru import logger
 from pydantic_ai.run import AgentRunResult
@@ -11,11 +11,16 @@ from pydantic_evals.evaluators import Evaluator
 
 from mcp_evals.secrets import TaskSecrets
 
-SecretsT = TypeVar("SecretsT", bound=TaskSecrets, default=TaskSecrets)
-OutputT = TypeVar("OutputT", default=str)
+# workaround for python 3.12, because it doesnt support `default` value for type var
+if TYPE_CHECKING:
+    SecretsT = TypeVar("SecretsT", bound=TaskSecrets, default=TaskSecrets)
+    OutputT = TypeVar("OutputT", default=str)
+else:
+    SecretsT = TypeVar("SecretsT", bound=TaskSecrets)
+    OutputT = TypeVar("OutputT")
 
 
-class Task(ABC, Generic[SecretsT, OutputT]):
+class Task(ABC, Generic[SecretsT, OutputT]):  # noqa: UP046
     """Abstract base for evaluation tasks.
 
     Required attributes (class attributes or @property):
