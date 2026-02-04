@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from functools import cached_property
 from types import TracebackType
-from typing import TYPE_CHECKING, ClassVar, Self, TypeVar, cast
+from typing import TYPE_CHECKING, ClassVar, Self, cast
 
 from loguru import logger
 from pydantic_ai.mcp import MCPServer
@@ -16,10 +16,7 @@ if TYPE_CHECKING:
     from mcp_evals.task import Task
 
 
-SecretsT = TypeVar("SecretsT", bound=DomainSecrets)
-
-
-class Domain[SecretsT](ABC):
+class Domain[SecretsT: DomainSecrets](ABC):
     """Abstract base for evaluation domains.
 
     Domain is an async context manager that:
