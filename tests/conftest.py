@@ -47,25 +47,25 @@ def mock_mcp_server() -> MCPServer:
 
 
 @pytest.fixture
-def mock_evaluator() -> Evaluator[Task[TaskSecrets], AgentRunResult]:
+def mock_evaluator() -> Evaluator[Task[TaskSecrets, Any], AgentRunResult]:
     """Create a mock Evaluator."""
     evaluator = MagicMock(spec=Evaluator)
     evaluator.evaluate = AsyncMock(return_value=1.0)
     return evaluator
 
 
-class MockTask(Task[TaskSecrets]):
+class MockTask(Task[TaskSecrets, str]):
     """Mock Task implementation for testing."""
 
     name = "mock_task"
     goal = "Mock task goal"
-    evaluators: tuple[Evaluator[Task[TaskSecrets], AgentRunResult], ...] = ()
+    evaluators: tuple[Evaluator[Task[TaskSecrets, str], AgentRunResult], ...] = ()
 
     def __init__(
         self,
         name: str = "mock_task",
         goal: str = "Mock task goal",
-        evaluators: tuple[Evaluator[Task[TaskSecrets], AgentRunResult], ...] | None = None,
+        evaluators: tuple[Evaluator[Task[TaskSecrets, str], AgentRunResult], ...] | None = None,
         setup_called: list[bool] | None = None,
         teardown_called: list[bool] | None = None,
     ) -> None:
@@ -93,7 +93,7 @@ class MockDomain(Domain[DomainSecrets]):
         self,
         name: str = "mock_domain",
         mcp_servers: list[MCPServer] | None = None,
-        tasks: list[Task[TaskSecrets]] | None = None,
+        tasks: list[Task[TaskSecrets, Any]] | None = None,
         toolset: CombinedToolset | None = None,
         setup_called: list[bool] | None = None,
         teardown_called: list[bool] | None = None,
@@ -110,7 +110,7 @@ class MockDomain(Domain[DomainSecrets]):
         """Return mock MCP servers."""
         return self._mcp_servers
 
-    def tasks(self) -> list[Task[TaskSecrets]]:
+    def tasks(self) -> list[Task[TaskSecrets, Any]]:
         """Return mock tasks."""
         return self._tasks
 

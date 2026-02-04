@@ -9,7 +9,7 @@ from mcp_evals.domain import Domain
 from mcp_evals.task import Task
 
 
-def domain_to_dataset(domain: Domain[Any]) -> Dataset[Task[Any], AgentRunResult[Any]]:
+def domain_to_dataset(domain: Domain[Any]) -> Dataset[Task[Any, Any], AgentRunResult[Any]]:
     """Convert mcp_evals Domain to pydantic_evals Dataset.
 
     Each Task instance becomes a Case with:

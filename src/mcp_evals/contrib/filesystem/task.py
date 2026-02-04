@@ -3,15 +3,24 @@
 from contextlib import AsyncExitStack
 from pathlib import Path
 
+from pydantic import BaseModel, Field
+
 from mcp_evals.contrib.filesystem.utils import Fixture, download_fixture, prepare_workspace
 from mcp_evals.secrets import TaskSecrets
 from mcp_evals.task import Task
 
 
-class FilesystemTask(Task[TaskSecrets]):
+class FinishTask(BaseModel):
+    """Call this tool when done with the task."""
+
+    answer: str | None = Field(None, description="Optional answer")
+
+
+class FilesystemTask(Task[TaskSecrets, FinishTask]):
     """Base class for all filesystem tasks."""
 
     _stack: AsyncExitStack | None = None
+    output_type = FinishTask
 
     def __init__(self, work_dir: Path, fixture: Fixture) -> None:
         """Init."""

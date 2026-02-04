@@ -1,5 +1,6 @@
 """Tests for BenchmarkRunner class."""
 
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -25,7 +26,7 @@ class ConcreteDomain(Domain[DomainSecrets]):
         """Return empty list of MCP servers."""
         return []
 
-    def tasks(self) -> list[Task[TaskSecrets]]:
+    def tasks(self) -> list[Task[TaskSecrets, Any]]:
         """Return empty list of tasks."""
         return []
 
