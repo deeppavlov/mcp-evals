@@ -1,11 +1,13 @@
 """Task abstraction for evaluation tasks."""
 
 from abc import ABC
+from collections.abc import Sequence
 from functools import cached_property
 from types import TracebackType
 from typing import TYPE_CHECKING, ClassVar, Generic, Self, TypeVar
 
 from loguru import logger
+from pydantic_ai.mcp import MCPServer
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import Evaluator
 
@@ -43,6 +45,10 @@ class Task(ABC, Generic[SecretsT, OutputT]):  # noqa: UP046
 
     output_type: ClassVar[type[OutputT]]
     secrets_type: ClassVar[type[SecretsT]]
+
+    def mcp_servers(self) -> Sequence[MCPServer]:
+        """Return task-specific MCP server."""
+        return []
 
     @cached_property
     def secrets(self) -> SecretsT:
