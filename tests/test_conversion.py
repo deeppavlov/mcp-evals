@@ -1,6 +1,7 @@
 """Tests for internal conversion functions."""
 
 from collections.abc import Sequence
+from typing import Any
 from unittest.mock import MagicMock
 
 from pydantic_ai.mcp import MCPServer
@@ -14,18 +15,18 @@ from mcp_evals.secrets import DomainSecrets, TaskSecrets
 from mcp_evals.task import Task
 
 
-class ConcreteTask(Task[TaskSecrets]):
+class ConcreteTask(Task[TaskSecrets, Any]):
     """Concrete Task implementation for testing."""
 
     name = "test_task"
     goal = "Test goal"
-    evaluators: tuple[Evaluator[Task[TaskSecrets], AgentRunResult], ...] = ()
+    evaluators: tuple[Evaluator[Task[TaskSecrets, Any], AgentRunResult], ...] = ()
 
     def __init__(
         self,
         name: str = "test_task",
         goal: str = "Test goal",
-        evaluators: tuple[Evaluator[Task[TaskSecrets], AgentRunResult], ...] | None = None,
+        evaluators: tuple[Evaluator[Task[TaskSecrets, Any], AgentRunResult], ...] | None = None,
     ) -> None:
         self.name = name
         self.goal = goal

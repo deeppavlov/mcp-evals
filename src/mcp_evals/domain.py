@@ -4,13 +4,13 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from functools import cached_property
 from types import TracebackType
-from typing import TYPE_CHECKING, ClassVar, Self, cast
+from typing import TYPE_CHECKING, Any, ClassVar, Self, cast
 
 from loguru import logger
 from pydantic_ai.mcp import MCPServer
 from pydantic_ai.toolsets import CombinedToolset
 
-from mcp_evals.secrets import DomainSecrets, TaskSecrets
+from mcp_evals.secrets import DomainSecrets
 
 if TYPE_CHECKING:
     from mcp_evals.task import Task
@@ -46,7 +46,7 @@ class Domain[SecretsT: DomainSecrets](ABC):
         """Return MCP server configurations."""
 
     @abstractmethod
-    def tasks(self) -> Sequence["Task[TaskSecrets]"]:
+    def tasks(self) -> Sequence["Task[Any, Any]"]:
         """Return Task instances to evaluate in this domain."""
 
     secrets_type: ClassVar[type[SecretsT]] = cast("type[SecretsT]", DomainSecrets)

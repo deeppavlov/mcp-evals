@@ -17,7 +17,7 @@ from mcp_evals.task import Task
 
 
 @asynccontextmanager
-async def task_lifecycle(case: Case[Task[Any], AgentRunResult, None]) -> AsyncIterator[None]:
+async def task_lifecycle(case: Case[Task[Any, Any], AgentRunResult, None]) -> AsyncIterator[None]:
     """Context manager that wraps task execution + evaluation.
 
     This ensures the task context (setup/teardown) spans both:

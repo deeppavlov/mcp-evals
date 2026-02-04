@@ -1,5 +1,6 @@
 """Tests for Task class."""
 
+from typing import Self, TypeVar
 from unittest.mock import MagicMock
 
 import pytest
@@ -9,19 +10,21 @@ from pydantic_evals.evaluators import Evaluator
 from mcp_evals.secrets import TaskSecrets
 from mcp_evals.task import Task
 
+OutputT = TypeVar("OutputT")
 
-class ConcreteTask(Task[TaskSecrets]):
+
+class ConcreteTask(Task[TaskSecrets, OutputT]):
     """Concrete Task implementation for testing."""
 
     name = "test_task"
     goal = "Test goal"
-    evaluators: tuple[Evaluator[Task[TaskSecrets], AgentRunResult], ...] = ()
+    evaluators: tuple[Evaluator[Self, AgentRunResult], ...] = ()
 
     def __init__(
         self,
         name: str = "test_task",
         goal: str = "Test goal",
-        evaluators: tuple[Evaluator[Task[TaskSecrets], AgentRunResult], ...] | None = None,
+        evaluators: tuple[Evaluator[Self, AgentRunResult], ...] | None = None,
     ) -> None:
         self.name = name
         self.goal = goal
@@ -36,11 +39,11 @@ class TestTaskContextManager:
         """Test that __aenter__ calls setup()."""
         setup_called = []
 
-        class TestTask(ConcreteTask):
+        class TestTask(ConcreteTask[str]):
             async def setup(self) -> None:
                 setup_called.append(True)
 
-        task = TestTask()
+        task: ConcreteTask[str] = TestTask()
         async with task:
             assert len(setup_called) == 1
             assert setup_called[0] is True
@@ -49,11 +52,11 @@ class TestTaskContextManager:
         """Test that __aexit__ calls teardown()."""
         teardown_called = []
 
-        class TestTask(ConcreteTask):
+        class TestTask(ConcreteTask[str]):
             async def teardown(self) -> None:
                 teardown_called.append(True)
 
-        task = TestTask()
+        task: ConcreteTask[str] = TestTask()
         async with task:
             pass
 
@@ -65,14 +68,14 @@ class TestTaskContextManager:
         setup_calls = []
         teardown_calls = []
 
-        class TestTask(ConcreteTask):
+        class TestTask(ConcreteTask[str]):
             async def setup(self) -> None:
                 setup_calls.append(True)
 
             async def teardown(self) -> None:
                 teardown_calls.append(True)
 
-        task = TestTask()
+        task: ConcreteTask[str] = TestTask()
 
         # First cycle
         async with task:
@@ -88,11 +91,11 @@ class TestTaskContextManager:
     async def test_setup_exception_propagates(self) -> None:
         """Test that exceptions in setup() propagate correctly."""
 
-        class TestTask(ConcreteTask):
+        class TestTask(ConcreteTask[str]):
             async def setup(self) -> None:
                 raise ValueError("Setup failed")
 
-        task = TestTask()
+        task: ConcreteTask[str] = TestTask()
 
         with pytest.raises(ValueError, match="Setup failed"):
             async with task:
@@ -102,12 +105,12 @@ class TestTaskContextManager:
         """Test that exceptions in teardown() don't prevent exit."""
         teardown_called = []
 
-        class TestTask(ConcreteTask):
+        class TestTask(ConcreteTask[str]):
             async def teardown(self) -> None:
                 teardown_called.append(True)
                 raise ValueError("Teardown failed")
 
-        task = TestTask()
+        task: ConcreteTask[str] = TestTask()
 
         # Exception in teardown should be raised, but context should exit
         with pytest.raises(ValueError, match="Teardown failed"):
@@ -128,10 +131,10 @@ class TestTaskSecrets:
         class MyTaskSecrets(TaskSecrets):
             task_api_key: str
 
-        class TestTask(ConcreteTask):
+        class TestTask(ConcreteTask[str]):
             secrets_type = MyTaskSecrets
 
-        task = TestTask()
+        task: ConcreteTask[str] = TestTask()
 
         # First access
         secrets1 = task.secrets
@@ -148,19 +151,19 @@ class TestTaskSecrets:
         class CustomTaskSecrets(TaskSecrets):
             custom_field: str
 
-        class TestTask(ConcreteTask):
+        class TestTask(ConcreteTask[str]):
             secrets_type = CustomTaskSecrets
 
-        task = TestTask()
+        task: ConcreteTask[str] = TestTask()
         assert task.secrets.custom_field == "custom_value"  # type: ignore[attr-defined]
 
     async def test_default_secrets_type(self) -> None:
         """Test that default TaskSecrets is used when not specified."""
 
-        class TestTask(ConcreteTask):
-            pass
+        class TestTask(ConcreteTask[str]):
+            secrets_type = TaskSecrets
 
-        task = TestTask()
+        task: ConcreteTask[str] = TestTask()
         # Should not raise an error even if no env vars are set
         # (TaskSecrets with no required fields)
         secrets = task.secrets
@@ -173,7 +176,7 @@ class TestTaskAttributes:
     def test_task_with_all_attributes(self) -> None:
         """Test that Task with all required attributes works."""
         evaluator = MagicMock(spec=Evaluator)
-        task = ConcreteTask(
+        task: ConcreteTask[str] = ConcreteTask[str](
             name="my_task",
             goal="My goal",
             evaluators=(evaluator,),
@@ -189,16 +192,11 @@ class TestTaskAttributes:
         class OutputModel:
             pass
 
-        class TestTask(ConcreteTask):
+        class TestTask(ConcreteTask[OutputModel]):
             output_type = OutputModel
 
         task = TestTask()
         assert task.output_type == OutputModel
-
-    def test_task_output_type_none(self) -> None:
-        """Test that output_type defaults to None."""
-        task = ConcreteTask()
-        assert task.output_type is None
 
 
 @pytest.mark.asyncio
@@ -209,11 +207,11 @@ class TestTaskLifecycle:
         """Test that custom setup logic executes."""
         setup_data = []
 
-        class TestTask(ConcreteTask):
+        class TestTask(ConcreteTask[str]):
             async def setup(self) -> None:
                 setup_data.append("setup_executed")
 
-        task = TestTask()
+        task: ConcreteTask[str] = TestTask()
         async with task:
             assert setup_data == ["setup_executed"]
 
@@ -221,11 +219,11 @@ class TestTaskLifecycle:
         """Test that custom teardown logic executes."""
         teardown_data = []
 
-        class TestTask(ConcreteTask):
+        class TestTask(ConcreteTask[str]):
             async def teardown(self) -> None:
                 teardown_data.append("teardown_executed")
 
-        task = TestTask()
+        task: ConcreteTask[str] = TestTask()
         async with task:
             pass
 
@@ -235,14 +233,14 @@ class TestTaskLifecycle:
         """Test that setup and teardown are called in correct order."""
         call_order = []
 
-        class TestTask(ConcreteTask):
+        class TestTask(ConcreteTask[str]):
             async def setup(self) -> None:
                 call_order.append("setup")
 
             async def teardown(self) -> None:
                 call_order.append("teardown")
 
-        task = TestTask()
+        task: ConcreteTask[str] = TestTask()
         async with task:
             call_order.append("inside_context")
 

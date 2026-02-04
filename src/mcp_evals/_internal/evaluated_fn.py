@@ -11,9 +11,9 @@ from mcp_evals.task import Task
 
 
 async def run_agent_on_task(
-    task: Task[Any],
+    task: Task[Any, OutputDataT],
     *,
-    agent: Agent[Any, OutputDataT],
+    agent: Agent[Any, Any],
     toolset: CombinedToolset[Any],
 ) -> AgentRunResult[OutputDataT]:
     """The function evaluated by pydantic_evals for each Case.
@@ -29,9 +29,8 @@ async def run_agent_on_task(
     - `ctx.inputs`: the `Task` instance (access `task.goal`, `task.secrets`, etc.)
     - `ctx.output`: the result from `agent.run()`
     """
-    result: AgentRunResult[OutputDataT] = await agent.run(
+    return await agent.run(
         task.goal,
         output_type=task.output_type,
         toolsets=[toolset],
     )
-    return result
