@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from contextlib import AsyncExitStack
 from typing import Any
 
+from aiodocker.exceptions import DockerError
 from loguru import logger
 
 from mcp_evals import Domain
@@ -38,23 +39,28 @@ class PostgresDomain(Domain[PgConfig]):
 
     async def setup(self, stack: AsyncExitStack[Any]) -> None:
         """Create and start PostgreSQL container; store pg_config."""
-        logger.debug("[postgres] Starting PostgreSQL container...")
         docker = aiodocker.Docker()
         self._docker = docker
         stack.push_async_callback(docker.close)
 
+        logger.debug("[postgres] Starting PostgreSQL container...")
+
+        if not await _image_loaded(self.secrets.image, client=docker):
+            await docker.images.pull(from_image=self.secrets.image)
+
+        logger.debug("[postgres] Starting PostgreSQL container...")
         # TODO verity its a valid config
         config = {
             "Image": self.secrets.image,
             "Cmd": [],
             "Env": [
                 f"POSTGRES_PASSWORD={self.secrets.password}",
-                "POSTGRES_USER=postgres",
+                f"POSTGRES_USER={self.secrets.user}",
             ],
             "ExposedPorts": {"5432/tcp": {}},
             "HostConfig": {
                 "PortBindings": {
-                    "5432/tcp": [{"HostPort": self.secrets.port}],
+                    "5432/tcp": [{"HostPort": str(self.secrets.port)}],
                 },
             },
         }
@@ -95,3 +101,18 @@ class PostgresDomain(Domain[PgConfig]):
             UpdateEmployeeInfoTask(cfg),
             DepartmentSummaryViewTask(cfg),
         ]
+
+
+async def _image_loaded(image_name: str, client: aiodocker.Docker) -> bool:
+    """Checks if a Docker image exists using inspect and handles the error if not found."""
+    try:
+        await client.images.inspect(image_name)
+        logger.debug(f"Image '{image_name}' found using inspect.")
+    except DockerError as e:
+        if e.status == 404:  # noqa: PLR2004
+            logger.debug(f"Image '{image_name}' not found.")
+            return False
+        logger.exception("An error occurred")
+        return False
+    else:
+        return True

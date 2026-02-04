@@ -7,11 +7,13 @@ from functools import partial
 from pathlib import Path
 from typing import Any
 
+import aiofiles
 import anyio
 from anyio.abc import ByteReceiveStream
 from anyio.streams.text import TextReceiveStream
 from loguru import logger
 from pydantic_settings import SettingsConfigDict
+from tqdm import tqdm
 
 from mcp_evals.secrets import DomainSecrets
 
@@ -44,7 +46,7 @@ class PgConfig(DomainSecrets):
     model_config = SettingsConfigDict(env_prefix="PG_")
 
     image: str = "pgvector/pgvector:0.8.0-pg17-bookworm"
-    host: str = "pg"
+    host: str = "localhost"
     port: int = 7432
     user: str = "pg"
     password: str = "pg"  # noqa: S105
@@ -82,6 +84,7 @@ async def run_pg_restore(
     env_extra: dict[str, str] | None = None,
 ) -> None:
     """Run pg_restore via anyio; stream stdout/stderr to logger; raise on non-zero exit."""
+    # docker exec -i <container-name> pg_restore -U <username> -d <database-name> --verbose --clean < /path/on/your/local/machine/dump.tar
     cmd = [
         "pg_restore",
         "-h",
@@ -132,10 +135,24 @@ async def download_backup(backup: Backup) -> Path:
         return path
 
     url = f"{BACKUP_BASE_URL}/{backup.value}.backup"
-    proxy = os.getenv("DOWNLOAD_PROXY")
-    async with httpx.AsyncClient(timeout=10, proxy=proxy) as client:
-        resp = await client.get(url)
-        resp.raise_for_status()
-        with path.open("wb") as f:
-            f.write(resp.content)
+    logger.debug(f"Loading from {url}...")
+    timeout = httpx.Timeout(connect=5.0, read=5.0, write=10.0, pool=5.0)
+    proxy_url = os.getenv("DOWNLOAD_PROXY")
+    async with (
+        httpx.AsyncClient(timeout=timeout, proxy=proxy_url) as client,
+        client.stream("GET", url, follow_redirects=True) as response,
+    ):
+        response.raise_for_status()
+        total_size = int(response.headers.get("content-length", 0)) or None
+        async with aiofiles.open(path, "wb") as f:
+            with tqdm(
+                total=total_size,
+                unit="B",
+                unit_scale=True,
+                unit_divisor=1024,
+                desc=f"Downloading {backup.value}",
+            ) as pbar:
+                async for chunk in response.aiter_bytes():
+                    await f.write(chunk)
+                    pbar.update(len(chunk))
     return path
