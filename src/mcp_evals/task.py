@@ -2,9 +2,10 @@
 
 from abc import ABC
 from collections.abc import Sequence
+from contextlib import AsyncExitStack
 from functools import cached_property
 from types import TracebackType
-from typing import TYPE_CHECKING, ClassVar, Generic, Self, TypeVar
+from typing import TYPE_CHECKING, Any, ClassVar, Generic, Self, TypeVar
 
 from loguru import logger
 from pydantic_ai.mcp import MCPServer
@@ -46,6 +47,8 @@ class Task(ABC, Generic[SecretsT, OutputT]):  # noqa: UP046
     output_type: ClassVar[type[OutputT]]
     secrets_type: ClassVar[type[SecretsT]]
 
+    _stack: AsyncExitStack[Any] | None = None
+
     def mcp_servers(self) -> Sequence[MCPServer]:
         """Return task-specific MCP server."""
         return []
@@ -56,23 +59,38 @@ class Task(ABC, Generic[SecretsT, OutputT]):  # noqa: UP046
         return self.secrets_type()
 
     async def __aenter__(self) -> Self:
+        if self._stack is not None:
+            msg = f"Attempted entering task {self.name} twice"
+            raise RuntimeError(msg)
+
         logger.debug(f"[{self.name}] Entering task...")
-        await self.setup()
+        async with AsyncExitStack() as stack:
+            await self.setup(stack)
+            self._stack = stack.pop_all()
         logger.success(f"[{self.name}] Entered task!")
         return self
 
     async def __aexit__(
         self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: TracebackType | None
     ) -> bool | None:
+        if self._stack is None:
+            msg = f"Attempted quitting task {self.name} twice"
+            raise RuntimeError(msg)
+
         logger.debug(f"[{self.name}] Quitting task...")
-        await self.teardown()
+        await self._stack.aclose()
+        self._stack = None
         logger.success(f"[{self.name}] Quit task!")
         return None
 
-    async def setup(self) -> None:
-        """Override to perform setup before agent execution."""
-        return
+    async def setup(self, stack: AsyncExitStack[Any]) -> None:  # noqa: ARG002
+        """Override to perform setup before agent execution.
 
-    async def teardown(self) -> None:
-        """Override to perform cleanup after agent execution."""
+        Args:
+            stack: exit stack to bind setup and teardown operations
+
+        Note:
+            all the setup operations should be added to async exit stack, otherwise
+            proper cleanup is not guaranteed
+        """
         return

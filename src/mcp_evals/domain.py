@@ -2,6 +2,7 @@
 
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
+from contextlib import AsyncExitStack
 from functools import cached_property
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, ClassVar, Self, cast
@@ -41,6 +42,8 @@ class Domain[SecretsT: DomainSecrets](ABC):
 
     name: str
 
+    _stack: AsyncExitStack[Any] | None = None
+
     @abstractmethod
     def mcp_servers(self) -> Sequence[MCPServer]:
         """Return MCP server configurations."""
@@ -67,43 +70,41 @@ class Domain[SecretsT: DomainSecrets](ABC):
         return self._toolset
 
     async def __aenter__(self) -> Self:
-        # Prevent re-entry
-        if self._toolset is not None:
-            msg = f"Domain '{self.name}' context already entered"
-            logger.exception(msg)
+        if self._stack is not None:
+            msg = f"Attempted entering domain {self.name} twice"
             raise RuntimeError(msg)
 
-        logger.debug(f"[{self.name}] Entering domain")
-
-        await self.setup()
-
-        logger.debug(f"[{self.name}] Connecting to MCP servers...")
-        self._toolset = CombinedToolset(self.mcp_servers())
-        await self._toolset.__aenter__()
-
+        logger.debug(f"[{self.name}] Entering domain...")
+        async with AsyncExitStack() as stack:
+            await self.setup(stack)
+            logger.debug(f"[{self.name}] Connecting to MCP servers...")
+            self._toolset = CombinedToolset(self.mcp_servers())
+            await stack.enter_async_context(self._toolset)
+            self._stack = stack.pop_all()
         logger.success(f"[{self.name}] Entered domain!")
-
         return self
 
     async def __aexit__(
         self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: TracebackType | None
     ) -> bool | None:
-        if self._toolset is not None:
-            logger.debug(f"[{self.name}] Disconnecting MCP servers...")
-            await self._toolset.__aexit__(exc_type, exc_val, exc_tb)
-            self._toolset = None
+        if self._stack is None:
+            msg = f"Attempted quitting domain {self.name} twice"
+            raise RuntimeError(msg)
 
         logger.debug(f"[{self.name}] Quitting domain...")
-        await self.teardown()
-
+        await self._stack.aclose()
+        self._stack = None
         logger.success(f"[{self.name}] Quit domain!")
-
         return None
 
-    async def setup(self) -> None:
-        """Override to perform setup before MCP servers are started."""
-        return
+    async def setup(self, stack: AsyncExitStack[Any]) -> None:  # noqa: ARG002
+        """Override to perform setup before agent execution.
 
-    async def teardown(self) -> None:
-        """Override to perform cleanup after MCP servers are stopped."""
+        Args:
+            stack: exit stack to bind setup and teardown operations
+
+        Note:
+            all the setup operations should be added to async exit stack, otherwise
+            proper cleanup is not guaranteed
+        """
         return

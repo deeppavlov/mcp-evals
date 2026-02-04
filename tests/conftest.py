@@ -1,7 +1,7 @@
 """Shared fixtures and mocks for tests."""
 
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from types import TracebackType
 from typing import Any, Self
 from unittest.mock import AsyncMock, MagicMock
@@ -75,7 +75,7 @@ class MockTask(Task[TaskSecrets, str]):
         self._setup_called = setup_called or []
         self._teardown_called = teardown_called or []
 
-    async def setup(self) -> None:
+    async def setup(self, stack: AsyncExitStack[Any]) -> None:  # noqa: ARG002
         """Track that setup was called."""
         self._setup_called.append(True)
 
@@ -114,7 +114,7 @@ class MockDomain(Domain[DomainSecrets]):
         """Return mock tasks."""
         return self._tasks
 
-    async def setup(self) -> None:
+    async def setup(self, stack: AsyncExitStack[Any]) -> None:  # noqa: ARG002
         """Track that setup was called."""
         self._setup_called.append(True)
 
@@ -126,7 +126,9 @@ class MockDomain(Domain[DomainSecrets]):
         """Enter context with optional mock toolset."""
         if self._mock_toolset is not None:
             # Use provided mock toolset
-            await self.setup()
+            async with AsyncExitStack() as stack:
+                await self.setup(stack)
+                self._stack = stack.pop_all()
             self._toolset = self._mock_toolset
             if self._toolset is not None:
                 await self._toolset.__aenter__()
@@ -142,6 +144,9 @@ class MockDomain(Domain[DomainSecrets]):
             # Use provided mock toolset
             if self._toolset is not None:
                 await self._toolset.__aexit__(exc_type, exc_val, exc_tb)
+            if self._stack is not None:
+                await self._stack.aclose()
+                self._stack = None
             await self.teardown()
             return None
         # Use parent implementation
