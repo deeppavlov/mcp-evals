@@ -9,11 +9,41 @@ from loguru import logger
 from pydantic_ai.mcp import MCPServerStdio
 
 from mcp_evals import Domain
-from mcp_evals.contrib.filesystem.tasks.duplicates_searching import DuplicatesSearchingTask
-from mcp_evals.contrib.filesystem.tasks.music_report import MusicReportTask
 from mcp_evals.contrib.filesystem.utils import Fixture
 
 from .task import FilesystemTask
+from .tasks import (
+    AuthorFoldersTask,
+    BudgetComputationTask,
+    CodeLocatingTask,
+    ContactInformationTask,
+    DatasetComparisonTask,
+    DebuggingTask,
+    DisputeReviewTask,
+    DuplicateNameTask,
+    DuplicatesSearchingTask,
+    EnglishTalentTask,
+    FileArrangementTask,
+    FileMergingTask,
+    FileSplittingTask,
+    FindMathPaperTask,
+    GradebasedScoreTask,
+    IndividualCommentsTask,
+    MusicReportTask,
+    OrganizeLegacyPapersTask,
+    OutputAnalysisTask,
+    PatternMatchingTask,
+    ProjectManagementTask,
+    RequirementsCompletionTask,
+    RequirementsWritingTask,
+    SizeClassificationTask,
+    SolutionTracingTask,
+    StructureAnalysisTask,
+    StructureMirrorTask,
+    TimeClassificationTask,
+    TimelineExtractionTask,
+    UppercaseTask,
+)
 
 
 class FilesystemDomain(Domain):
@@ -26,7 +56,7 @@ class FilesystemDomain(Domain):
     _stack: AsyncExitStack | None = None
 
     async def setup(self) -> None:
-        """Creeate tmp dir for filesystem operations."""
+        """Create tmp dir for filesystem operations."""
         if self._stack is not None:
             msg = "Attempted to create FilesystemDomain again"
             raise RuntimeError(msg)
@@ -68,6 +98,34 @@ class FilesystemDomain(Domain):
     def tasks(self) -> Sequence[FilesystemTask]:
         """Return all filesystem tasks."""
         return [
-            MusicReportTask(self._tmp_dir, fixute=Fixture.DESKTOP),
+            MusicReportTask(self._tmp_dir, fixture=Fixture.DESKTOP),
+            ProjectManagementTask(self._tmp_dir, fixture=Fixture.DESKTOP),
+            TimelineExtractionTask(self._tmp_dir, fixture=Fixture.DESKTOP),
+            BudgetComputationTask(self._tmp_dir, fixture=Fixture.DESKTOP_TEMPLATE),
+            ContactInformationTask(self._tmp_dir, fixture=Fixture.DESKTOP_TEMPLATE),
+            FileArrangementTask(self._tmp_dir, fixture=Fixture.DESKTOP_TEMPLATE),
+            SizeClassificationTask(self._tmp_dir, fixture=Fixture.FILE_PROPERTY),
+            TimeClassificationTask(self._tmp_dir, fixture=Fixture.FILE_PROPERTY),
+            StructureAnalysisTask(self._tmp_dir, fixture=Fixture.FOLDER_STRUCTURE),
+            StructureMirrorTask(self._tmp_dir, fixture=Fixture.FOLDER_STRUCTURE),
+            DisputeReviewTask(self._tmp_dir, fixture=Fixture.LEGAL_DOCUMENT),
+            IndividualCommentsTask(self._tmp_dir, fixture=Fixture.LEGAL_DOCUMENT),
+            SolutionTracingTask(self._tmp_dir, fixture=Fixture.LEGAL_DOCUMENT),
+            AuthorFoldersTask(self._tmp_dir, fixture=Fixture.PAPERS),
+            FindMathPaperTask(self._tmp_dir, fixture=Fixture.PAPERS),
+            OrganizeLegacyPapersTask(self._tmp_dir, fixture=Fixture.PAPERS),
+            DuplicateNameTask(self._tmp_dir, fixture=Fixture.STUDENT_DATABASE),
+            EnglishTalentTask(self._tmp_dir, fixture=Fixture.STUDENT_DATABASE),
+            GradebasedScoreTask(self._tmp_dir, fixture=Fixture.STUDENT_DATABASE),
+            CodeLocatingTask(self._tmp_dir, fixture=Fixture.THREESTUDIO),
+            OutputAnalysisTask(self._tmp_dir, fixture=Fixture.THREESTUDIO),
+            RequirementsCompletionTask(self._tmp_dir, fixture=Fixture.THREESTUDIO),
+            DatasetComparisonTask(self._tmp_dir, fixture=Fixture.VOTENET),
+            DebuggingTask(self._tmp_dir, fixture=Fixture.VOTENET),
+            RequirementsWritingTask(self._tmp_dir, fixture=Fixture.VOTENET),
             DuplicatesSearchingTask(self._tmp_dir, fixture=Fixture.FILE_CONTEXT),
+            FileMergingTask(self._tmp_dir, fixture=Fixture.FILE_CONTEXT),
+            FileSplittingTask(self._tmp_dir, fixture=Fixture.FILE_CONTEXT),
+            PatternMatchingTask(self._tmp_dir, fixture=Fixture.FILE_CONTEXT),
+            UppercaseTask(self._tmp_dir, fixture=Fixture.FILE_CONTEXT),
         ]
