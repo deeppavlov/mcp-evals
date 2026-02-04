@@ -22,22 +22,10 @@ This library provides infrastructure for running structured evaluations of LLM a
 
 ## Prerequisites
 
-### uv (for running MCP servers)
-
-Many MCP servers are distributed as Python packages and run via `uvx` (part of [uv](https://github.com/astral-sh/uv)). `uvx` runs CLI tools in isolated environments without global installation — similar to `npx` for Node.js.
-
-```bash
-# Install uv
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Now you can run MCP servers like:
-uvx mcp-server-filesystem /workspace
-uvx mcp-server-sqlite test.db
-```
-
-MCP servers are available from:
-- [Official MCP servers](https://github.com/modelcontextprotocol/servers)
-- PyPI (search for `mcp-server-*`)
+For running MCP servers you might need
+- [`uv`](https://docs.astral.sh/uv/)
+- `docker`
+- [`npm`](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm)
 
 ## Quick Start
 
