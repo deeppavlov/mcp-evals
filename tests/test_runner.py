@@ -9,10 +9,11 @@ from pydantic_evals.reporting import EvaluationReport
 
 from mcp_evals.domain import Domain
 from mcp_evals.runner import BenchmarkRunner
+from mcp_evals.secrets import DomainSecrets, TaskSecrets
 from mcp_evals.task import Task
 
 
-class ConcreteDomain(Domain):
+class ConcreteDomain(Domain[DomainSecrets]):
     """Concrete Domain implementation for testing."""
 
     name = "test_domain"
@@ -24,7 +25,7 @@ class ConcreteDomain(Domain):
         """Return empty list of MCP servers."""
         return []
 
-    def tasks(self) -> list[Task]:
+    def tasks(self) -> list[Task[TaskSecrets]]:
         """Return empty list of tasks."""
         return []
 
@@ -62,7 +63,7 @@ class TestBenchmarkRunnerRun:
 
         call_order = []
 
-        async def mock_run_domain(domain: Domain, agent: Agent) -> EvaluationReport:  # noqa: ARG001
+        async def mock_run_domain(domain: Domain[DomainSecrets], agent: Agent) -> EvaluationReport:  # noqa: ARG001
             call_order.append(domain.name)
             if domain.name == "domain1":
                 return mock_report1
@@ -133,7 +134,7 @@ class TestBenchmarkRunnerRun:
 
         mock_report1 = MagicMock(spec=EvaluationReport)
 
-        async def mock_run_domain(domain: Domain, agent: Agent) -> EvaluationReport:  # noqa: ARG001
+        async def mock_run_domain(domain: Domain[DomainSecrets], agent: Agent) -> EvaluationReport:  # noqa: ARG001
             if domain.name == "domain1":
                 return mock_report1
             raise ValueError("Domain execution failed")
@@ -153,7 +154,7 @@ class TestBenchmarkRunnerRun:
 
         received_agents = []
 
-        async def mock_run_domain(domain: Domain, agent: Agent) -> EvaluationReport:  # noqa: ARG001
+        async def mock_run_domain(domain: Domain[DomainSecrets], agent: Agent) -> EvaluationReport:  # noqa: ARG001
             received_agents.append(agent)
             return MagicMock(spec=EvaluationReport)
 

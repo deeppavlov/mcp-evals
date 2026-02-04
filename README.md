@@ -507,24 +507,25 @@ Users don't need to manage these contexts directly—`BenchmarkRunner` handles e
 
 ```
 mcp-evals/
-├── src/mcp_evals/
-│   ├── __init__.py           # Public API: Domain, Task, BenchmarkRunner, etc.
-│   ├── domain.py             # Domain ABC (async context manager)
-│   ├── task.py               # Task ABC (async context manager)
-│   ├── secrets.py            # DomainSecrets, TaskSecrets base classes
-│   ├── runner.py             # BenchmarkRunner facade
-│   ├── evaluators/
-│   │   ├── __init__.py       # Public evaluators
-│   │   └── builtin.py        # FileExists, ContentMatches, SQLQueryReturns, etc.
-│   ├── _internal/
-│   │   ├── conversion.py     # Domain → Dataset, Task → Case conversion
-│   │   └── evaluated_fn.py   # run_agent_on_task() for pydantic_evals
-│   └── contrib/              # Pre-built domains (optional)
-│       ├── filesystem.py
-│       └── sqlite.py
-├── examples/
-│   ├── filesystem_eval/
-│   └── database_eval/
+├── scripts/
+│   └── run_filesystem_tasks.py
+├── src/
+│   └── mcp_evals/
+│       ├── __init__.py           # Public API: Domain, Task, BenchmarkRunner, etc.
+│       ├── domain.py             # Domain ABC (async context manager)
+│       ├── task.py               # Task ABC (async context manager)
+│       ├── secrets.py            # DomainSecrets, TaskSecrets base classes
+│       ├── runner.py             # BenchmarkRunner facade
+│       ├── evaluators/
+│       │   ├── __init__.py       # Public evaluators
+│       │   └── builtin.py        # FileExists, ContentMatches, SQLQueryReturns, etc.
+│       ├── _internal/
+│       │   ├── __init__.py
+│       │   ├── conversion.py     # Domain → Dataset, Task → Case conversion
+│       │   ├── evaluated_fn.py   # run_agent_on_task() for pydantic_evals
+│       │   └── runner.py         # Internal runner wiring to pydantic_evals
+│       └── contrib/              # Pre-built domains and tasks
+│           └── filesystem/       # Filesystem-based benchmark tasks
 └── tests/
 ```
 

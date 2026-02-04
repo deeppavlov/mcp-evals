@@ -3,6 +3,7 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from functools import partial
+from typing import Any
 
 from pydantic_ai.agent import Agent
 from pydantic_ai.run import AgentRunResult
@@ -16,7 +17,7 @@ from mcp_evals.task import Task
 
 
 @asynccontextmanager
-async def task_lifecycle(case: Case[Task, AgentRunResult, None]) -> AsyncIterator[None]:
+async def task_lifecycle(case: Case[Task[Any], AgentRunResult, None]) -> AsyncIterator[None]:
     """Context manager that wraps task execution + evaluation.
 
     This ensures the task context (setup/teardown) spans both:
@@ -32,7 +33,7 @@ async def task_lifecycle(case: Case[Task, AgentRunResult, None]) -> AsyncIterato
         yield
 
 
-async def run_domain(domain: Domain, agent: Agent) -> EvaluationReport:
+async def run_domain(domain: Domain[Any], agent: Agent[Any, Any]) -> EvaluationReport:
     """Run all tasks in a domain.
 
     Domain is an async context manager that manages CombinedToolset lifecycle

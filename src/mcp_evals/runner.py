@@ -15,7 +15,7 @@ class BenchmarkRunner:
     def __init__(
         self,
         agent: Agent[Any, Any],
-        domains: list[Domain],
+        domains: list[Domain[Any]],
     ) -> None:
         """Initialize the benchmark runner.
 

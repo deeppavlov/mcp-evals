@@ -17,7 +17,7 @@ class DomainSecrets(BaseSettings):
     Then reference in Domain:
 
     ```python
-        class SlackDomain(Domain):
+        class SlackDomain(Domain[SlackSecrets]):
             secrets_type = SlackSecrets
 
             def mcp_servers(self):
@@ -45,7 +45,7 @@ class TaskSecrets(BaseSettings):
     Then reference in Task:
 
     ```python
-        class MyTask(Task):
+        class MyTask(Task[MySecrets]):
             secrets_type = MySecrets
 
             async def setup(self):

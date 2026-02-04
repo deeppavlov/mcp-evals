@@ -4,10 +4,11 @@ from contextlib import AsyncExitStack
 from pathlib import Path
 
 from mcp_evals.contrib.filesystem.utils import Fixture, download_fixture, prepare_workspace
+from mcp_evals.secrets import TaskSecrets
 from mcp_evals.task import Task
 
 
-class FilesystemTask(Task):
+class FilesystemTask(Task[TaskSecrets]):
     """Base class for all filesystem tasks."""
 
     _stack: AsyncExitStack | None = None
