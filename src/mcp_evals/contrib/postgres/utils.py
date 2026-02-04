@@ -1,7 +1,9 @@
 """Utilities for Postgres domain: PgConfig, stream_to_logger, run_pg_restore, download_backup."""
 
 import os
+import subprocess
 from enum import StrEnum
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -23,7 +25,7 @@ except ImportError as err:
     raise ImportError("httpx is required for download_backup; install domain-postgres extra") from err
 
 
-class Backups(StrEnum):
+class Backup(StrEnum):
     """Postgres backups for different tasks."""
 
     DVD = "dvdrental"
@@ -33,7 +35,6 @@ class Backups(StrEnum):
     LEGO = "lego"
 
 
-BACKUP_CATEGORIES = ()
 BACKUP_BASE_URL = "https://storage.mcpmark.ai/postgres"
 
 
@@ -101,23 +102,19 @@ async def run_pg_restore(
     }
     async with await anyio.open_process(
         cmd,
-        stdout=anyio.PIPE,
-        stderr=anyio.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         env=env,
     ) as proc:
         if proc.stdout is not None and proc.stderr is not None:
             async with anyio.create_task_group() as tg:
                 tg.start_soon(
-                    stream_to_logger,
+                    partial(stream_to_logger, log_fn=logger.debug, label="stdout"),
                     proc.stdout,
-                    log_fn=logger.debug,
-                    label="stdout",
                 )
                 tg.start_soon(
-                    stream_to_logger,
+                    partial(stream_to_logger, log_fn=logger.debug, label="stderr"),
                     proc.stderr,
-                    log_fn=logger.debug,
-                    label="stderr",
                 )
         rc = await proc.wait()
     if rc != 0:
@@ -125,16 +122,16 @@ async def run_pg_restore(
         raise RuntimeError(msg)
 
 
-async def download_backup(category_id: str) -> str:
+async def download_backup(backup: Backup) -> Path:
     """Download backup from mcpmark storage to cache dir; return path to the file."""
     cache_dir = Path(appdirs.user_cache_dir("mcp_evals", "mcp_evals"))
     cache_dir.mkdir(exist_ok=True, parents=True)
-    path = cache_dir / f"{category_id}.backup"
+    path = cache_dir / f"{backup.value}.backup"
 
     if path.is_file():
         return path
 
-    url = f"{BACKUP_BASE_URL}/{category_id}.backup"
+    url = f"{BACKUP_BASE_URL}/{backup.value}.backup"
     proxy = os.getenv("DOWNLOAD_PROXY")
     async with httpx.AsyncClient(timeout=10, proxy=proxy) as client:
         resp = await client.get(url)

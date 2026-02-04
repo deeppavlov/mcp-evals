@@ -2,7 +2,7 @@
 
 from mcp_evals.contrib.postgres.common_evaluators import SqlResultMatches
 from mcp_evals.contrib.postgres.task import PostgresTask
-from mcp_evals.contrib.postgres.utils import PgConfig
+from mcp_evals.contrib.postgres.utils import Backup, PgConfig
 
 # Query that selects from the materialized view (what the agent should create)
 VIEW_QUERY = """
@@ -102,7 +102,7 @@ This view will provide executives with a real-time snapshot of departmental work
 
     def __init__(self, pg_config: PgConfig) -> None:
         """Init."""
-        super().__init__(pg_config=pg_config, category_id="employees")
+        super().__init__(pg_config=pg_config, category_id=Backup.EMPL)
         self.evaluators = (
             SqlResultMatches(
                 VIEW_QUERY,

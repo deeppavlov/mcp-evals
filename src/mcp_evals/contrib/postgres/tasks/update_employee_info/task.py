@@ -7,7 +7,7 @@ from datetime import datetime
 from mcp_evals.contrib.postgres.common_evaluators import SqlResultMatches
 from mcp_evals.contrib.postgres.common_evaluators.sql_result_matches import default_rows_match
 from mcp_evals.contrib.postgres.task import PostgresTask
-from mcp_evals.contrib.postgres.utils import PgConfig
+from mcp_evals.contrib.postgres.utils import Backup, PgConfig
 
 # Expected rows for Employee count and title checks (total_employees, ceo_count, it_specialist_count)
 EMPLOYEE_COUNT_QUERY = """
@@ -99,7 +99,7 @@ This task practices UPDATE operations for both employee information and organiza
 
     def __init__(self, pg_config: PgConfig) -> None:
         """Init."""
-        super().__init__(pg_config=pg_config, category_id="chinook")
+        super().__init__(pg_config=pg_config, category_id=Backup.CHI)
         self.evaluators = (
             SqlResultMatches(
                 EMPLOYEE_COUNT_QUERY,

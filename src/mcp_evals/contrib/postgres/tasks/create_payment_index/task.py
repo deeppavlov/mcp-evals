@@ -2,7 +2,7 @@
 
 from mcp_evals.contrib.postgres.common_evaluators import IndexExists
 from mcp_evals.contrib.postgres.task import PostgresTask
-from mcp_evals.contrib.postgres.utils import PgConfig
+from mcp_evals.contrib.postgres.utils import Backup, PgConfig
 
 
 class CreatePaymentIndexTask(PostgresTask):
@@ -33,5 +33,5 @@ Adding an index will significantly speed up these operations.
 
     def __init__(self, pg_config: PgConfig) -> None:
         """Init."""
-        super().__init__(pg_config=pg_config, category_id="dvdrental")
+        super().__init__(pg_config=pg_config, category_id=Backup.DVD)
         self.evaluators = (IndexExists("payment", "customer_id"),)

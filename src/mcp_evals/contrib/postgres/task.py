@@ -12,7 +12,7 @@ from pydantic_ai.mcp import MCPServerStdio
 from mcp_evals.secrets import TaskSecrets
 from mcp_evals.task import Task
 
-from .utils import PgConfig, download_backup, run_pg_restore
+from .utils import Backup, PgConfig, download_backup, run_pg_restore
 
 
 class FinishTask(BaseModel):
@@ -26,7 +26,7 @@ class PostgresTask(Task[TaskSecrets, FinishTask]):
 
     output_type = FinishTask
 
-    def __init__(self, pg_config: PgConfig, category_id: str) -> None:
+    def __init__(self, pg_config: PgConfig, category_id: Backup) -> None:
         """Init."""
         super().__init__()
         self._pg_config = pg_config
@@ -48,7 +48,7 @@ class PostgresTask(Task[TaskSecrets, FinishTask]):
         ) as conn:
             await conn.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(db_name)))
 
-        await run_pg_restore(dump_path, db_name, self._pg_config)
+        await run_pg_restore(str(dump_path), db_name, self._pg_config)
 
         async def drop_db() -> None:
             async with await psycopg.AsyncConnection.connect(

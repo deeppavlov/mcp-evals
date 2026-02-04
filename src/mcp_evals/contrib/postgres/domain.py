@@ -29,7 +29,7 @@ class PostgresDomain(Domain[PgConfig]):
     name = "postgres"
     secrets_type = PgConfig
 
-    _container: DockerContainer = None
+    _container: DockerContainer | None = None
     _docker: aiodocker.Docker | None = None
 
     def __init__(self) -> None:
@@ -58,7 +58,7 @@ class PostgresDomain(Domain[PgConfig]):
                 },
             },
         }
-        self._container = await docker.containers.create(config=config)
+        self._container = await docker.containers.create(config=config)  # type: ignore[arg-type]
         stack.push_async_callback(self._stop_and_remove)
 
         await self._container.start()
