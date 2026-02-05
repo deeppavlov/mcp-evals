@@ -3,22 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any
 
 import psycopg
+from psycopg import AsyncCursor
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
 
 if TYPE_CHECKING:
     from mcp_evals.contrib.postgres.task import PostgresTask
-
-
-class _AsyncCursorLike(Protocol):
-    """Protocol for psycopg async cursor used in helpers."""
-
-    async def execute(self, query: str, params: tuple[object, ...] | None = ...) -> None: ...
-    async def fetchone(self) -> object | None: ...
-    async def fetchall(self) -> list[object]: ...
 
 
 @dataclass
@@ -57,9 +50,7 @@ class HierarchyAndAssignmentScenarioEvaluator(Evaluator["PostgresTask", AgentRun
         return 1.0
 
 
-async def _check_tables(
-    cur: _AsyncCursorLike, tables: list[str], schema: str
-) -> EvaluatorOutput | None:
+async def _check_tables(cur: AsyncCursor, tables: list[str], schema: str) -> EvaluatorOutput | None:
     """Return EvaluationReason if any table missing, else None."""
     for table in tables:
         await cur.execute(
@@ -72,7 +63,7 @@ async def _check_tables(
 
 
 async def _check_columns(
-    cur: _AsyncCursorLike,
+    cur: AsyncCursor,
     table_columns: list[tuple[str, list[str]]],
     schema: str,
 ) -> EvaluatorOutput | None:
@@ -96,7 +87,7 @@ async def _check_columns(
 
 
 async def _check_scalars(
-    cur: _AsyncCursorLike,
+    cur: AsyncCursor,
     checks: list[tuple[str, Any]],
 ) -> EvaluatorOutput | None:
     """Return EvaluationReason if any scalar check fails, else None."""
@@ -115,7 +106,7 @@ async def _check_scalars(
 
 
 async def _check_rows(
-    cur: _AsyncCursorLike,
+    cur: AsyncCursor,
     checks: list[tuple[str, tuple[Any, ...]]],
 ) -> EvaluatorOutput | None:
     """Return EvaluationReason if any row check fails, else None."""

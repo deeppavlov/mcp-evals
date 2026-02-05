@@ -3,22 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING
 
 import psycopg
+from psycopg import AsyncCursor
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
 
 if TYPE_CHECKING:
     from mcp_evals.contrib.postgres.task import PostgresTask
-
-
-class _AsyncCursorLike(Protocol):
-    """Protocol for psycopg async cursor used in helpers."""
-
-    async def execute(self, query: str, params: tuple[object, ...] | None = ...) -> None: ...
-    async def fetchone(self) -> object | None: ...
-    async def fetchall(self) -> list[object]: ...
 
 
 @dataclass
@@ -55,9 +48,7 @@ class ProjectTrackingRelationshipScenarioEvaluator(Evaluator["PostgresTask", Age
         return 1.0
 
 
-async def _check_tables(
-    cur: _AsyncCursorLike, tables: list[str], schema: str
-) -> EvaluatorOutput | None:
+async def _check_tables(cur: AsyncCursor, tables: list[str], schema: str) -> EvaluatorOutput | None:
     for table in tables:
         await cur.execute(
             "SELECT 1 FROM information_schema.tables WHERE table_schema = %s AND table_name = %s",
@@ -69,7 +60,7 @@ async def _check_tables(
 
 
 async def _check_table_columns(
-    cur: _AsyncCursorLike,
+    cur: AsyncCursor,
     table_columns: list[tuple[str, list[str]]],
     schema: str,
 ) -> EvaluatorOutput | None:
@@ -92,7 +83,7 @@ async def _check_table_columns(
 
 
 async def _check_index_specs(
-    cur: _AsyncCursorLike,
+    cur: AsyncCursor,
     index_specs: list[tuple[str, str] | tuple[str, list[str]]],
     schema: str,
 ) -> EvaluatorOutput | None:
@@ -126,7 +117,7 @@ async def _check_index_specs(
 
 
 async def _check_relationship_queries(
-    cur: _AsyncCursorLike,
+    cur: AsyncCursor,
     relationship_queries: list[tuple[str, int]],
 ) -> EvaluatorOutput | None:
     for query, expected_count in relationship_queries:

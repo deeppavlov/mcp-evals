@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import psycopg
 from psycopg import sql
@@ -74,7 +74,7 @@ DETAIL_ROW_MIN_LEN = 6
 
 
 def _parse_findings(
-    rows: list,
+    rows: list[tuple[Any, ...]],
 ) -> tuple[set[str], set[tuple[str, str, str]], set[tuple[str, str, str]]]:
     """Parse detail rows into dangling, missing_permissions, excessive_permissions."""
     dangling: set[str] = set()

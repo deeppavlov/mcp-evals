@@ -17,8 +17,8 @@ FLOAT_TOLERANCE = 0.1
 
 
 def _scalar_match(
-    actual: Decimal | float | str | None,
-    expected: Decimal | float | str | None,
+    actual: object,
+    expected: object,
 ) -> bool:
     """Compare scalar with tolerance for numeric types."""
     if actual == expected:
