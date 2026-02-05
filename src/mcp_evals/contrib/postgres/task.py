@@ -48,7 +48,7 @@ class PostgresTask(Task[TaskSecrets, FinishTask]):
         ) as conn:
             await conn.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(db_name)))
 
-        await run_pg_restore(str(dump_path), db_name, self._pg_config)
+        await run_pg_restore(dump_path, db_name, self._pg_config, container_name=self._pg_config.container)
 
         async def drop_db() -> None:
             async with await psycopg.AsyncConnection.connect(
@@ -84,6 +84,7 @@ WHERE datname = %s AND pid <> pg_backend_pid()",
                     "--access-mode=unrestricted",
                 ],
                 env={"DATABASE_URI": uri},
+                timeout=60,
             )
         ]
 

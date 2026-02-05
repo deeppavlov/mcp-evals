@@ -3,9 +3,8 @@
 import os
 import subprocess
 from enum import StrEnum
-from functools import partial
 from pathlib import Path
-from typing import Any
+from typing import IO, Any, cast
 
 import aiofiles
 import anyio
@@ -46,6 +45,7 @@ class PgConfig(DomainSecrets):
     model_config = SettingsConfigDict(env_prefix="PG_")
 
     image: str = "pgvector/pgvector:0.8.0-pg17-bookworm"
+    container: str = "mcp-pg"
     host: str = "localhost"
     port: int = 7432
     user: str = "pg"
@@ -63,60 +63,68 @@ class PgConfig(DomainSecrets):
 
 async def stream_to_logger(
     reader: ByteReceiveStream,
-    *,
-    log_fn: Any,  # noqa: ANN401
-    label: str,
 ) -> None:
-    """Async iterate over a byte stream, decode lines, and log via log_fn."""
+    """Async iterate over a byte stream, decode lines and log."""
     try:
         async for text in TextReceiveStream(reader):
             line = text.rstrip()
             if line:
-                log_fn("[%s] %s", label, line)
+                logger.debug(line)
     except (anyio.ClosedResourceError, anyio.EndOfStream):
         pass
+    except Exception as e:
+        msg = "Stream failed"
+        logger.exception(msg)
+        raise RuntimeError(msg) from e
 
 
 async def run_pg_restore(
-    dump_path: str,
+    dump_path: Path,
     db_name: str,
     pg_config: PgConfig,
+    container_name: str,
     env_extra: dict[str, str] | None = None,
 ) -> None:
-    """Run pg_restore via anyio; stream stdout/stderr to logger; raise on non-zero exit."""
-    # docker exec -i <container-name> pg_restore -U <username> -d <database-name> --verbose --clean < /path/on/your/local/machine/dump.tar
+    """Run pg_restore inside the Postgres container via docker exec -i; stream backup file on stdin.
+
+    The backup file on the host is piped into the container's pg_restore stdin so the
+    container does not need the file mounted. Streams stdout/stderr to the logger; raises
+    on non-zero exit.
+    """
     cmd = [
+        "docker",
+        "exec",
+        "-i",
+        container_name,
         "pg_restore",
-        "-h",
-        pg_config.host,
-        "-p",
-        str(pg_config.port),
+        "--no-owner",
+        "--no-acl",
         "-U",
         pg_config.user,
         "-d",
         db_name,
         "-v",
-        dump_path,
     ]
-    env = {
-        **os.environ,
-        "PGPASSWORD": pg_config.password,
-        **(env_extra or {}),
-    }
-    async with await anyio.open_process(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        env=env,
-    ) as proc:
+    env = {**os.environ, **(env_extra or {})}
+    async with (
+        aiofiles.open(dump_path, "rb") as backup_file,
+        await anyio.open_process(
+            cmd,
+            stdin=cast("IO[Any]", backup_file),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=env,
+        ) as proc,
+    ):
         if proc.stdout is not None and proc.stderr is not None:
             async with anyio.create_task_group() as tg:
                 tg.start_soon(
-                    partial(stream_to_logger, log_fn=logger.debug, label="stdout"),
+                    stream_to_logger,
                     proc.stdout,
                 )
+                # unfortunately, pg_restore puts all outputs to stderr
                 tg.start_soon(
-                    partial(stream_to_logger, log_fn=logger.debug, label="stderr"),
+                    stream_to_logger,
                     proc.stderr,
                 )
         rc = await proc.wait()
@@ -127,12 +135,12 @@ async def run_pg_restore(
 
 async def download_backup(backup: Backup) -> Path:
     """Download backup from mcpmark storage to cache dir; return path to the file."""
-    cache_dir = Path(appdirs.user_cache_dir("mcp_evals", "mcp_evals"))
-    cache_dir.mkdir(exist_ok=True, parents=True)
+    cache_dir = anyio.Path(appdirs.user_cache_dir("mcp_evals", "mcp_evals"))
+    await cache_dir.mkdir(exist_ok=True, parents=True)
     path = cache_dir / f"{backup.value}.backup"
 
-    if path.is_file():
-        return path
+    if await path.is_file():
+        return Path(path)
 
     url = f"{BACKUP_BASE_URL}/{backup.value}.backup"
     logger.debug(f"Loading from {url}...")
@@ -155,4 +163,4 @@ async def download_backup(backup: Backup) -> Path:
                 async for chunk in response.aiter_bytes():
                     await f.write(chunk)
                     pbar.update(len(chunk))
-    return path
+    return Path(path)

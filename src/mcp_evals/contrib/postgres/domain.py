@@ -64,7 +64,7 @@ class PostgresDomain(Domain[PgConfig]):
                 },
             },
         }
-        self._container = await docker.containers.create(config=config)  # type: ignore[arg-type]
+        self._container = await docker.containers.create(config=config, name=self.secrets.container)  # type: ignore[arg-type]
         stack.push_async_callback(self._stop_and_remove)
 
         await self._container.start()
