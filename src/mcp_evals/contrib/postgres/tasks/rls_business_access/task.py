@@ -152,6 +152,13 @@ Use `current_setting('app.current_user_id')` to get the current user ID from ses
                 assertions=self.RLS_ASSERTIONS,
                 rls_test_user="test_user",
                 rls_test_password="testpass",  # noqa: S106
+                content_visibility=(
+                    "11111111-1111-1111-1111-111111111111",
+                    "55555555-5555-5555-5555-555555555555",
+                    2,
+                    1,
+                ),
+                anonymous_user_check=True,
             ),
         )
 
