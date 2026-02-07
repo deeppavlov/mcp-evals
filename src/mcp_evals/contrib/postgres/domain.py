@@ -10,7 +10,29 @@ from loguru import logger
 from mcp_evals import Domain
 
 from .task import PostgresTask
-from .tasks import CreatePaymentIndexTask, DepartmentSummaryViewTask, UpdateEmployeeInfoTask
+from .tasks import (
+    BaseballPlayerAnalysisTask,
+    ConsistencyEnforcementTask,
+    CreatePaymentIndexTask,
+    CustomerAnalysisFixTask,
+    CustomerAnalyticsOptimizationTask,
+    CustomerDataMigrationTask,
+    DatabaseSecurityPoliciesTask,
+    DepartmentSummaryViewTask,
+    EmployeeDemographicsReportTask,
+    EmployeeHierarchyManagementTask,
+    EmployeePerformanceAnalysisTask,
+    EmployeeProjectTrackingTask,
+    EmployeeRetentionAnalysisTask,
+    ExecutiveDashboardAutomationTask,
+    FilmInventoryManagementTask,
+    ManagementStructureAnalysisTask,
+    ParticipantReportOptimizationTask,
+    SalesAndMusicChartsTask,
+    TeamRosterManagementTask,
+    TransactionalInventoryTransferTask,
+    UpdateEmployeeInfoTask,
+)
 from .utils import PgConfig
 
 try:
@@ -97,9 +119,27 @@ class PostgresDomain(Domain[PgConfig]):
             raise RuntimeError("PostgresDomain.setup() must run before tasks()")
         cfg = self.secrets
         return [
+            BaseballPlayerAnalysisTask(cfg),
+            ConsistencyEnforcementTask(cfg),
             CreatePaymentIndexTask(cfg),
-            UpdateEmployeeInfoTask(cfg),
+            CustomerAnalyticsOptimizationTask(cfg),
+            CustomerAnalysisFixTask(cfg),
+            CustomerDataMigrationTask(cfg),
+            DatabaseSecurityPoliciesTask(cfg),
             DepartmentSummaryViewTask(cfg),
+            EmployeeDemographicsReportTask(cfg),
+            EmployeeHierarchyManagementTask(cfg),
+            EmployeePerformanceAnalysisTask(cfg),
+            EmployeeProjectTrackingTask(cfg),
+            EmployeeRetentionAnalysisTask(cfg),
+            ExecutiveDashboardAutomationTask(cfg),
+            FilmInventoryManagementTask(cfg),
+            ManagementStructureAnalysisTask(cfg),
+            ParticipantReportOptimizationTask(cfg),
+            SalesAndMusicChartsTask(cfg),
+            TeamRosterManagementTask(cfg),
+            TransactionalInventoryTransferTask(cfg),
+            UpdateEmployeeInfoTask(cfg),
         ]
 
 
