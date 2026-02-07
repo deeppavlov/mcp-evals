@@ -1,11 +1,9 @@
 """Transactional inventory transfer function and audit in the lego database."""
 
-from mcp_evals.contrib.postgres.scenario_evaluators.transactional_inventory_transfer import (
-    TransactionalFunctionScenarioEvaluator,
-    TransferSuccessCase,
-)
 from mcp_evals.contrib.postgres.task import PostgresTask
 from mcp_evals.contrib.postgres.utils import Backup, PgConfig
+
+from .custom_evaluator import TransactionalFunctionScenarioEvaluator, TransferSuccessCase
 
 # Success case: transfer 5 units of part 3001 color 1 from inventory 1 to inventory 2.
 # Adjust source_id/target_id/part_num/color_id if backup uses different data.

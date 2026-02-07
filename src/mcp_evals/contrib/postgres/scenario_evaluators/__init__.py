@@ -1,6 +1,5 @@
 """Scenario-based evaluators for postgres tasks (RLS, transactions, audit, etc.)."""
 
-from .consistency_enforcement import DeferredConstraintScenarioEvaluator
 from .dba_vector_analysis import AnalysisCoverageScenarioEvaluator
 from .employee_hierarchy_management import HierarchyAndAssignmentScenarioEvaluator
 from .employee_project_tracking import ProjectTrackingRelationshipScenarioEvaluator
@@ -12,7 +11,6 @@ from .user_permission_audit import AuditFindingsScenarioEvaluator
 __all__ = [
     "AnalysisCoverageScenarioEvaluator",
     "AuditFindingsScenarioEvaluator",
-    "DeferredConstraintScenarioEvaluator",
     "HierarchyAndAssignmentScenarioEvaluator",
     "ProjectTrackingRelationshipScenarioEvaluator",
     "RlsScenarioEvaluator",

@@ -43,9 +43,7 @@ class DeferredConstraintScenarioEvaluator(Evaluator["PostgresTask", AgentRunResu
             try:
                 if self.constraint_names:
                     for name in self.constraint_names:
-                        await cur.execute(
-                            sql.SQL("SET CONSTRAINTS {} DEFERRED").format(sql.Identifier(name))
-                        )
+                        await cur.execute(sql.SQL("SET CONSTRAINTS {} DEFERRED").format(sql.Identifier(name)))
                 else:
                     await cur.execute("SET CONSTRAINTS ALL DEFERRED")
                 for block in self.deferred_sql_blocks:

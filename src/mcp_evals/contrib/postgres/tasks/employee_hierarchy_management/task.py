@@ -1,8 +1,9 @@
 """Employee hierarchy and customer assignment management in the Chinook database."""
 
-from mcp_evals.contrib.postgres.scenario_evaluators import HierarchyAndAssignmentScenarioEvaluator
 from mcp_evals.contrib.postgres.task import PostgresTask
 from mcp_evals.contrib.postgres.utils import Backup, PgConfig
+
+from .custom_evaluator import HierarchyAndAssignmentScenarioEvaluator
 
 # Chinook: quoted identifiers, schema public.
 # required_tables: Employee, Customer, and optional employee_performance (agent may create)

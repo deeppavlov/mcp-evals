@@ -1,8 +1,9 @@
 """Deferred constraint scenario in the lego database."""
 
-from mcp_evals.contrib.postgres.scenario_evaluators import DeferredConstraintScenarioEvaluator
 from mcp_evals.contrib.postgres.task import PostgresTask
 from mcp_evals.contrib.postgres.utils import Backup, PgConfig
+
+from .custom_evaluator import DeferredConstraintScenarioEvaluator
 
 # Scenario: an update that would violate FK if checked immediately; with DEFERRED it succeeds.
 # Assumes lego schema has themes (id, name) and lego_sets (set_num, theme_id) with deferrable FK.

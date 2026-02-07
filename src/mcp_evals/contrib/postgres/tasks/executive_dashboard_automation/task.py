@@ -1,8 +1,9 @@
 """Trigger and procedure for executive dashboard automation in the employees database."""
 
-from mcp_evals.contrib.postgres.scenario_evaluators import TriggerAndProcedureScenarioEvaluator
 from mcp_evals.contrib.postgres.task import PostgresTask
 from mcp_evals.contrib.postgres.utils import Backup, PgConfig
+
+from .custom_evaluator import TriggerAndProcedureScenarioEvaluator
 
 
 class ExecutiveDashboardAutomationTask(PostgresTask):

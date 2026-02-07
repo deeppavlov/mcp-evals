@@ -1,8 +1,9 @@
 """Project and employee relationship tables in the employees database."""
 
-from mcp_evals.contrib.postgres.scenario_evaluators import ProjectTrackingRelationshipScenarioEvaluator
 from mcp_evals.contrib.postgres.task import PostgresTask
 from mcp_evals.contrib.postgres.utils import Backup, PgConfig
+
+from .custom_evaluator import ProjectTrackingRelationshipScenarioEvaluator
 
 # Required: projects and project_assignments (or similar) in employees schema
 # with columns and indexes for employee–project relationships.
