@@ -1,62 +1,92 @@
-"""Deferred constraint scenario in the lego database.
-
-Note: mcpmark's consistency_enforcement task was about LEGO num_parts consistency (stored num_parts
-vs sum of non-spare parts in latest inventory) with deferrable constraint *triggers* on
-lego_sets, lego_inventories, lego_inventory_parts. This mcp_evals task is a *different* scenario:
-deferrable *foreign key* (e.g. lego_sets.theme_id → themes), so that an update to an invalid
-theme_id fails immediately, but with SET CONSTRAINTS ALL DEFERRED an insert of the theme plus
-update succeeds. Both test deferrable constraints; the business rule and verification differ.
-"""
+"""LEGO num_parts consistency: identify, fix, and enforce with deferrable constraint triggers (mcpmark parity)."""
 
 from mcp_evals.contrib.postgres.task import PostgresTask
 from mcp_evals.contrib.postgres.utils import Backup, PgConfig
 
-from .custom_evaluator import DeferredConstraintScenarioEvaluator
+from .custom_evaluator import LegoNumPartsConsistencyEvaluator
 
-# Scenario: an update that would violate FK if checked immediately; with DEFERRED it succeeds.
-# Assumes lego schema has themes (id, name) and lego_sets (set_num, theme_id) with deferrable FK.
-# Failing: set theme_id to a non-existent theme (999999).
-# Deferred: insert theme 999999 then update one lego_set (valid at commit).
-FAILING_SQL = """
-UPDATE lego_sets SET theme_id = 999999
-WHERE set_num = (SELECT set_num FROM lego_sets WHERE theme_id IS NOT NULL LIMIT 1)
-"""
-DEFERRED_SQL_BLOCKS = [
-    "INSERT INTO themes (id, name) VALUES (999999, 'eval_placeholder') ON CONFLICT (id) DO NOTHING",
-    "UPDATE lego_sets SET theme_id = 999999 WHERE set_num = (SELECT set_num FROM lego_sets WHERE theme_id IS NOT NULL LIMIT 1)",
-]
+GOAL = """Implement a data consistency enforcement system for the LEGO database. The system must ensure that the reported part count in the `lego_sets` table matches the actual sum of non-spare parts in the latest inventory version. This involves a three-step process: identifying existing inconsistencies, fixing them, and creating a trigger-based constraint system to prevent future issues.
+
+### Consistency Rule
+For any given `set_num`, the following invariant must be maintained:
+`lego_sets.num_parts = SUM(quantity)` FROM `lego_inventory_parts` WHERE `inventory_id` IN (latest inventory for that set) AND `is_spare` = false
+
+**Important**: If a set has no inventory records, the consistency check should be skipped.
+
+# Your Tasks:
+
+## Task 1: Identify Data Inconsistencies
+
+### Objective
+Write a single `SELECT` query to find all sets where the stored `num_parts` does not match the actual calculated number of parts from the latest inventory.
+
+1.  **Find the Latest Inventory**: For each `set_num`, find its latest inventory id by getting the `MAX(version)` from the `lego_inventories` table.
+2.  **Calculate Actual Part Count**: For these latest inventories, join with `lego_inventory_parts` and calculate the `SUM(quantity)`, but only for parts where `is_spare` is false.
+3.  **Compare and Filter**: Join this calculated result back to the `lego_sets` table and return the rows where `lego_sets.num_parts` is different from your calculated sum.
+
+## Task 2: Fix Existing Inconsistencies
+
+### Objective
+Correct all mismatched `num_parts` values using a clear, multi-step process with a temporary table. This approach is designed to be robust against all edge cases.
+
+#### Step 1: Create a Temporary Table
+Create a temporary table (e.g., `correct_counts`) with two columns: `set_num` (text) and `actual_parts` (integer).
+
+#### Step 2: Populate the Temporary Table
+This is the most critical step. Write an `INSERT` statement that calculates the correct part count for every single set listed in the `lego_sets` table.
+
+-   The query must start by selecting from `public.lego_sets`.
+-   It must then `LEFT JOIN` to a subquery that contains the part-counting logic (finding the latest inventory version and summing the non-spare parts).
+-   Use `COALESCE` on the final result from the subquery to ensure that any set without parts or without an inventory record gets a value of `0`, not `NULL`.
+
+#### Step 3: Update from the Temporary Table
+
+Write a final, simple `UPDATE` statement that joins the `lego_sets` table with your temporary table on `set_num` and sets `num_parts` to the `actual_parts` value.
+
+## Task 3: Create Constraint Enforcement System
+
+### Objective
+
+Implement a deferrable constraint trigger system to enforce the consistency rule automatically for all future `INSERT` and `UPDATE` operations.
+
+### Part A: Create the Trigger Function
+
+Create a single PL/pgSQL function, preferably named `check_set_parts_consistency()`, that performs the core validation.
+
+**Function Requirements**:
+
+  - Returns `trigger`.
+  - Accepts no arguments.
+  - Contains the core validation logic:
+      - **Identify the `set_num` to check**. This is the most critical part. The `set_num` must be retrieved based on which table fired the trigger (`TG_TABLE_NAME`):
+          - If `lego_sets` or `lego_inventories`: get the `set_num` directly from `NEW.set_num`.
+          - If `lego_inventory_parts`: you must first query `lego_inventories` using `NEW.inventory_id` to find the corresponding `set_num`.
+      - **Perform the check**. For the identified `set_num`, execute the same core logic from Task 1 to get the `actual_parts` count and the `stored_num_parts` from the `lego_sets` table.
+      - **Raise an exception on failure**. If `actual_parts` does not equal `stored_num_parts`, the function must raise an exception to block the transaction (e.g., `RAISE EXCEPTION 'Inconsistent part count for set %', relevant_set_num;`).
+      - **Return `NEW` on success**. If the check passes or is skipped, the function should `RETURN NEW`.
+
+### Part B: Create the Constraint Triggers
+
+Create three separate `CONSTRAINT TRIGGER` statements that attach the function from Part A to the following tables:
+
+  - `public.lego_sets`
+  - `public.lego_inventories`
+  - `public.lego_inventory_parts`
+
+**Crucial Trigger Requirements**:
+
+  - Each trigger must fire `AFTER INSERT OR UPDATE`.
+  - Each trigger **MUST** be `DEFERRABLE` and `INITIALLY IMMEDIATE`. This is non-negotiable for the verification to pass.
+  - Each trigger must execute the function `FOR EACH ROW`."""
 
 
 class ConsistencyEnforcementTask(PostgresTask):
-    """Task: implement deferrable FK (theme_id) so invalid op fails and deferred block succeeds.
-
-    This is intentionally a deferrable-FK scenario, not mcpmark's num_parts trigger scenario.
-    """
+    """Task: LEGO num_parts consistency (identify, fix, deferrable constraint triggers). mcpmark parity."""
 
     name = "consistency_enforcement"
-    goal = """Implement deferrable constraints in the lego database so that operations that temporarily
-violate a constraint can succeed when the constraint is deferred.
-
-## Your Task
-
-1. Ensure the database has at least one **DEFERRABLE** constraint (e.g. a foreign key from lego_sets to themes)
-   that is checked at commit when deferred, and at statement end when immediate.
-
-2. The evaluator will:
-   - Run an update that violates the constraint (e.g. set theme_id to a non-existent theme) and expect it to **fail**.
-   - In a new transaction with **SET CONSTRAINTS ALL DEFERRED**, run: (a) insert the missing theme (id 999999),
-     (b) update one lego_set row to theme_id 999999. This must **succeed** (constraint checked at commit).
-
-Use the existing tables (e.g. themes, lego_sets). If the FK is not already deferrable, alter or recreate it as
-DEFERRABLE INITIALLY IMMEDIATE. Constraint names are optional; the evaluator uses SET CONSTRAINTS ALL DEFERRED.
-"""
+    goal = GOAL
 
     def __init__(self, pg_config: PgConfig) -> None:
         """Init."""
         super().__init__(pg_config=pg_config, category_id=Backup.LEGO)
-        self.evaluators = (
-            DeferredConstraintScenarioEvaluator(
-                failing_sql=FAILING_SQL,
-                deferred_sql_blocks=DEFERRED_SQL_BLOCKS,
-            ),
-        )
+        self.evaluators = (LegoNumPartsConsistencyEvaluator(),)
