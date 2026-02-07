@@ -9,7 +9,7 @@ from mcp_evals.contrib.postgres.utils import Backup, PgConfig
 FILM_INVENTORY_QUERY = """
 SELECT title, rental_rate, total_inventory, store1_count, store2_count
 FROM film_inventory_summary
-ORDER BY title
+ORDER BY total_inventory DESC, title ASC
 """
 # Ground truth: from current film + inventory state (after workflow)
 FILM_INVENTORY_EXPECTED = """
@@ -22,7 +22,7 @@ SELECT
 FROM film f
 LEFT JOIN inventory i ON i.film_id = f.film_id
 GROUP BY f.film_id, f.title, f.rental_rate
-ORDER BY f.title
+ORDER BY total_inventory DESC, f.title ASC
 """
 
 
@@ -42,7 +42,7 @@ class FilmInventoryManagementTask(PostgresTask):
 
 4. Create a view or table **available_films** that lists films **available in store 1** with **rental_rate between 3 and 5** and **length > 100** (from **film** and **inventory**).
 
-5. **Cleanup inventory**: remove inventory rows where the film has **replacement_cost > 25** OR **rental_rate < 1**, and the inventory item has **no rentals** (no row in **rental**). Leave all other inventory unchanged.
+5. **Cleanup inventory**: remove inventory rows where the film has **replacement_cost > 25** and **rental_rate < 1**, and the inventory item has **no rentals** (no row in **rental**). Leave all other inventory unchanged.
 
 6. Create a table or view **film_inventory_summary** with **one row per film** and columns:
    - **title** — film title
@@ -51,7 +51,9 @@ class FilmInventoryManagementTask(PostgresTask):
    - **store1_count** — count of inventory rows for that film in store_id = 1
    - **store2_count** — count of inventory rows for that film in store_id = 2
 
-Use **film** and **inventory** (and **rental** for cleanup). Order **film_inventory_summary** by title for verification. The evaluator compares your summary to a ground-truth query over the current film and inventory state (with decimal tolerance).
+Use **film** and **inventory** (and **rental** for cleanup). Order **film_inventory_summary** by total_inventory \
+from highest to lowest, then alphabetically by film title; verification uses that order. The evaluator compares \
+your summary to a ground-truth query over the current film and inventory state (with decimal tolerance).
 """
 
     def __init__(self, pg_config: PgConfig) -> None:
