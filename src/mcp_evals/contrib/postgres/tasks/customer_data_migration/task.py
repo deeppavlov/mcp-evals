@@ -1,5 +1,8 @@
 """Migrate MelodyMart customers into Customer table in the Chinook database."""
 
+import importlib.resources
+import json
+
 from mcp_evals.contrib.postgres.common_evaluators import AggregateScalarMatches, QueryResultSetMatches
 from mcp_evals.contrib.postgres.task import PostgresTask
 from mcp_evals.contrib.postgres.utils import Backup, PgConfig
@@ -13,6 +16,40 @@ WHERE "CustomerId" > 59 AND ("SupportRepId" IS DISTINCT FROM 3 OR "Fax" IS NOT N
 MIGRATED_QUERY = """
 SELECT "CustomerId", "SupportRepId", "Fax" FROM "Customer" WHERE "CustomerId" > 59
 """
+# Full row comparison: all 12 columns for migrated customers (mcpmark parity).
+FULL_ROW_QUERY = """
+SELECT "FirstName", "LastName", "Company", "Address", "City", "State",
+       "Country", "PostalCode", "Phone", "Email", "SupportRepId", "Fax"
+FROM "Customer" WHERE "CustomerId" > 59
+"""
+
+_COL_KEYS = (
+    "FirstName",
+    "LastName",
+    "Company",
+    "Address",
+    "City",
+    "State",
+    "Country",
+    "PostalCode",
+    "Phone",
+    "Email",
+)
+
+
+def _load_expected_migrated_rows() -> list[tuple[object, ...]]:
+    """Load expected customer rows from customer_data.json (mcpmark canonical source)."""
+    ref = importlib.resources.files("mcp_evals.contrib.postgres.tasks.customer_data_migration")
+    text = (ref / "customer_data.json").read_text(encoding="utf-8")
+    customers = json.load(text)
+    result: list[tuple[object, ...]] = []
+    for d in customers:
+        row = tuple(str(d[k]) if d.get(k) is not None else "" for k in _COL_KEYS) + (3, None)
+        result.append(row)
+    return result
+
+
+EXPECTED_MIGRATED_ROWS = _load_expected_migrated_rows()
 
 
 class CustomerDataMigrationTask(PostgresTask):
@@ -48,5 +85,9 @@ FROM (SELECT "CustomerId" FROM "Customer" WHERE "CustomerId" > 59) sub
             QueryResultSetMatches(
                 query=MIGRATED_QUERY,
                 expected_query=expected_set_query,
+            ),
+            QueryResultSetMatches(
+                query=FULL_ROW_QUERY,
+                expected_rows=EXPECTED_MIGRATED_ROWS,
             ),
         )
