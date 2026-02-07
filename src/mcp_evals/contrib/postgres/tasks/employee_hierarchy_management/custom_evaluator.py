@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 import psycopg
@@ -12,6 +13,20 @@ from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorCont
 
 if TYPE_CHECKING:
     from mcp_evals.contrib.postgres.task import PostgresTask
+
+# Tolerance for numeric comparison (matches mcpmark rows_match 0.01)
+_FLOAT_TOLERANCE = 0.01
+
+
+def _cell_match(actual: object, expected: object) -> bool:
+    """Compare one cell; use tolerance for Decimal/float/int."""
+    if actual == expected:
+        return True
+    if isinstance(actual, Decimal) and isinstance(expected, (Decimal, float, int)):
+        return abs(float(actual) - float(expected)) <= _FLOAT_TOLERANCE
+    if isinstance(actual, (int, float)) and isinstance(expected, (Decimal, int, float)):
+        return abs(float(actual) - float(expected)) <= _FLOAT_TOLERANCE
+    return False
 
 
 @dataclass
@@ -97,7 +112,15 @@ async def _check_scalars(
         if row is None:
             return EvaluationReason(value=0.0, reason=f"Check returned no row: {query[:60]}...")
         scalar_val: Any = row[0] if len(row) == 1 else tuple(row)
-        if scalar_val != expected:
+        if isinstance(expected, tuple) and isinstance(scalar_val, tuple):
+            if len(scalar_val) != len(expected) or not all(
+                _cell_match(a, e) for a, e in zip(scalar_val, expected, strict=True)
+            ):
+                return EvaluationReason(
+                    value=0.0,
+                    reason=f"Check failed: got {scalar_val}, expected {expected}",
+                )
+        elif not _cell_match(scalar_val, expected):
             return EvaluationReason(
                 value=0.0,
                 reason=f"Check failed: got {scalar_val}, expected {expected}",
@@ -119,7 +142,9 @@ async def _check_rows(
                 reason=f"Row check expected 1 row, got {len(rows)}",
             )
         row_val: tuple[Any, ...] = tuple(rows[0])
-        if row_val != expected_row:
+        if len(row_val) != len(expected_row) or not all(
+            _cell_match(actual, exp) for actual, exp in zip(row_val, expected_row, strict=True)
+        ):
             return EvaluationReason(
                 value=0.0,
                 reason=f"Row mismatch: got {row_val}, expected {expected_row}",

@@ -14,14 +14,22 @@ REQUIRED_COLUMNS = [
     ("Employee", ["EmployeeId", "LastName", "FirstName", "Title", "ReportsTo", "salary"]),
     ("Customer", ["CustomerId", "SupportRepId"]),
 ]
-# Scalar: 9 employees, 1 CEO, 0 IT Specialist, 4 report to CEO
+# Scalar: 9 employees, 1 CEO, 0 IT Specialist, 4 report to CEO; customer assignments; deletion; salaries
 SCALAR_CHECKS = [
     ('SELECT COUNT(*)::INT FROM "Employee"', 9),
     ('SELECT COUNT(*)::INT FROM "Employee" WHERE "Title" = \'CEO\'', 1),
     ('SELECT COUNT(*)::INT FROM "Employee" WHERE "Title" = \'IT Specialist\'', 0),
     ('SELECT COUNT(*)::INT FROM "Employee" WHERE "ReportsTo" = 1', 4),
+    # Customer assignments: 1–3 → 9, 4–6 → 10
+    ('SELECT COUNT(*)::INT FROM "Customer" WHERE "CustomerId" IN (1, 2, 3) AND "SupportRepId" = 9', 3),
+    ('SELECT COUNT(*)::INT FROM "Customer" WHERE "CustomerId" IN (4, 5, 6) AND "SupportRepId" = 10', 3),
+    # Robert King (7) deleted
+    ('SELECT COUNT(*)::INT FROM "Employee" WHERE "EmployeeId" = 7', 0),
+    # Laura (8) salary 75000; others 50000 (evaluator uses numeric tolerance)
+    ('SELECT salary FROM "Employee" WHERE "EmployeeId" = 8', 75000),
+    ('SELECT COUNT(*)::INT FROM "Employee" WHERE "EmployeeId" <> 8 AND salary = 50000', 8),
 ]
-# Row checks: post-task state — Employee 1 is CEO, Employee 2 is Sales Manager (not pre-task General Manager)
+# Row checks: post-task state — Employee 1/2, Laura (8), Sarah (9), Mike (10), employee_performance
 ROW_CHECKS = [
     (
         'SELECT "EmployeeId", "Title", "ReportsTo" FROM "Employee" WHERE "EmployeeId" = 1',
@@ -30,6 +38,29 @@ ROW_CHECKS = [
     (
         'SELECT "EmployeeId", "Title", "ReportsTo" FROM "Employee" WHERE "EmployeeId" = 2',
         (2, "Sales Manager", 1),
+    ),
+    # Laura: Senior IT Specialist, salary 75000
+    (
+        'SELECT "EmployeeId", "Title", salary FROM "Employee" WHERE "EmployeeId" = 8',
+        (8, "Senior IT Specialist", 75000),
+    ),
+    # Sarah (9) and Mike (10) key fields
+    (
+        'SELECT "EmployeeId", "LastName", "FirstName", "Title", "ReportsTo" FROM "Employee" WHERE "EmployeeId" = 9',
+        (9, "Johnson", "Sarah", "Sales Support Agent", 1),
+    ),
+    (
+        'SELECT "EmployeeId", "LastName", "FirstName", "Title", "ReportsTo" FROM "Employee" WHERE "EmployeeId" = 10',
+        (10, "Chen", "Mike", "Sales Support Agent", 1),
+    ),
+    # employee_performance: Sarah 3 customers / 4.5, Mike 3 / 4.2
+    (
+        'SELECT employee_id, customers_assigned, performance_score FROM employee_performance WHERE employee_id = 9',
+        (9, 3, 4.5),
+    ),
+    (
+        'SELECT employee_id, customers_assigned, performance_score FROM employee_performance WHERE employee_id = 10',
+        (10, 3, 4.2),
     ),
 ]
 
