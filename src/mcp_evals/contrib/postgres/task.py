@@ -1,4 +1,4 @@
-"""Base class for Postgres tasks: restore backup, expose postgres-mcp, provide pg_conn_params."""
+"""Base class for Postgres tasks: restore backup or run prepare_init, expose postgres-mcp, provide pg_conn_params."""
 
 import time
 from contextlib import AsyncExitStack
@@ -22,25 +22,34 @@ class FinishTask(BaseModel):
 
 
 class PostgresTask(Task[TaskSecrets, FinishTask]):
-    """Base for postgres tasks: download backup, create DB, pg_restore, expose postgres-mcp."""
+    """Base for postgres tasks: download backup and pg_restore, or run prepare_init for custom setup."""
 
     output_type = FinishTask
 
-    def __init__(self, pg_config: PgConfig, category_id: Backup) -> None:
-        """Init."""
+    def __init__(self, pg_config: PgConfig, category_id: Backup | None) -> None:
+        """Init.
+
+        Args:
+            pg_config: PostgreSQL connection config.
+            category_id: Backup to restore, or None for tasks that use prepare_init.
+        """
         super().__init__()
         self._pg_config = pg_config
         self._category_id = category_id
         self._database_name: str | None = None
 
+    async def prepare_init(self, conn: psycopg.AsyncConnection[Any], db_name: str) -> None:
+        """Override to populate DB when category_id is None. Called with conn to the task DB."""
+        msg = f"Task {self.name} has category_id=None but did not override prepare_init"
+        raise NotImplementedError(msg)
+
     async def setup(self, stack: AsyncExitStack[Any]) -> None:
-        """Download backup, create DB, run pg_restore; register drop DB on teardown."""
-        dump_path = await download_backup(self._category_id)
+        """Create DB, then either pg_restore (if category_id) or prepare_init (if None); register drop on teardown."""
         ts = int(time.time() * 1000)
-        db_name = f"mcp_evals_pg_{self._category_id}_{self.name}_{ts}".replace("-", "_")
+        prefix = self._category_id.value if self._category_id else self.name
+        db_name = f"mcp_evals_pg_{prefix}_{self.name}_{ts}".replace("-", "_")
         self._database_name = db_name
 
-        # Create empty database (connect to 'postgres')
         conninfo = f"{self._pg_config.connection_string}/postgres"
         async with await psycopg.AsyncConnection.connect(
             conninfo=conninfo,
@@ -48,7 +57,18 @@ class PostgresTask(Task[TaskSecrets, FinishTask]):
         ) as conn:
             await conn.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(db_name)))
 
-        await run_pg_restore(dump_path, db_name, self._pg_config, container_name=self._pg_config.container)
+        if self._category_id is not None:
+            dump_path = await download_backup(self._category_id)
+            await run_pg_restore(
+                dump_path, db_name, self._pg_config, container_name=self._pg_config.container
+            )
+        else:
+            db_conninfo = f"{self._pg_config.connection_string}/{db_name}"
+            async with await psycopg.AsyncConnection.connect(
+                conninfo=db_conninfo,
+                autocommit=True,
+            ) as init_conn:
+                await self.prepare_init(init_conn, db_name)
 
         async def drop_db() -> None:
             async with await psycopg.AsyncConnection.connect(

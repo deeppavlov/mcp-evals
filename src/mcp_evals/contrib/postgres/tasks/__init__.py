@@ -7,6 +7,7 @@ from .customer_analysis_fix.task import CustomerAnalysisFixTask
 from .customer_analytics_optimization.task import CustomerAnalyticsOptimizationTask
 from .customer_data_migration.task import CustomerDataMigrationTask
 from .database_security_policies.task import DatabaseSecurityPoliciesTask
+from .dba_vector_analysis.task import DbaVectorAnalysisTask
 from .department_summary_view.task import DepartmentSummaryViewTask
 from .employee_demographics_report.task import EmployeeDemographicsReportTask
 from .employee_hierarchy_management.task import EmployeeHierarchyManagementTask
@@ -17,6 +18,7 @@ from .executive_dashboard_automation.task import ExecutiveDashboardAutomationTas
 from .film_inventory_management.task import FilmInventoryManagementTask
 from .management_structure_analysis.task import ManagementStructureAnalysisTask
 from .participant_report_optimization.task import ParticipantReportOptimizationTask
+from .rls_business_access.task import RlsBusinessAccessTask
 from .sales_and_music_charts.task import SalesAndMusicChartsTask
 from .team_roster_management.task import TeamRosterManagementTask
 from .transactional_inventory_transfer.task import TransactionalInventoryTransferTask
@@ -30,6 +32,7 @@ __all__ = [
     "CustomerAnalyticsOptimizationTask",
     "CustomerDataMigrationTask",
     "DatabaseSecurityPoliciesTask",
+    "DbaVectorAnalysisTask",
     "DepartmentSummaryViewTask",
     "EmployeeDemographicsReportTask",
     "EmployeeHierarchyManagementTask",
@@ -40,6 +43,7 @@ __all__ = [
     "FilmInventoryManagementTask",
     "ManagementStructureAnalysisTask",
     "ParticipantReportOptimizationTask",
+    "RlsBusinessAccessTask",
     "SalesAndMusicChartsTask",
     "TeamRosterManagementTask",
     "TransactionalInventoryTransferTask",

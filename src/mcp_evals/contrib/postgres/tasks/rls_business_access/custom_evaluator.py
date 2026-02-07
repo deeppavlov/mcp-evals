@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import psycopg
 from pydantic_ai.run import AgentRunResult
@@ -34,11 +34,22 @@ class RlsScenarioEvaluator(Evaluator["PostgresTask", AgentRunResult]):
     assertions: list[RlsAssertion]
     """Behavioral checks: set session, run SQL, assert rowcount/block."""
     schema: str = "public"
+    rls_test_conn_params: dict[str, Any] | None = None
+    """If set, use these connection params instead of task.pg_conn_params() (e.g. to connect as test_user for RLS)."""
+    rls_test_user: str | None = None
+    """If set with rls_test_password, connect as this user (overrides task.pg_conn_params() user/password)."""
+    rls_test_password: str | None = None
+    """Password for rls_test_user."""
 
     async def evaluate(self, ctx: EvaluatorContext[PostgresTask, AgentRunResult]) -> EvaluatorOutput:
         """Check RLS on tables, then run each assertion in order."""
         task = ctx.inputs
-        params = task.pg_conn_params()
+        if self.rls_test_conn_params is not None:
+            params = self.rls_test_conn_params
+        elif self.rls_test_user is not None and self.rls_test_password is not None:
+            params = {**task.pg_conn_params(), "user": self.rls_test_user, "password": self.rls_test_password}
+        else:
+            params = task.pg_conn_params()
         async with await psycopg.AsyncConnection.connect(**params) as conn, conn.cursor() as cur:
             for table in self.tables_with_rls:
                 await cur.execute(
