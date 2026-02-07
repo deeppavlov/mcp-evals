@@ -1,15 +1,13 @@
 """DBA vector analysis: create and fill vector_analysis_* tables; verify against live catalog."""
 
-import os
-from pathlib import Path
 from typing import Any
 
-import anyio
 import psycopg
 
 from mcp_evals.contrib.postgres.task import PostgresTask
 from mcp_evals.contrib.postgres.utils import PgConfig
 
+from ._setup import prepare_vector_environment
 from .custom_evaluator import AnalysisCoverageScenarioEvaluator, AnalysisTableSpec
 
 
@@ -177,34 +175,6 @@ Use PostgreSQL system catalogs and pgvector to gather metrics about the vector d
             ),
         )
 
-    async def prepare_init(self, conn: psycopg.AsyncConnection[Any], db_name: str) -> None:
-        """Run mcpmark vectors_setup.prepare_vector_environment() targeting the task DB."""
-        cfg = self._pg_config
-        env = {
-            **os.environ,
-            "POSTGRES_HOST": cfg.host,
-            "POSTGRES_PORT": str(cfg.port),
-            "POSTGRES_USERNAME": cfg.user,
-            "POSTGRES_PASSWORD": cfg.password,
-            "POSTGRES_DATABASE": db_name,
-        }
-        project_root = Path(__file__).resolve().parents[6]
-        mcpmark_parent = str(project_root)
-        env["MCP_EVALS_PROJECT_ROOT"] = mcpmark_parent
-        import_code = """
-import os
-import sys
-sys.path.insert(0, os.environ["MCP_EVALS_PROJECT_ROOT"])
-from mcpmark.tasks.postgres.standard.vectors.vectors_setup import prepare_vector_environment
-prepare_vector_environment()
-"""
-        proc = await anyio.open_process(
-            ["python", "-c", import_code],
-            env=env,
-            stdout=anyio.process.PIPE,
-            stderr=anyio.process.PIPE,
-        )
-        stdout, stderr = await proc.communicate()
-        if proc.returncode != 0:
-            msg = f"vectors_setup failed (exit {proc.returncode}): stderr={stderr.decode() if stderr else ''}"
-            raise RuntimeError(msg)
+    async def prepare_init(self, conn: psycopg.AsyncConnection[Any], db_name: str) -> None:  # noqa: ARG002
+        """Create pgvector extension, vector tables, sample data, and indexes (no mcpmark dependency)."""
+        await prepare_vector_environment(conn)
