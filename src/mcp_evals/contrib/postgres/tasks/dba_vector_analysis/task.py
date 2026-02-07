@@ -143,6 +143,7 @@ Use PostgreSQL system catalogs and pgvector to gather metrics about the vector d
                     ),
                     AnalysisTableSpec(
                         table_name="vector_analysis_indices",
+                        allow_extra_rows=True,
                         expected_columns=[
                             "column_name",
                             "index_name",
@@ -172,6 +173,7 @@ Use PostgreSQL system catalogs and pgvector to gather metrics about the vector d
                     "vector_analysis_indices",
                 ],
                 analysis_table_pattern="vector_analysis_%",
+                allowed_extra_analysis_prefixes=["expected_", "vector_analysis_results"],
             ),
         )
 

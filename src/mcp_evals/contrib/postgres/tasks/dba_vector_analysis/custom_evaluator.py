@@ -24,6 +24,8 @@ class AnalysisTableSpec:
     analysis_columns_query: str
     """Query returning (table_name, column_name) from the analysis table."""
     schema: str = "public"
+    allow_extra_rows: bool = False
+    """If True, do not fail when analysis table has rows not in catalog (e.g. allow extra indexes)."""
 
 
 @dataclass
@@ -35,6 +37,8 @@ class AnalysisCoverageScenarioEvaluator(Evaluator["PostgresTask", AgentRunResult
     """Exact set of analysis table names allowed; no others in schema."""
     analysis_table_pattern: str | None = None
     """If set, only tables with table_name LIKE this are considered analysis tables (e.g. 'vector_analysis_%%')."""
+    allowed_extra_analysis_prefixes: list[str] | None = None
+    """Table names starting with any of these are not considered extra."""
 
     async def evaluate(self, ctx: EvaluatorContext[PostgresTask, AgentRunResult]) -> EvaluatorOutput:
         """For each spec: table exists, columns match, analysis content matches catalog; then check no extra tables."""
@@ -79,7 +83,7 @@ class AnalysisCoverageScenarioEvaluator(Evaluator["PostgresTask", AgentRunResult
                         value=0.0,
                         reason=f"Analysis {spec.table_name}: missing catalog entries: {missing}",
                     )
-                if extra:
+                if extra and not spec.allow_extra_rows:
                     return EvaluationReason(
                         value=0.0,
                         reason=f"Analysis {spec.table_name}: non-existing entries: {extra}",
@@ -95,7 +99,11 @@ class AnalysisCoverageScenarioEvaluator(Evaluator["PostgresTask", AgentRunResult
                 )
                 analysis_tables = {r[0] for r in await cur.fetchall()}
                 allowed = set(self.allowed_analysis_tables)
-                extra_tables = analysis_tables - allowed
+                allowed_set = allowed | {
+                    t for t in analysis_tables
+                    if any(t.startswith(p) for p in (self.allowed_extra_analysis_prefixes or []))
+                }
+                extra_tables = analysis_tables - allowed_set
                 if extra_tables:
                     return EvaluationReason(
                         value=0.0,
