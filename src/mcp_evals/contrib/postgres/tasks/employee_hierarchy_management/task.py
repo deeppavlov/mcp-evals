@@ -6,25 +6,26 @@ from mcp_evals.contrib.postgres.utils import Backup, PgConfig
 from .custom_evaluator import HierarchyAndAssignmentScenarioEvaluator
 
 # Chinook: quoted identifiers, schema public.
-# required_tables: Employee, Customer, and optional employee_performance (agent may create)
-REQUIRED_TABLES = ["Employee", "Customer"]
+# Post-task state (mcpmark parity): insert Sarah/Mike, Adams→CEO, Nancy phone, IT→IT Specialist,
+# reassign customers to 9/10, reporting to CEO, create employee_performance, delete Robert King,
+# promote Laura, add salary column. So: 9 employees, 1 CEO, 0 IT Specialists, 4 report to CEO.
+REQUIRED_TABLES = ["Employee", "Customer", "employee_performance"]
 REQUIRED_COLUMNS = [
-    ("Employee", ["EmployeeId", "LastName", "FirstName", "Title", "ReportsTo"]),
+    ("Employee", ["EmployeeId", "LastName", "FirstName", "Title", "ReportsTo", "salary"]),
     ("Customer", ["CustomerId", "SupportRepId"]),
 ]
-# Scalar checks: e.g. total employees 9, customers with SupportRepId=1 -> 1, etc.
-# Plan: scalar_checks (final count query → (9, 1, 0, 4))
+# Scalar: 9 employees, 1 CEO, 0 IT Specialist, 4 report to CEO
 SCALAR_CHECKS = [
     ('SELECT COUNT(*)::INT FROM "Employee"', 9),
-    ('SELECT COUNT(*)::INT FROM "Customer" WHERE "SupportRepId" = 1', 1),
-    ('SELECT COUNT(*)::INT FROM "Customer" WHERE "SupportRepId" = 2', 0),
-    ('SELECT COUNT(*)::INT FROM "Customer" WHERE "SupportRepId" = 3', 4),
+    ('SELECT COUNT(*)::INT FROM "Employee" WHERE "Title" = \'CEO\'', 1),
+    ('SELECT COUNT(*)::INT FROM "Employee" WHERE "Title" = \'IT Specialist\'', 0),
+    ('SELECT COUNT(*)::INT FROM "Employee" WHERE "ReportsTo" = 1', 4),
 ]
-# Row checks: employees 1, 2, 9, 10 - at least Title and key columns
+# Row checks: post-task state — Employee 1 is CEO, Employee 2 is Sales Manager (not pre-task General Manager)
 ROW_CHECKS = [
     (
         'SELECT "EmployeeId", "Title", "ReportsTo" FROM "Employee" WHERE "EmployeeId" = 1',
-        (1, "General Manager", None),
+        (1, "CEO", None),
     ),
     (
         'SELECT "EmployeeId", "Title", "ReportsTo" FROM "Employee" WHERE "EmployeeId" = 2',
@@ -41,18 +42,24 @@ class EmployeeHierarchyManagementTask(PostgresTask):
 
 ## Your Task
 
-1. Ensure the **Employee** table has the expected structure (EmployeeId, LastName, FirstName, Title, ReportsTo, etc.)
-   and that **Customer** has SupportRepId linking to Employee.
+1. **Insert** two new employees (e.g. Sarah and Mike); **update** the employee who was "General Manager" (e.g. Adams) to Title **'CEO'**; update Nancy's phone as required; change any "IT" title to **'IT Specialist'**; **reassign** customers so that some are assigned to the new employees (SupportRepId 9 and 10), with those employees **reporting to the CEO** (ReportsTo = 1).
 
-2. Maintain these invariants (the evaluator will check):
-   - Total employee count: 9
-   - Exactly 1 customer with SupportRepId = 1
-   - 0 customers with SupportRepId = 2
-   - 4 customers with SupportRepId = 3
-   - Employee 1: Title 'General Manager', ReportsTo NULL
-   - Employee 2: Title 'Sales Manager', ReportsTo 1
+2. Create an **employee_performance** table (structure as appropriate for tracking performance).
 
-3. Optionally add an **employee_performance** table or a **salary** column on Employee if the task description requires it; otherwise the evaluator checks only Employee and Customer counts and sample rows above.
+3. **Delete** employee Robert King.
+
+4. **Promote** Laura as specified (e.g. title or reporting change).
+
+5. Add a **salary** column to the **Employee** table.
+
+6. The evaluator checks the **post-task** state:
+   - Total employees: 9
+   - Exactly 1 employee with Title **'CEO'** (Employee 1)
+   - 0 employees with Title 'IT Specialist' (or equivalent)
+   - 4 employees with ReportsTo = 1 (reporting to CEO)
+   - Employee 1: Title **'CEO'**, ReportsTo NULL
+   - Employee 2: Title **'Sales Manager'**, ReportsTo 1
+   - Tables **Employee**, **Customer**, **employee_performance** exist; **Employee** has column **salary**
 
 Use quoted identifiers: "Employee", "Customer", "EmployeeId", "SupportRepId", "Title", "ReportsTo".
 """

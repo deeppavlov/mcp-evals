@@ -1,50 +1,28 @@
-"""Customer analytics optimization in the dvdrental database."""
+"""Customer analytics query optimization in the dvdrental database (mcpmark parity: index verification)."""
 
-from mcp_evals.contrib.postgres.common_evaluators import SqlResultMatches
-from mcp_evals.contrib.postgres.common_evaluators.sql_result_matches import default_rows_match
+from mcp_evals.contrib.postgres.common_evaluators import IndexExists
 from mcp_evals.contrib.postgres.task import PostgresTask
 from mcp_evals.contrib.postgres.utils import Backup, PgConfig
 
-# Create a table or view with customer analytics (e.g. rental count, spend, segment).
-CUSTOMER_ANALYTICS_QUERY = """
-SELECT * FROM customer_analytics ORDER BY customer_id
-"""
-# Ground truth: per-customer rental count and total payment amount
-CUSTOMER_ANALYTICS_EXPECTED = """
-SELECT
-    p.customer_id,
-    COUNT(DISTINCT p.rental_id)::BIGINT AS rental_count,
-    COALESCE(SUM(p.amount), 0)::DECIMAL AS total_spend
-FROM payment p
-GROUP BY p.customer_id
-ORDER BY p.customer_id
-"""
-
 
 class CustomerAnalyticsOptimizationTask(PostgresTask):
-    """Task: create optimized customer analytics table or view in dvdrental."""
+    """Task: optimize slow customer analytics query; verification checks index on payment.customer_id."""
 
     name = "customer_analytics_optimization"
-    goal = """Create an optimized customer analytics table or materialized view in the DVD rental database.
+    goal = """Optimize a slow customer analytics query in the DVD rental database.
 
 ## Your Task
 
-Create a table or view named **customer_analytics** that provides per-customer metrics for reporting:
+A customer analytics query (e.g. aggregating payments or rentals by customer, joining payment with customer) is running slowly. You must:
 
-- **customer_id** — customer identifier
-- **rental_count** — number of paid rentals (count of distinct rental_id in payment)
-- **total_spend** — sum of payment.amount for that customer
+1. Identify the query (e.g. via application code, common reporting queries, or EXPLAIN ANALYZE).
+2. Improve performance by adding an appropriate **index** (e.g. on **payment.customer_id**, which is frequently used in JOINs and WHERE clauses for customer-level analytics).
+3. Optionally use EXPLAIN ANALYZE before and after to confirm improvement.
 
-Use the **payment** table. Populate or define the object so it matches the ground truth (group by customer_id, aggregate from payment). Order by customer_id for verification.
+The evaluator verifies only that an **index exists on the payment table that references the customer_id column** (no result-correctness check). Use the standard `payment` and `customer` tables in the public schema.
 """
 
     def __init__(self, pg_config: PgConfig) -> None:
         """Init."""
         super().__init__(pg_config=pg_config, category_id=Backup.DVD)
-        self.evaluators = (
-            SqlResultMatches(
-                CUSTOMER_ANALYTICS_QUERY,
-                expected_query=CUSTOMER_ANALYTICS_EXPECTED,
-                rows_match_fn=default_rows_match,
-            ),
-        )
+        self.evaluators = (IndexExists("payment", "customer_id"),)

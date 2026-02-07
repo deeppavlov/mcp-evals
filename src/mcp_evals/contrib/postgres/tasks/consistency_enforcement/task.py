@@ -1,4 +1,12 @@
-"""Deferred constraint scenario in the lego database."""
+"""Deferred constraint scenario in the lego database.
+
+Note: mcpmark's consistency_enforcement task was about LEGO num_parts consistency (stored num_parts
+vs sum of non-spare parts in latest inventory) with deferrable constraint *triggers* on
+lego_sets, lego_inventories, lego_inventory_parts. This mcp_evals task is a *different* scenario:
+deferrable *foreign key* (e.g. lego_sets.theme_id → themes), so that an update to an invalid
+theme_id fails immediately, but with SET CONSTRAINTS ALL DEFERRED an insert of the theme plus
+update succeeds. Both test deferrable constraints; the business rule and verification differ.
+"""
 
 from mcp_evals.contrib.postgres.task import PostgresTask
 from mcp_evals.contrib.postgres.utils import Backup, PgConfig
@@ -20,7 +28,10 @@ DEFERRED_SQL_BLOCKS = [
 
 
 class ConsistencyEnforcementTask(PostgresTask):
-    """Task: implement deferrable constraint so invalid op fails and deferred block succeeds."""
+    """Task: implement deferrable FK (theme_id) so invalid op fails and deferred block succeeds.
+
+    This is intentionally a deferrable-FK scenario, not mcpmark's num_parts trigger scenario.
+    """
 
     name = "consistency_enforcement"
     goal = """Implement deferrable constraints in the lego database so that operations that temporarily
