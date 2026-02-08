@@ -64,7 +64,12 @@ class TestBenchmarkRunnerRun:
 
         call_order = []
 
-        async def mock_run_domain(domain: Domain[DomainSecrets], agent: Agent) -> EvaluationReport:  # noqa: ARG001
+        async def mock_run_domain(
+            domain: Domain[DomainSecrets],
+            agent: Agent,  # noqa: ARG001
+            *,
+            experiment_name: str | None = None,  # noqa: ARG001
+        ) -> EvaluationReport:
             call_order.append(domain.name)
             if domain.name == "domain1":
                 return mock_report1
@@ -135,7 +140,12 @@ class TestBenchmarkRunnerRun:
 
         mock_report1 = MagicMock(spec=EvaluationReport)
 
-        async def mock_run_domain(domain: Domain[DomainSecrets], agent: Agent) -> EvaluationReport:  # noqa: ARG001
+        async def mock_run_domain(
+            domain: Domain[DomainSecrets],
+            agent: Agent,  # noqa: ARG001
+            *,
+            experiment_name: str | None = None,  # noqa: ARG001
+        ) -> EvaluationReport:
             if domain.name == "domain1":
                 return mock_report1
             raise ValueError("Domain execution failed")
@@ -155,7 +165,12 @@ class TestBenchmarkRunnerRun:
 
         received_agents = []
 
-        async def mock_run_domain(domain: Domain[DomainSecrets], agent: Agent) -> EvaluationReport:  # noqa: ARG001
+        async def mock_run_domain(
+            domain: Domain[DomainSecrets],  # noqa: ARG001
+            agent: Agent,
+            *,
+            experiment_name: str | None = None,  # noqa: ARG001
+        ) -> EvaluationReport:
             received_agents.append(agent)
             return MagicMock(spec=EvaluationReport)
 
