@@ -13,13 +13,11 @@ from .task import PostgresTask
 from .tasks import (
     BaseballPlayerAnalysisTask,
     ConsistencyEnforcementTask,
-    CreatePaymentIndexTask,
     CustomerAnalysisFixTask,
     CustomerAnalyticsOptimizationTask,
     CustomerDataMigrationTask,
     DatabaseSecurityPoliciesTask,
     DbaVectorAnalysisTask,
-    DepartmentSummaryViewTask,
     EmployeeDemographicsReportTask,
     EmployeeHierarchyManagementTask,
     EmployeePerformanceAnalysisTask,
@@ -33,7 +31,6 @@ from .tasks import (
     SalesAndMusicChartsTask,
     TeamRosterManagementTask,
     TransactionalInventoryTransferTask,
-    UpdateEmployeeInfoTask,
 )
 from .utils import PgConfig
 
@@ -123,13 +120,11 @@ class PostgresDomain(Domain[PgConfig]):
         return [
             BaseballPlayerAnalysisTask(cfg),
             ConsistencyEnforcementTask(cfg),
-            CreatePaymentIndexTask(cfg),
             CustomerAnalyticsOptimizationTask(cfg),
             CustomerAnalysisFixTask(cfg),
             CustomerDataMigrationTask(cfg),
             DbaVectorAnalysisTask(cfg),
             DatabaseSecurityPoliciesTask(cfg),
-            DepartmentSummaryViewTask(cfg),
             EmployeeDemographicsReportTask(cfg),
             EmployeeHierarchyManagementTask(cfg),
             EmployeePerformanceAnalysisTask(cfg),
@@ -143,7 +138,6 @@ class PostgresDomain(Domain[PgConfig]):
             SalesAndMusicChartsTask(cfg),
             TeamRosterManagementTask(cfg),
             TransactionalInventoryTransferTask(cfg),
-            UpdateEmployeeInfoTask(cfg),
         ]
 
 

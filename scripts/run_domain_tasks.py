@@ -44,13 +44,14 @@ Examples:
 
 import argparse
 import asyncio
+from typing import Any
 
 import logfire
 from dotenv import load_dotenv
 from loguru import logger
 from pydantic_ai import Agent
 
-from mcp_evals import BenchmarkRunner
+from mcp_evals import BenchmarkRunner, Domain
 
 logfire.configure(send_to_logfire="if-token-present")
 logfire.instrument_pydantic_ai()
@@ -87,12 +88,16 @@ def main() -> None:
     )
 
     # Create domain and runner
+    domain: Domain[Any]
     if args.domain == "pg":
-        from mcp_evals.contrib.postgres import PostgresDomain as Domain  # noqa: PLC0415
-    elif args.domain == "fs":
-        from mcp_evals.contrib.filesystem import FilesystemDomain as Domain  # noqa: PLC0415
+        from mcp_evals.contrib.postgres import PostgresDomain  # noqa: PLC0415
 
-    domain = Domain()
+        domain = PostgresDomain()
+    elif args.domain == "fs":
+        from mcp_evals.contrib.filesystem import FilesystemDomain  # noqa: PLC0415
+
+        domain = FilesystemDomain()
+
     runner = BenchmarkRunner(agent=agent, domains=[domain])
 
     logger.info(f"Running {args.domain} tasks with model: {args.model}")

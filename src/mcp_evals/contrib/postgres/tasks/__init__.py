@@ -2,13 +2,11 @@
 
 from .baseball_player_analysis.task import BaseballPlayerAnalysisTask
 from .consistency_enforcement.task import ConsistencyEnforcementTask
-from .create_payment_index.task import CreatePaymentIndexTask
 from .customer_analysis_fix.task import CustomerAnalysisFixTask
 from .customer_analytics_optimization.task import CustomerAnalyticsOptimizationTask
 from .customer_data_migration.task import CustomerDataMigrationTask
 from .database_security_policies.task import DatabaseSecurityPoliciesTask
 from .dba_vector_analysis.task import DbaVectorAnalysisTask
-from .department_summary_view.task import DepartmentSummaryViewTask
 from .employee_demographics_report.task import EmployeeDemographicsReportTask
 from .employee_hierarchy_management.task import EmployeeHierarchyManagementTask
 from .employee_performance_analysis.task import EmployeePerformanceAnalysisTask
@@ -22,7 +20,6 @@ from .rls_business_access.task import RlsBusinessAccessTask
 from .sales_and_music_charts.task import SalesAndMusicChartsTask
 from .team_roster_management.task import TeamRosterManagementTask
 from .transactional_inventory_transfer.task import TransactionalInventoryTransferTask
-from .update_employee_info.task import UpdateEmployeeInfoTask
 
 __all__ = [
     "BaseballPlayerAnalysisTask",
