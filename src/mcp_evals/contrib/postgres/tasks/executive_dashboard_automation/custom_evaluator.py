@@ -129,9 +129,7 @@ class TriggerAndProcedureScenarioEvaluator(Evaluator["PostgresTask", AgentRunRes
             if fail is None:
                 fail = await _check_trigger(cur, self.trigger_schema, self.trigger_name)
             if fail is None:
-                fail = await _check_support_table(
-                    cur, self.support_table_schema, self.support_table_name
-                )
+                fail = await _check_support_table(cur, self.support_table_schema, self.support_table_name)
             if fail is None and self.state_checks:
                 fail = await _run_state_checks(cur, self.state_checks)
         return fail if fail is not None else 1.0

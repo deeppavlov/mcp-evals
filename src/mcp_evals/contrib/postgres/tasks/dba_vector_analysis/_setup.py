@@ -192,15 +192,13 @@ async def prepare_vector_environment(  # noqa: C901, PLR0912, PLR0915
             ),
             (
                 "API Documentation Standards",
-                "Standards and best practices for creating comprehensive and "
-                "user-friendly API documentation.",
+                "Standards and best practices for creating comprehensive and user-friendly API documentation.",
                 "https://example.com/api-docs",
                 "documentation",
             ),
             (
                 "Microservices Architecture",
-                "Design patterns and implementation strategies for microservices "
-                "architecture in modern applications.",
+                "Design patterns and implementation strategies for microservices architecture in modern applications.",
                 "https://example.com/microservices",
                 "architecture_guide",
             ),
@@ -213,8 +211,7 @@ async def prepare_vector_environment(  # noqa: C901, PLR0912, PLR0915
             ),
             (
                 "Cloud Database Migration",
-                "Step-by-step guide for migrating on-premises databases to cloud "
-                "infrastructure with minimal downtime.",
+                "Step-by-step guide for migrating on-premises databases to cloud infrastructure with minimal downtime.",
                 "https://example.com/cloud-migration",
                 "migration_guide",
             ),
@@ -360,6 +357,4 @@ async def prepare_vector_environment(  # noqa: C901, PLR0912, PLR0915
         ]
         for idx_name, table_name, column_name in regular_indexes:
             with contextlib.suppress(psycopg.Error):
-                await cur.execute(
-                    f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table_name} ({column_name});"
-                )
+                await cur.execute(f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table_name} ({column_name});")

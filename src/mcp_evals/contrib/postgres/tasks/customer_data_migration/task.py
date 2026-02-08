@@ -39,9 +39,7 @@ _COL_KEYS = (
 
 def _load_expected_migrated_rows() -> list[tuple[object, ...]]:
     """Load expected customer rows from customer_data.json (mcpmark canonical source)."""
-    ref = importlib.resources.files(
-        "mcp_evals.contrib.postgres.tasks.customer_data_migration"
-    )
+    ref = importlib.resources.files("mcp_evals.contrib.postgres.tasks.customer_data_migration")
     text = (ref / "customer_data.json").read_text(encoding="utf-8")
     customers = json.loads(text)
     result: list[tuple[object, ...]] = []

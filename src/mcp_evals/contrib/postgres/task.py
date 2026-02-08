@@ -59,9 +59,7 @@ class PostgresTask(GoalFromDescriptionMixin, Task[TaskSecrets, FinishTask]):
 
         if self._category_id is not None:
             dump_path = await download_backup(self._category_id)
-            await run_pg_restore(
-                dump_path, db_name, self._pg_config, container_name=self._pg_config.container
-            )
+            await run_pg_restore(dump_path, db_name, self._pg_config, container_name=self._pg_config.container)
         else:
             db_conninfo = f"{self._pg_config.connection_string}/{db_name}"
             async with await psycopg.AsyncConnection.connect(
