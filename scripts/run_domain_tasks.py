@@ -57,6 +57,18 @@ logfire.configure(send_to_logfire="if-token-present")
 logfire.instrument_pydantic_ai()
 
 
+def intermediate_speculations(thought: str) -> None:  # noqa: ARG001
+    """Record intermediate speculations.
+
+    This function is intended to use by AI agents to help them better understand current context.
+    It is not necessary to use it after each step.
+
+    Args:
+       thought: the thoughts to record.
+    """
+    return
+
+
 def main() -> None:
     """Run all filesystem tasks with OpenAI."""
     parser = argparse.ArgumentParser(
@@ -90,7 +102,12 @@ def main() -> None:
     load_dotenv()
     agent = Agent(
         f"openai:{args.model}",
-        system_prompt="You are a helpful assistant that can use tools to complete tasks.",
+        system_prompt=(
+            "You are a helpful assistant that can use tools to complete tasks. "
+            "You can provide text messages beside the final answer as a means of "
+            "intermediate speculations and reasoning."
+        ),
+        tools=[intermediate_speculations],
     )
 
     # Create domain and runner
