@@ -134,7 +134,9 @@ class LegoNumPartsConsistencyEvaluator(Evaluator["PostgresTask", AgentRunResult]
                             value=0.0,
                             reason="Inconsistent write was not blocked by the trigger",
                         )
-                    except psycopg.Error:
+                    except psycopg.Error as e:
+                        if isinstance(e, psycopg.OperationalError):
+                            raise
                         await conn.rollback()
 
         # Step 4: Deferred coordinated update must succeed, then revert
@@ -169,6 +171,8 @@ class LegoNumPartsConsistencyEvaluator(Evaluator["PostgresTask", AgentRunResult]
                 )
                 await conn.commit()
             except psycopg.Error as e:
+                if isinstance(e, psycopg.OperationalError):
+                    raise
                 await conn.rollback()
                 return EvaluationReason(
                     value=0.0,
@@ -193,6 +197,8 @@ class LegoNumPartsConsistencyEvaluator(Evaluator["PostgresTask", AgentRunResult]
                 )
                 await conn.commit()
             except psycopg.Error as e:
+                if isinstance(e, psycopg.OperationalError):
+                    raise
                 await conn.rollback()
                 return EvaluationReason(
                     value=0.0,

@@ -100,7 +100,8 @@ class AnalysisCoverageScenarioEvaluator(Evaluator["PostgresTask", AgentRunResult
                 analysis_tables = {r[0] for r in await cur.fetchall()}
                 allowed = set(self.allowed_analysis_tables)
                 allowed_set = allowed | {
-                    t for t in analysis_tables
+                    t
+                    for t in analysis_tables
                     if any(t.startswith(p) for p in (self.allowed_extra_analysis_prefixes or []))
                 }
                 extra_tables = analysis_tables - allowed_set

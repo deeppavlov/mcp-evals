@@ -9,6 +9,8 @@ import psycopg
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
 
+from mcp_evals.contrib.postgres.safe_execute import AgentSqlError, safe_execute
+
 if TYPE_CHECKING:
     from mcp_evals.contrib.postgres.task import PostgresTask
 
@@ -69,7 +71,13 @@ class TriggerAndProcedureScenarioEvaluator(Evaluator["PostgresTask", AgentRunRes
                 )
             if self.state_checks:
                 for query, expected in self.state_checks:
-                    await cur.execute(query)
+                    try:
+                        await safe_execute(cur, query)
+                    except AgentSqlError as e:
+                        return EvaluationReason(
+                            value=0.0,
+                            reason=f"State check failed: {e.cause}",
+                        )
                     row = await cur.fetchone()
                     if row is None:
                         return EvaluationReason(

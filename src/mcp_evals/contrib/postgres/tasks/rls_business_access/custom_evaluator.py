@@ -11,6 +11,8 @@ from psycopg.errors import InsufficientPrivilege
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
 
+from mcp_evals.contrib.postgres.safe_execute import AgentSqlError, safe_execute
+
 if TYPE_CHECKING:
     from mcp_evals.contrib.postgres.task import PostgresTask
 
@@ -119,25 +121,30 @@ class RlsScenarioEvaluator(Evaluator["PostgresTask", AgentRunResult]):
         for i, assertion in enumerate(self.assertions):
             await cur.execute(assertion.set_session)
             try:
-                await cur.execute(assertion.run_sql)
-                if assertion.should_affect_rows:
-                    if cur.rowcount == 0:
-                        return EvaluationReason(
-                            value=0.0,
-                            reason=f"Assertion {i}: expected rows affected but RLS blocked (0 rows)",
-                        )
-                elif cur.rowcount != 0:
-                    return EvaluationReason(
-                        value=0.0,
-                        reason=f"Assertion {i}: expected RLS to block but {cur.rowcount} row(s) affected",
-                    )
-            except InsufficientPrivilege as e:
+                await safe_execute(cur, assertion.run_sql)
+            except AgentSqlError as e:
+                if isinstance(e.cause, InsufficientPrivilege) and not assertion.should_affect_rows:
+                    continue  # RLS blocked via exception = pass
                 if assertion.should_affect_rows:
                     return EvaluationReason(
                         value=0.0,
-                        reason=f"Assertion {i}: expected rows affected but statement failed: {e}",
+                        reason=f"Assertion {i}: expected rows affected but statement failed: {e.cause}",
                     )
-                # should_affect_rows is False: RLS blocked via exception = pass, continue
+                return EvaluationReason(
+                    value=0.0,
+                    reason=f"Assertion {i}: statement failed: {e.cause}",
+                )
+            if assertion.should_affect_rows:
+                if cur.rowcount == 0:
+                    return EvaluationReason(
+                        value=0.0,
+                        reason=f"Assertion {i}: expected rows affected but RLS blocked (0 rows)",
+                    )
+            elif cur.rowcount != 0:
+                return EvaluationReason(
+                    value=0.0,
+                    reason=f"Assertion {i}: expected RLS to block but {cur.rowcount} row(s) affected",
+                )
         return None
 
     async def evaluate(self, ctx: EvaluatorContext[PostgresTask, AgentRunResult]) -> EvaluatorOutput:

@@ -10,6 +10,8 @@ from psycopg import sql
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator, EvaluatorContext, EvaluatorOutput
 
+from mcp_evals.contrib.postgres.safe_execute import AgentSqlError, safe_execute
+
 if TYPE_CHECKING:
     from mcp_evals.contrib.postgres.task import PostgresTask
 
@@ -25,8 +27,7 @@ class TransferSuccessCase:
     quantity: int
     reason: str
     get_quantity_sql: str = (
-        "SELECT quantity FROM public.lego_inventory_parts "
-        "WHERE inventory_id = %s AND part_num = %s AND color_id = %s"
+        "SELECT quantity FROM public.lego_inventory_parts WHERE inventory_id = %s AND part_num = %s AND color_id = %s"
     )
 
 
@@ -40,7 +41,7 @@ class TransactionalFunctionScenarioEvaluator(Evaluator["PostgresTask", AgentRunR
     call_sql: str = "SELECT transfer_parts(%s, %s, %s, %s, %s, %s)"
     schema: str = "public"
 
-    async def evaluate(self, ctx: EvaluatorContext[PostgresTask, AgentRunResult]) -> EvaluatorOutput:
+    async def evaluate(self, ctx: EvaluatorContext[PostgresTask, AgentRunResult]) -> EvaluatorOutput:  # noqa: PLR0911
         """Check function and audit table exist; run one success case and verify quantities + audit."""
         task = ctx.inputs
         params = task.pg_conn_params()
@@ -86,10 +87,14 @@ class TransactionalFunctionScenarioEvaluator(Evaluator["PostgresTask", AgentRunR
                     sql.SQL("SELECT COUNT(*) FROM {}").format(sql.Identifier(self.audit_table)),
                 )
                 log_count_before = (await cur.fetchone() or (0,))[0]
-                await cur.execute(
-                    self.call_sql,
-                    (case.source_id, case.target_id, case.part_num, case.color_id, case.quantity, case.reason),
-                )
+                try:
+                    await safe_execute(
+                        cur,
+                        self.call_sql,
+                        (case.source_id, case.target_id, case.part_num, case.color_id, case.quantity, case.reason),
+                    )
+                except AgentSqlError as e:
+                    return EvaluationReason(value=0.0, reason=f"Function raised: {e.cause}")
                 await cur.execute(
                     case.get_quantity_sql,
                     (case.source_id, case.part_num, case.color_id),

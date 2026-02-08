@@ -42,8 +42,7 @@ class ThemeAnalystAccessEvaluator(Evaluator["PostgresTask", AgentRunResult]):
                         got = row[0] if row is not None else None
                         return EvaluationReason(
                             value=0.0,
-                            reason=f"get_user_theme_id() as theme_analyst expected "
-                            f"{EXPECTED_THEME_ID}, got {got}",
+                            reason=f"get_user_theme_id() as theme_analyst expected {EXPECTED_THEME_ID}, got {got}",
                         )
 
                     # Star Wars sets: exactly 2 rows with set_num in {'65081-1', 'K8008-1'}
@@ -92,7 +91,9 @@ class ThemeAnalystAccessEvaluator(Evaluator["PostgresTask", AgentRunResult]):
                         )
                 finally:
                     await cur.execute("RESET ROLE")
-        except (psycopg.Error, OSError) as e:
+        except psycopg.Error as e:
+            if isinstance(e, psycopg.OperationalError):
+                raise
             await conn.rollback()
             return EvaluationReason(
                 value=0.0,
