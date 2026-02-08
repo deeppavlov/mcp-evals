@@ -108,7 +108,4 @@ class GoalFromDescriptionMixin:
     @property
     def goal(self) -> str:
         """Load goal from description.md."""
-        try:
-            return files(self.__class__.__module__).joinpath("description.md").read_text(encoding="utf-8")
-        except FileNotFoundError:
-            return getattr(self.__class__, "_goal", "") or ""
+        return files(self.__class__.__module__).joinpath("description.md").read_text(encoding="utf-8")
