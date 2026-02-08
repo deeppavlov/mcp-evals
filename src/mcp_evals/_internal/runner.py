@@ -33,7 +33,7 @@ async def task_lifecycle(case: Case[Task[Any, Any], AgentRunResult, None]) -> As
         yield
 
 
-async def run_domain(domain: Domain[Any], agent: Agent[Any, Any]) -> EvaluationReport:
+async def run_domain(domain: Domain[Any], agent: Agent[Any, Any], experiment_name: str | None) -> EvaluationReport:
     """Run all tasks in a domain.
 
     Domain is an async context manager that manages CombinedToolset lifecycle
@@ -53,4 +53,5 @@ async def run_domain(domain: Domain[Any], agent: Agent[Any, Any]) -> EvaluationR
             max_concurrency=1,  # Sequential by default for stateful tasks
             case_context_manager=task_lifecycle,  # Task context wraps task + evaluators
             progress=False,
+            name=experiment_name,
         )

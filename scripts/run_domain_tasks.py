@@ -77,6 +77,12 @@ def main() -> None:
         required=True,
         help="Domain to run tasks from. Available: 'pg' (postgres), 'fs' (file system).",
     )
+    parser.add_argument(
+        "--experiment-name",
+        type=str,
+        default=None,
+        help="Experiment name. Use it to differentiate runs.",
+    )
 
     args = parser.parse_args()
 
@@ -104,7 +110,7 @@ def main() -> None:
 
     # Run benchmark
     async def run() -> None:
-        reports = await runner.run()
+        reports = await runner.run(experiment_name=args.experiment_name)
         report = reports[0]
         logger.info(f"\nDomain: {args.domain}")
         logger.info(f"Total tasks: {len(report.cases)}")
