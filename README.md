@@ -502,6 +502,7 @@ Users don't need to manage these contexts directly—`BenchmarkRunner` handles e
 - [x] `Domain` re-entry protection
 - [ ] check tasks names uniqueness within a single domain
 - [ ] check domains names uniqueness within a single benchmark run
+- [ ] untie `contrib` and core mcp_evals; make them optional packages (e.g. `mcp-evals-filesystem`)
 
 ## Project Structure
 
