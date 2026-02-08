@@ -5,7 +5,7 @@ triggers, violation blocked, deferred update allowed.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import psycopg
 from pydantic_ai.run import AgentRunResult
@@ -62,7 +62,7 @@ LIMIT 1;
 """
 
 
-async def _check_mismatch_count(params: dict[str, object]) -> EvaluationReason | None:
+async def _check_mismatch_count(params: dict[str, Any]) -> EvaluationReason | None:
     """Step 1: Data consistency (mismatch count 0 or 1). Returns failure reason or None."""
     async with await psycopg.AsyncConnection.connect(**params) as conn, conn.cursor() as cur:
         await cur.execute(MISMATCH_COUNT_QUERY)
@@ -76,7 +76,7 @@ async def _check_mismatch_count(params: dict[str, object]) -> EvaluationReason |
     return None
 
 
-async def _check_triggers_exist(params: dict[str, object]) -> EvaluationReason | None:
+async def _check_triggers_exist(params: dict[str, Any]) -> EvaluationReason | None:
     """Step 2: Constraint triggers exist on all three tables. Returns failure reason or None."""
     async with await psycopg.AsyncConnection.connect(**params) as conn, conn.cursor() as cur:
         for table in TABLES_WITH_CONSTRAINT_TRIGGERS:
@@ -97,7 +97,7 @@ async def _check_triggers_exist(params: dict[str, object]) -> EvaluationReason |
     return None
 
 
-async def _check_violation_blocked(params: dict[str, object]) -> EvaluationReason | None:
+async def _check_violation_blocked(params: dict[str, Any]) -> EvaluationReason | None:
     """Step 3: Inconsistent write must be blocked. Returns failure reason or None."""
     async with await psycopg.AsyncConnection.connect(**params) as conn, conn.cursor() as cur:
         await cur.execute(CANDIDATE_PART_ROW_QUERY)
@@ -133,7 +133,7 @@ async def _check_violation_blocked(params: dict[str, object]) -> EvaluationReaso
 
 
 async def _run_deferred_then_revert(
-    params: dict[str, object],
+    params: dict[str, Any],
     inventory_id: object,
     set_num: object,
     part_num: object,

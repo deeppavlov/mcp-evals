@@ -16,19 +16,19 @@ if TYPE_CHECKING:
 
 
 async def _check_procedure(
-    cur: object,
+    cur: psycopg.AsyncCursor[tuple[Any, ...]],
     procedure_schema: str,
     procedure_name: str,
 ) -> EvaluationReason | None:
     """Return failure reason if procedure is missing."""
-    await cur.execute(  # type: ignore[union-attr]
+    await cur.execute(
         """
         SELECT 1 FROM information_schema.routines
         WHERE routine_schema = %s AND routine_name = %s AND routine_type = 'FUNCTION'
         """,
         (procedure_schema, procedure_name),
     )
-    if await cur.fetchone() is None:  # type: ignore[union-attr]
+    if await cur.fetchone() is None:
         return EvaluationReason(
             value=0.0,
             reason=f"Procedure {procedure_schema}.{procedure_name} not found",
@@ -37,19 +37,19 @@ async def _check_procedure(
 
 
 async def _check_trigger(
-    cur: object,
+    cur: psycopg.AsyncCursor[tuple[Any, ...]],
     trigger_schema: str,
     trigger_name: str,
 ) -> EvaluationReason | None:
     """Return failure reason if trigger is missing."""
-    await cur.execute(  # type: ignore[union-attr]
+    await cur.execute(
         """
         SELECT 1 FROM information_schema.triggers
         WHERE trigger_schema = %s AND trigger_name = %s
         """,
         (trigger_schema, trigger_name),
     )
-    if await cur.fetchone() is None:  # type: ignore[union-attr]
+    if await cur.fetchone() is None:
         return EvaluationReason(
             value=0.0,
             reason=f"Trigger {trigger_schema}.{trigger_name} not found",
@@ -58,19 +58,19 @@ async def _check_trigger(
 
 
 async def _check_support_table(
-    cur: object,
+    cur: psycopg.AsyncCursor[tuple[Any, ...]],
     support_table_schema: str,
     support_table_name: str,
 ) -> EvaluationReason | None:
     """Return failure reason if support table is missing."""
-    await cur.execute(  # type: ignore[union-attr]
+    await cur.execute(
         """
         SELECT 1 FROM information_schema.tables
         WHERE table_schema = %s AND table_name = %s
         """,
         (support_table_schema, support_table_name),
     )
-    if await cur.fetchone() is None:  # type: ignore[union-attr]
+    if await cur.fetchone() is None:
         return EvaluationReason(
             value=0.0,
             reason=f"Support table {support_table_schema}.{support_table_name} not found",
@@ -79,19 +79,19 @@ async def _check_support_table(
 
 
 async def _run_state_checks(
-    cur: object,
+    cur: psycopg.AsyncCursor[tuple[Any, ...]],
     state_checks: list[tuple[str, Any]],
 ) -> EvaluationReason | None:
     """Run state_checks; return first failure reason or None."""
     for query, expected in state_checks:
         try:
-            await safe_execute(cur, query)  # type: ignore[arg-type]
+            await safe_execute(cur, query)
         except AgentSqlError as e:
             return EvaluationReason(
                 value=0.0,
                 reason=f"State check failed: {e.cause}",
             )
-        row = await cur.fetchone()  # type: ignore[union-attr]
+        row = await cur.fetchone()
         if row is None:
             return EvaluationReason(
                 value=0.0,
