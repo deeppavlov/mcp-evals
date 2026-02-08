@@ -20,6 +20,13 @@ domain-filesystem = [
     "httpx>=0.28.1,<0.28.2",
     "tqdm>=4.0,<5.0"
 ]
+domain-postgres = [
+    "aiodocker~=0.25.0",
+    "anyio>=4.0,<5.0",
+    "psycopg[binary]>=3.2,<4.0",
+    "httpx~=0.28",
+    "appdirs>=1.4,<2.0",
+]
 
 [dependency-groups]
 dev = [

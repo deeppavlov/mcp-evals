@@ -26,7 +26,7 @@ class BenchmarkRunner:
         self.agent = agent
         self.domains = domains
 
-    async def run(self) -> list[EvaluationReport]:
+    async def run(self, experiment_name: str | None) -> list[EvaluationReport]:
         """Run all tasks from all domains.
 
         Returns:
@@ -35,7 +35,7 @@ class BenchmarkRunner:
         eval_reports: list[EvaluationReport] = []
 
         for domain in self.domains:
-            eval_report = await run_domain(domain, self.agent)
+            eval_report = await run_domain(domain, self.agent, experiment_name=experiment_name)
             eval_reports.append(eval_report)
 
         return eval_reports

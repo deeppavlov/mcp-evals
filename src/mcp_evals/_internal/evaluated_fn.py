@@ -32,5 +32,5 @@ async def run_agent_on_task(
     return await agent.run(
         task.goal,
         output_type=task.output_type,
-        toolsets=[toolset],
+        toolsets=[toolset, *task.mcp_servers()],
     )

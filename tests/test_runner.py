@@ -64,14 +64,19 @@ class TestBenchmarkRunnerRun:
 
         call_order = []
 
-        async def mock_run_domain(domain: Domain[DomainSecrets], agent: Agent) -> EvaluationReport:  # noqa: ARG001
+        async def mock_run_domain(
+            domain: Domain[DomainSecrets],
+            agent: Agent,  # noqa: ARG001
+            *,
+            experiment_name: str | None = None,  # noqa: ARG001
+        ) -> EvaluationReport:
             call_order.append(domain.name)
             if domain.name == "domain1":
                 return mock_report1
             return mock_report2
 
         with patch("mcp_evals.runner.run_domain", side_effect=mock_run_domain):
-            reports = await runner.run()
+            reports = await runner.run(experiment_name=None)
 
             assert len(reports) == 2
             assert reports[0] is mock_report1
@@ -87,7 +92,7 @@ class TestBenchmarkRunnerRun:
         mock_report = MagicMock(spec=EvaluationReport)
 
         with patch("mcp_evals.runner.run_domain", return_value=mock_report):
-            reports = await runner.run()
+            reports = await runner.run(experiment_name=None)
 
             assert isinstance(reports, list)
             assert len(reports) == 1
@@ -108,7 +113,7 @@ class TestBenchmarkRunnerRun:
         ]
 
         with patch("mcp_evals.runner.run_domain", side_effect=mock_reports):
-            reports = await runner.run()
+            reports = await runner.run(experiment_name=None)
 
             assert len(reports) == 3
             assert all(isinstance(r, EvaluationReport) for r in reports)
@@ -121,7 +126,7 @@ class TestBenchmarkRunnerRun:
         mock_agent = MagicMock(spec=Agent)
         runner = BenchmarkRunner(agent=mock_agent, domains=[])
 
-        reports = await runner.run()
+        reports = await runner.run(experiment_name=None)
 
         assert isinstance(reports, list)
         assert len(reports) == 0
@@ -135,7 +140,12 @@ class TestBenchmarkRunnerRun:
 
         mock_report1 = MagicMock(spec=EvaluationReport)
 
-        async def mock_run_domain(domain: Domain[DomainSecrets], agent: Agent) -> EvaluationReport:  # noqa: ARG001
+        async def mock_run_domain(
+            domain: Domain[DomainSecrets],
+            agent: Agent,  # noqa: ARG001
+            *,
+            experiment_name: str | None = None,  # noqa: ARG001
+        ) -> EvaluationReport:
             if domain.name == "domain1":
                 return mock_report1
             raise ValueError("Domain execution failed")
@@ -144,7 +154,7 @@ class TestBenchmarkRunnerRun:
             patch("mcp_evals.runner.run_domain", side_effect=mock_run_domain),
             pytest.raises(ValueError, match="Domain execution failed"),
         ):
-            await runner.run()
+            await runner.run(experiment_name=None)
 
     async def test_passes_agent_to_each_domain(self) -> None:
         """Test that run() passes the same agent to each domain."""
@@ -155,12 +165,17 @@ class TestBenchmarkRunnerRun:
 
         received_agents = []
 
-        async def mock_run_domain(domain: Domain[DomainSecrets], agent: Agent) -> EvaluationReport:  # noqa: ARG001
+        async def mock_run_domain(
+            domain: Domain[DomainSecrets],  # noqa: ARG001
+            agent: Agent,
+            *,
+            experiment_name: str | None = None,  # noqa: ARG001
+        ) -> EvaluationReport:
             received_agents.append(agent)
             return MagicMock(spec=EvaluationReport)
 
         with patch("mcp_evals.runner.run_domain", side_effect=mock_run_domain):
-            await runner.run()
+            await runner.run(experiment_name=None)
 
             assert len(received_agents) == 2
             assert all(agent is mock_agent for agent in received_agents)
