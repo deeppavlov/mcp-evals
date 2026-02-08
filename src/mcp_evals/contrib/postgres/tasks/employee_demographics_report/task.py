@@ -135,7 +135,8 @@ class EmployeeDemographicsReportTask(PostgresTask):
 
 ## Your Task
 
-Create the following tables in the **employees** schema. Use **current** employees where relevant: those with a row in **employees.salary** where **to_date = DATE '9999-01-01'**.
+Create the following tables in the **employees** schema. Use **current** employees where relevant: those with a row in \
+**employees.salary** where **to_date = DATE '9999-01-01'**.
 
 1. **gender_statistics** — One row per gender with:
    - **gender** — M/F (or as in employees.employee)
@@ -149,7 +150,7 @@ Create the following tables in the **employees** schema. Use **current** employe
    - **avg_salary** — average current salary (from employees.salary to_date = '9999-01-01')
    - **avg_tenure_days** — average tenure in days (CURRENT_DATE - hire_date)
 
-3. **birth_month_distribution** — One row per month (1–12):
+3. **birth_month_distribution** — One row per month (1-12):
    - **month_num** (or equivalent) and **month_name** (e.g. 'January', 'February')
    - **employee_count** — total employees born in that month
    - **current_employee_count** — current employees born in that month
@@ -160,7 +161,8 @@ Create the following tables in the **employees** schema. Use **current** employe
    - **still_employed** — count of those still current (in salary to_date = '9999-01-01')
    - **retention_rate** — 100 * still_employed / employees_hired (decimal)
 
-Use employees.employee, employees.salary. Order by the key column (gender, age_group, month_num, hire_year) for verification. The evaluator uses decimal tolerance for numeric columns.
+Use employees.employee, employees.salary. Order by the key column (gender, age_group, month_num, hire_year) for \
+verification. The evaluator uses decimal tolerance for numeric columns.
 """
 
     def __init__(self, pg_config: PgConfig) -> None:

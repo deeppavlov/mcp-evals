@@ -35,7 +35,8 @@ Create a table or view (e.g. **participant_report**) that summarizes participant
 - **name** — participant name
 - **event_count** — number of events (or equivalent) for that participant
 
-Use the existing **participants** and **events** (or similarly named) tables. Adapt table/column names to match the backup schema. Order by participant_id for verification.
+Use the existing **participants** and **events** (or similarly named) tables. Adapt table/column names to match the \
+backup schema. Order by participant_id for verification.
 """
 
     def __init__(self, pg_config: PgConfig) -> None:

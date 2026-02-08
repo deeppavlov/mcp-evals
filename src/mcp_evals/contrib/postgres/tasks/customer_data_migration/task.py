@@ -39,12 +39,18 @@ _COL_KEYS = (
 
 def _load_expected_migrated_rows() -> list[tuple[object, ...]]:
     """Load expected customer rows from customer_data.json (mcpmark canonical source)."""
-    ref = importlib.resources.files("mcp_evals.contrib.postgres.tasks.customer_data_migration")
+    ref = importlib.resources.files(
+        "mcp_evals.contrib.postgres.tasks.customer_data_migration"
+    )
     text = (ref / "customer_data.json").read_text(encoding="utf-8")
     customers = json.load(text)
     result: list[tuple[object, ...]] = []
     for d in customers:
-        row = tuple(str(d[k]) if d.get(k) is not None else "" for k in _COL_KEYS) + (3, None)
+        row = (
+            *tuple(str(d[k]) if d.get(k) is not None else "" for k in _COL_KEYS),
+            3,
+            None,
+        )
         result.append(row)
     return result
 
@@ -63,10 +69,12 @@ class CustomerDataMigrationTask(PostgresTask):
 1. Insert (or upsert) all MelodyMart source customers into the **Customer** table with:
    - **SupportRepId** = 3 for every migrated row
    - **Fax** = NULL for every migrated row
-   - Migrated rows should have **CustomerId** > 59 (existing customers are 1–59)
+   - Migrated rows should have **CustomerId** > 59 (existing customers are 1-59)
 
 2. Ensure every row with CustomerId > 59 has exactly SupportRepId = 3 and Fax IS NULL.
-   The evaluator checks that no migrated row violates these two conditions and that the set of (CustomerId, SupportRepId, Fax) for CustomerId > 59 matches the expected (id, 3, NULL).
+   The evaluator checks that no migrated row violates these two conditions and that
+   the set of (CustomerId, SupportRepId, Fax) for CustomerId > 59 matches the
+   expected (id, 3, NULL).
 """
 
     def __init__(self, pg_config: PgConfig) -> None:

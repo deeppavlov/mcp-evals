@@ -22,7 +22,8 @@ class ExecutiveDashboardAutomationTask(PostgresTask):
 3. Create a **support table** **employees.salary_alerts** (or similar name) that the procedure writes to,
    with columns such as employee_id, amount, alert_type, created_at, etc.
 
-The evaluator checks that the procedure exists, the trigger exists, and the support table exists. Optionally it may run state checks (e.g. row count) after triggering an update.
+The evaluator checks that the procedure exists, the trigger exists, and the support table exists. Optionally it may \
+run state checks (e.g. row count) after triggering an update.
 """
 
     def __init__(self, pg_config: PgConfig) -> None:

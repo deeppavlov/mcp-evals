@@ -32,7 +32,8 @@ Create a table or view **employees.retention_analysis** with retention-related m
 - **hire_year** — year of hire (from employees.employee.hire_date)
 - **employees_hired** — count of employees hired in that year
 
-Use employees.employee. Populate or define the object so it matches the ground truth (group by hire year). Order by hire_year for verification.
+Use employees.employee. Populate or define the object so it matches the ground truth (group by hire year). Order by \
+hire_year for verification.
 """
 
     def __init__(self, pg_config: PgConfig) -> None:

@@ -50,7 +50,8 @@ Create a table or view **employees.employee_performance** with metrics such as:
 - **current_salary** — latest salary amount (from employees.salary, to_date = '9999-01-01')
 - **department_id** — current department (from employees.department_employee, to_date = '9999-01-01')
 
-Use employees.employee, employees.salary, and employees.department_employee. Column names may vary; order by employee_id for verification.
+Use employees.employee, employees.salary, and employees.department_employee. Column names may vary; order by \
+employee_id for verification.
 """
 
     def __init__(self, pg_config: PgConfig) -> None:

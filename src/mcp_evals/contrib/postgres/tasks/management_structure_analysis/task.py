@@ -37,7 +37,8 @@ Create a table **employees.manager_profile** that describes management structure
 - **from_date**, **to_date** — period they were/are manager
 - **manager_name** — full name (first_name and last_name from employees.employee)
 
-Populate it from employees.department_manager and employees.employee (join on employee id). One row per manager-period. Order by employee_id, from_date for verification.
+Populate it from employees.department_manager and employees.employee (join on employee id). One row per \
+manager-period. Order by employee_id, from_date for verification.
 """
 
     def __init__(self, pg_config: PgConfig) -> None:

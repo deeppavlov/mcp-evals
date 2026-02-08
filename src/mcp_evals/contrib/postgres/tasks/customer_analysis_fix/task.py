@@ -5,9 +5,10 @@ from mcp_evals.contrib.postgres.common_evaluators.sql_result_matches import defa
 from mcp_evals.contrib.postgres.task import PostgresTask
 from mcp_evals.contrib.postgres.utils import Backup, PgConfig
 
-# Full 13-column output (mcpmark parity): customer_id, customer_name, customer_city, customer_country,
-# total_rentals, unique_films, total_spent, favorite_category, favorite_actor,
-# avg_rental_duration, customer_tier, most_popular_film_in_region, regional_film_rental_count
+# Full 13-column output (mcpmark parity): customer_id, customer_name, customer_city,
+# customer_country, total_rentals, unique_films, total_spent, favorite_category,
+# favorite_actor, avg_rental_duration, customer_tier, most_popular_film_in_region,
+# regional_film_rental_count
 CUSTOMER_ANALYSIS_QUERY = """
 SELECT customer_id, customer_name, customer_city, customer_country, total_rentals, unique_films,
        total_spent, favorite_category, favorite_actor, avg_rental_duration,
@@ -16,7 +17,8 @@ FROM customer_analysis_fixed
 ORDER BY total_spent DESC, total_rentals DESC, customer_name ASC
 """
 
-# Ground truth: exact mcpmark verify.py logic (paid_rentals row-based, HAVING >= 15, Premium/Standard/Basic, actual avg duration)
+# Ground truth: exact mcpmark verify.py logic (paid_rentals row-based, HAVING >= 15,
+# Premium/Standard/Basic, actual avg duration)
 CUSTOMER_ANALYSIS_EXPECTED = """
 WITH paid_rentals AS (
     SELECT DISTINCT
@@ -144,7 +146,9 @@ class CustomerAnalysisFixTask(PostgresTask):
 
 ## Background
 
-The data analytics team attempted to create a customer behavior analysis query to identify active customers and analyze their spending patterns and preferences. The requirements are:
+The data analytics team attempted to create a customer behavior analysis query to
+identify active customers and analyze their spending patterns and preferences.
+The requirements are:
 - Only count rentals that have associated payment records (paid rentals)
 - Only include customers with at least 15 paid rentals
 - Only include customers with valid email addresses
@@ -159,7 +163,7 @@ Here's the buggy query that needs to be fixed:
 
 ```sql
 WITH customer_basic_stats AS (
-    SELECT 
+    SELECT
         c.customer_id,
         c.first_name || ' ' || c.last_name as customer_name,
         ci.city as customer_city,
@@ -180,11 +184,13 @@ WITH customer_basic_stats AS (
     HAVING COUNT(r.rental_id) >= 15
 ),
 customer_categories AS (
-    SELECT 
+    SELECT
         c.customer_id,
         cat.name as category_name,
         COUNT(*) as category_count,
-        ROW_NUMBER() OVER (PARTITION BY c.customer_id ORDER BY COUNT(*) DESC, cat.name ASC) as rn
+        ROW_NUMBER() OVER (
+            PARTITION BY c.customer_id ORDER BY COUNT(*) DESC, cat.name ASC
+        ) as rn
     FROM customer c
     JOIN rental r ON c.customer_id = r.customer_id
     JOIN inventory i ON r.inventory_id = i.inventory_id
@@ -196,11 +202,14 @@ customer_categories AS (
     GROUP BY c.customer_id, cat.name
 ),
 customer_actors AS (
-    SELECT 
+    SELECT
         c.customer_id,
         a.first_name || ' ' || a.last_name as actor_name,
         COUNT(*) as actor_count,
-        ROW_NUMBER() OVER (PARTITION BY c.customer_id ORDER BY COUNT(*) DESC, (a.first_name || ' ' || a.last_name) ASC) as rn
+        ROW_NUMBER() OVER (
+            PARTITION BY c.customer_id
+            ORDER BY COUNT(*) DESC, (a.first_name || ' ' || a.last_name) ASC
+        ) as rn
     FROM customer c
     JOIN rental r ON c.customer_id = r.customer_id
     JOIN inventory i ON r.inventory_id = i.inventory_id
@@ -212,11 +221,13 @@ customer_actors AS (
     GROUP BY c.customer_id, a.first_name, a.last_name
 ),
 regional_popular_films AS (
-    SELECT 
+    SELECT
         co.country,
         f.title,
         COUNT(*) as rental_count,
-        ROW_NUMBER() OVER (PARTITION BY co.country ORDER BY COUNT(*) DESC, f.title ASC) as rn
+        ROW_NUMBER() OVER (
+            PARTITION BY co.country ORDER BY COUNT(*) DESC, f.title ASC
+        ) as rn
     FROM rental r
     JOIN inventory i ON r.inventory_id = i.inventory_id
     JOIN film f ON i.film_id = f.film_id
@@ -228,7 +239,7 @@ regional_popular_films AS (
     WHERE c.email IS NOT NULL
     GROUP BY co.country, f.title
 )
-SELECT 
+SELECT
     cbs.customer_id,
     cbs.customer_name,
     cbs.customer_city,
@@ -253,6 +264,7 @@ LEFT JOIN regional_popular_films rpf ON cbs.customer_country = rpf.country AND r
 ORDER BY cbs.total_spent DESC, cbs.total_rentals DESC, cbs.customer_name ASC;
 ```
 
+
 ## Known Issues
 
 When comparing the problematic query results with the expected correct values, the following discrepancies are observed:
@@ -261,9 +273,11 @@ When comparing the problematic query results with the expected correct values, t
 
 2. **Spending amount errors**: The `total_spent` values don't match the correct calculations
 
-3. **Incorrect favorite categories and actors**: Many customers show wrong favorite categories and actors compared to the expected results
+3. **Incorrect favorite categories and actors**: Many customers show wrong favorite \
+categories and actors compared to the expected results
 
-4. **Time calculation inconsistencies**: The `avg_rental_duration` values differ significantly from the correct calculations
+4. **Time calculation inconsistencies**: The `avg_rental_duration` values differ \
+significantly from the correct calculations
     - Example: Customer ID 1 shows 3.90 days instead of the expected 4.27 days
     - Example: Customer ID 2 shows 5.23 days instead of the expected 5.69 days
 
@@ -276,9 +290,12 @@ Debug and fix the query to produce accurate results. Then create a table with yo
    - Correct favorite categories and actors
    - Proper regional popular films
 
-2. **Create a table** called `customer_analysis_fixed` in the `public` schema with your corrected query results. The table should have the same columns as the original query output.
+2. **Create a table** called `customer_analysis_fixed` in the `public` schema with
+   your corrected query results. The table should have the same columns as the
+   original query output.
 
-**Important**: The business logic and output columns should remain the same - only fix the data accuracy issues.
+**Important**: The business logic and output columns should remain the same - only
+fix the data accuracy issues.
 """
 
     def __init__(self, pg_config: PgConfig) -> None:

@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import random
 from typing import Any
@@ -25,8 +26,13 @@ def _vector_to_literal(vec: list[float]) -> str:
     return "[" + ",".join(str(x) for x in vec) + "]"
 
 
-async def prepare_vector_environment(conn: psycopg.AsyncConnection[Any]) -> None:
-    """Create pgvector extension, tables, sample data, and indexes (parity with mcpmark vectors_setup)."""
+async def prepare_vector_environment(  # noqa: C901, PLR0912, PLR0915
+    conn: psycopg.AsyncConnection[Any],
+) -> None:
+    """Create pgvector extension, tables, sample data, and indexes.
+
+    Parity with mcpmark vectors_setup.
+    """
     async with conn.cursor() as cur:
         await cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
 
@@ -137,7 +143,10 @@ async def prepare_vector_environment(conn: psycopg.AsyncConnection[Any]) -> None
             total_storage = round(random.uniform(10.5, 250.8), 2)
             await cur.execute(
                 """
-                INSERT INTO knowledge_base (kb_name, description, domain, total_documents, total_chunks, total_storage_mb)
+                INSERT INTO knowledge_base (
+                    kb_name, description, domain, total_documents, total_chunks,
+                    total_storage_mb
+                )
                 VALUES (%s, %s, %s, %s, %s, %s)
                 RETURNING id;
                 """,
@@ -148,61 +157,71 @@ async def prepare_vector_environment(conn: psycopg.AsyncConnection[Any]) -> None
         sample_documents = [
             (
                 "PostgreSQL Performance Tuning",
-                "Comprehensive guide to optimizing PostgreSQL database performance including indexing strategies, query optimization, and configuration tuning.",
+                "Comprehensive guide to optimizing PostgreSQL database performance "
+                "including indexing strategies, query optimization, and configuration tuning.",
                 "https://example.com/pg-performance",
                 "technical_guide",
             ),
             (
                 "Vector Similarity Search",
-                "Understanding vector embeddings and similarity search algorithms for AI applications and recommendation systems.",
+                "Understanding vector embeddings and similarity search algorithms "
+                "for AI applications and recommendation systems.",
                 "https://example.com/vector-search",
                 "technical_guide",
             ),
             (
                 "RAG Implementation Best Practices",
-                "Best practices for implementing Retrieval-Augmented Generation systems using vector databases and large language models.",
+                "Best practices for implementing Retrieval-Augmented Generation "
+                "systems using vector databases and large language models.",
                 "https://example.com/rag-practices",
                 "best_practices",
             ),
             (
                 "Database Security Guidelines",
-                "Security considerations and implementation guidelines for PostgreSQL databases in production environments.",
+                "Security considerations and implementation guidelines for "
+                "PostgreSQL databases in production environments.",
                 "https://example.com/db-security",
                 "security_guide",
             ),
             (
                 "Machine Learning with SQL",
-                "Integrating machine learning workflows with SQL databases and leveraging database extensions for AI applications.",
+                "Integrating machine learning workflows with SQL databases and "
+                "leveraging database extensions for AI applications.",
                 "https://example.com/ml-sql",
                 "tutorial",
             ),
             (
                 "API Documentation Standards",
-                "Standards and best practices for creating comprehensive and user-friendly API documentation.",
+                "Standards and best practices for creating comprehensive and "
+                "user-friendly API documentation.",
                 "https://example.com/api-docs",
                 "documentation",
             ),
             (
                 "Microservices Architecture",
-                "Design patterns and implementation strategies for microservices architecture in modern applications.",
+                "Design patterns and implementation strategies for microservices "
+                "architecture in modern applications.",
                 "https://example.com/microservices",
                 "architecture_guide",
             ),
             (
                 "Data Pipeline Optimization",
-                "Optimizing data processing pipelines for scalability, reliability, and performance in enterprise environments.",
+                "Optimizing data processing pipelines for scalability, reliability, "
+                "and performance in enterprise environments.",
                 "https://example.com/data-pipelines",
                 "optimization_guide",
             ),
             (
                 "Cloud Database Migration",
-                "Step-by-step guide for migrating on-premises databases to cloud infrastructure with minimal downtime.",
+                "Step-by-step guide for migrating on-premises databases to cloud "
+                "infrastructure with minimal downtime.",
                 "https://example.com/cloud-migration",
                 "migration_guide",
             ),
             (
                 "NoSQL vs SQL Comparison",
-                "Detailed comparison of NoSQL and SQL databases, including use cases, performance characteristics, and selection criteria.",
+                "Detailed comparison of NoSQL and SQL databases, including use "
+                "cases, performance characteristics, and selection criteria.",
                 "https://example.com/nosql-sql",
                 "comparison_guide",
             ),
@@ -234,7 +253,10 @@ async def prepare_vector_environment(conn: psycopg.AsyncConnection[Any]) -> None
                 embedding_str = _vector_to_literal(_generate_mock_embedding(1536))
                 await cur.execute(
                     """
-                    INSERT INTO document_chunks (document_id, chunk_index, chunk_text, chunk_size, overlap_size, embedding)
+                    INSERT INTO document_chunks (
+                        document_id, chunk_index, chunk_text, chunk_size,
+                        overlap_size, embedding
+                    )
                     VALUES (%s, %s, %s, %s, %s, %s::vector);
                     """,
                     (doc_id, chunk_idx, chunk_text, chunk_size, overlap_size, embedding_str),
@@ -268,7 +290,10 @@ async def prepare_vector_environment(conn: psycopg.AsyncConnection[Any]) -> None
             query_hash = f"hash_{random.randint(100000, 999999)}"
             query_text = f"Sample cached query {i + 1}"
             results = [
-                {"doc_id": random.randint(1, num_docs), "similarity": round(random.uniform(0.7, 0.95), 3)}
+                {
+                    "doc_id": random.randint(1, num_docs),
+                    "similarity": round(random.uniform(0.7, 0.95), 3),
+                }
                 for _ in range(3)
             ]
             result_count = len(results)
@@ -276,7 +301,10 @@ async def prepare_vector_environment(conn: psycopg.AsyncConnection[Any]) -> None
             threshold = round(random.uniform(0.6, 0.8), 3)
             await cur.execute(
                 """
-                INSERT INTO search_cache (query_hash, query_text, results_json, result_count, search_time_ms, similarity_threshold)
+                INSERT INTO search_cache (
+                    query_hash, query_text, results_json, result_count,
+                    search_time_ms, similarity_threshold
+                )
                 VALUES (%s, %s, %s, %s, %s, %s);
                 """,
                 (query_hash, query_text, json.dumps(results), result_count, search_time, threshold),
@@ -301,20 +329,20 @@ async def prepare_vector_environment(conn: psycopg.AsyncConnection[Any]) -> None
                     await cur.execute(
                         f"""
                         CREATE INDEX IF NOT EXISTS {idx_name}
-                        ON {table_name} USING ivfflat ({column_name} vector_cosine_ops) WITH (lists = 100);
+                        ON {table_name} USING ivfflat ({column_name} vector_cosine_ops)
+                        WITH (lists = 100);
                         """
                     )
             except psycopg.Error:
                 if method == "hnsw":
-                    try:
+                    with contextlib.suppress(psycopg.Error):
                         await cur.execute(
                             f"""
                             CREATE INDEX IF NOT EXISTS {idx_name}_ivf
-                            ON {table_name} USING ivfflat ({column_name} vector_cosine_ops) WITH (lists = 100);
+                            ON {table_name} USING ivfflat ({column_name} vector_cosine_ops)
+                            WITH (lists = 100);
                             """
                         )
-                    except psycopg.Error:
-                        pass
 
         regular_indexes = [
             ("documents_title_idx", "documents", "title"),
@@ -328,7 +356,7 @@ async def prepare_vector_environment(conn: psycopg.AsyncConnection[Any]) -> None
             ("cache_expires_idx", "search_cache", "expires_at"),
         ]
         for idx_name, table_name, column_name in regular_indexes:
-            try:
-                await cur.execute(f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table_name} ({column_name});")
-            except psycopg.Error:
-                pass
+            with contextlib.suppress(psycopg.Error):
+                await cur.execute(
+                    f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table_name} ({column_name});"
+                )

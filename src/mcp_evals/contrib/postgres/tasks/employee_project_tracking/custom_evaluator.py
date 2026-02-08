@@ -15,6 +15,12 @@ if TYPE_CHECKING:
     from mcp_evals.contrib.postgres.task import PostgresTask
 
 SCHEMA = "employees"
+NUMERIC_TOLERANCE = 0.1
+EXPECTED_TABLE_COUNT = 3
+EXPECTED_FK_COUNT = 3
+EXPECTED_PROJECT_COUNT = 3
+EXPECTED_MILESTONE_ENTRIES = 6
+EXPECTED_INDEX_COUNT = 3
 
 # Expected final state after all updates (mcpmark verify.py)
 EXPECTED_PROJECTS = [
@@ -50,9 +56,9 @@ def _cell_match(actual: object, expected: object) -> bool:
     if actual == expected:
         return True
     if isinstance(actual, Decimal) and isinstance(expected, (Decimal, float, int)):
-        return abs(float(actual) - float(expected)) <= 0.1
+        return abs(float(actual) - float(expected)) <= NUMERIC_TOLERANCE
     if isinstance(actual, (int, float)) and isinstance(expected, (Decimal, int, float)):
-        return abs(float(actual) - float(expected)) <= 0.1
+        return abs(float(actual) - float(expected)) <= NUMERIC_TOLERANCE
     if hasattr(actual, "strftime"):
         return str(actual) == str(expected)
     return False
@@ -106,10 +112,12 @@ async def _verify_table_structures(cur: AsyncCursor) -> EvaluatorOutput | None:
         (SCHEMA,),
     )
     tables = [r[0] for r in await cur.fetchall()]
-    if len(tables) != 3:
+    if len(tables) != EXPECTED_TABLE_COUNT:
         return EvaluationReason(
             value=0.0,
-            reason=f"Expected 3 tables (employee_projects, project_assignments, project_milestones), found {len(tables)}: {tables}",
+            reason=f"Expected {EXPECTED_TABLE_COUNT} tables "
+            f"(employee_projects, project_assignments, project_milestones), "
+            f"found {len(tables)}: {tables}",
         )
 
     await cur.execute(
@@ -122,10 +130,10 @@ async def _verify_table_structures(cur: AsyncCursor) -> EvaluatorOutput | None:
         (SCHEMA,),
     )
     fkey_count = (await cur.fetchone())[0]
-    if fkey_count != 3:
+    if fkey_count != EXPECTED_FK_COUNT:
         return EvaluationReason(
             value=0.0,
-            reason=f"Expected 3 foreign key constraints, found {fkey_count}",
+            reason=f"Expected {EXPECTED_FK_COUNT} foreign key constraints, found {fkey_count}",
         )
 
     await cur.execute(
@@ -154,10 +162,12 @@ async def _verify_indexes(cur: AsyncCursor) -> EvaluatorOutput | None:
         (SCHEMA,),
     )
     index_count = (await cur.fetchone())[0]
-    if index_count != 3:
+    if index_count != EXPECTED_INDEX_COUNT:
         return EvaluationReason(
             value=0.0,
-            reason=f"Expected 3 required indexes (idx_projects_status, idx_assignments_emp_proj, idx_milestones_due_date), got {index_count}",
+            reason=f"Expected {EXPECTED_INDEX_COUNT} required indexes "
+            f"(idx_projects_status, idx_assignments_emp_proj, idx_milestones_due_date), "
+            f"got {index_count}",
         )
     return None
 
@@ -172,10 +182,10 @@ async def _verify_project_data(cur: AsyncCursor) -> EvaluatorOutput | None:
         """
     )
     projects = [tuple(r) for r in await cur.fetchall()]
-    if len(projects) != 3:
+    if len(projects) != EXPECTED_PROJECT_COUNT:
         return EvaluationReason(
             value=0.0,
-            reason=f"Expected 3 projects, found {len(projects)}",
+            reason=f"Expected {EXPECTED_PROJECT_COUNT} projects, found {len(projects)}",
         )
     for i, (project, expected) in enumerate(zip(projects, EXPECTED_PROJECTS, strict=True)):
         if not _rows_match(project, expected):
@@ -203,7 +213,8 @@ async def _verify_assignment_data(cur: AsyncCursor) -> EvaluatorOutput | None:
     if assignment_count != current_employee_count:
         return EvaluationReason(
             value=0.0,
-            reason=f"Expected {current_employee_count} assignments (one per current employee), found {assignment_count}",
+            reason=f"Expected {current_employee_count} assignments "
+            f"(one per current employee), found {assignment_count}",
         )
 
     await cur.execute(
@@ -262,10 +273,10 @@ async def _verify_milestone_data(cur: AsyncCursor) -> EvaluatorOutput | None:
         """
     )
     milestones = [tuple(r) for r in await cur.fetchall()]
-    if len(milestones) != 6:
+    if len(milestones) != EXPECTED_MILESTONE_ENTRIES:
         return EvaluationReason(
             value=0.0,
-            reason=f"Expected 6 milestones, found {len(milestones)}",
+            reason=f"Expected {EXPECTED_MILESTONE_ENTRIES} milestones, found {len(milestones)}",
         )
     for milestone in milestones:
         project_id, name, due_date, completed = milestone
@@ -279,6 +290,7 @@ async def _verify_milestone_data(cur: AsyncCursor) -> EvaluatorOutput | None:
         if str(due_date) != expected_due or completed != expected_completed:
             return EvaluationReason(
                 value=0.0,
-                reason=f"Milestone {name} mismatch: expected (due={expected_due}, completed={expected_completed}), got (due={due_date}, completed={completed})",
+                reason=f"Milestone {name} mismatch: expected (due={expected_due}, "
+                f"completed={expected_completed}), got (due={due_date}, completed={completed})",
             )
     return None

@@ -30,14 +30,15 @@ class TeamRosterManagementTask(PostgresTask):
 
 ## Your Task
 
-Create a table or view (e.g. **team_roster**) that lists team–player associations:
+Create a table or view (e.g. **team_roster**) that lists team-player associations:
 
 - **team_id** — team identifier
 - **team_name** — team name
 - **player_id** — player identifier
 - **player_name** — player name
 
-Use the existing **teams**, **roster** (or equivalent), and **players** tables. Adapt table/column names to match the backup schema. Order by team_id, player_id for verification.
+Use the existing **teams**, **roster** (or equivalent), and **players** tables. Adapt table/column names to match the \
+backup schema. Order by team_id, player_id for verification.
 """
 
     def __init__(self, pg_config: PgConfig) -> None:

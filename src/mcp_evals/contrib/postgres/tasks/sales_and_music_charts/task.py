@@ -84,13 +84,15 @@ class SalesAndMusicChartsTask(PostgresTask):
    - invoice_count
    - avg_invoice_total
 
-2. **top_music_charts** — Create a table or view that ranks tracks, albums, and artists by revenue (from InvoiceLine joined to Track/Album/Artist):
+2. **top_music_charts** — Create a table or view that ranks tracks, albums, and artists by revenue (from InvoiceLine \
+joined to Track/Album/Artist):
    - chart_type ('track', 'album', 'artist')
    - name (track name, album title, or artist name)
    - revenue (sum of UnitPrice * Quantity)
    - rank (row number by revenue descending)
 
-Use the existing tables: "Invoice", "InvoiceLine", "Track", "Album", "Artist". Populate or refresh the objects so they contain current data.
+Use the existing tables: "Invoice", "InvoiceLine", "Track", "Album", "Artist". Populate or refresh the objects so \
+they contain current data.
 """
 
     def __init__(self, pg_config: PgConfig) -> None:

@@ -1,6 +1,9 @@
-"""RLS business access: social platform with Users, Posts, Comments, Channels, channel moderators."""
+"""RLS business access: social platform with Users, Posts, Comments, Channels.
 
-from typing import Any
+channel moderators.
+"""
+
+from typing import Any, ClassVar
 
 import psycopg
 from psycopg import sql
@@ -15,11 +18,13 @@ class RlsBusinessAccessTask(PostgresTask):
     """Task: implement RLS for social platform with proper access control for posts, comments, channels."""
 
     name = "rls_business_access"
-    goal = """Implement Row Level Security (RLS) policies for a social media platform with Users, Posts, Comments, and Channels.
+    goal = """Implement Row Level Security (RLS) policies for a social media platform with Users, Posts, Comments, and \
+Channels.
 
 ## Your Mission
 
-Build RLS policies for a social platform where users create posts and comments in channels. Implement proper access control so users can manage their own content, while channel moderators can moderate content in their channels.
+Build RLS policies for a social platform where users create posts and comments in channels. Implement proper access \
+control so users can manage their own content, while channel moderators can moderate content in their channels.
 
 ## RLS Requirements
 
@@ -72,73 +77,96 @@ Use `current_setting('app.current_user_id')` to get the current user ID from ses
 4. **Proper indexing** to ensure RLS policies perform well
 """
 
-    RLS_TABLES = ["users", "channels", "channel_moderators", "posts", "comments"]
+    RLS_TABLES: ClassVar[list[str]] = ["users", "channels", "channel_moderators", "posts", "comments"]
 
-    RLS_ASSERTIONS = [
+    RLS_ASSERTIONS: ClassVar[list[RlsAssertion]] = [
         # Alice updates own profile (succeed)
         RlsAssertion(
             set_session="SET app.current_user_id = '11111111-1111-1111-1111-111111111111'",
-            run_sql="UPDATE users SET email = 'alice.updated@example.com' WHERE id = '11111111-1111-1111-1111-111111111111'",
+            run_sql=(
+                "UPDATE users SET email = 'alice.updated@example.com' WHERE id = '11111111-1111-1111-1111-111111111111'"
+            ),
             should_affect_rows=True,
         ),
         # Alice updates Bob's profile (block)
         RlsAssertion(
             set_session="SET app.current_user_id = '11111111-1111-1111-1111-111111111111'",
-            run_sql="UPDATE users SET email = 'bob.hacked@example.com' WHERE id = '22222222-2222-2222-2222-222222222222'",
+            run_sql=(
+                "UPDATE users SET email = 'bob.hacked@example.com' WHERE id = '22222222-2222-2222-2222-222222222222'"
+            ),
             should_affect_rows=False,
         ),
         # Alice (owner) updates channel (succeed)
         RlsAssertion(
             set_session="SET app.current_user_id = '11111111-1111-1111-1111-111111111111'",
-            run_sql="UPDATE channels SET description = 'Updated by Alice' WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'",
+            run_sql=(
+                "UPDATE channels SET description = 'Updated by Alice' WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'"
+            ),
             should_affect_rows=True,
         ),
         # Charlie updates Alice's channel (block)
         RlsAssertion(
             set_session="SET app.current_user_id = '33333333-3333-3333-3333-333333333333'",
-            run_sql="UPDATE channels SET description = 'Hacked by Charlie' WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'",
+            run_sql=(
+                "UPDATE channels SET description = 'Hacked by Charlie' "
+                "WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'"
+            ),
             should_affect_rows=False,
         ),
         # Alice updates own post (succeed)
         RlsAssertion(
             set_session="SET app.current_user_id = '11111111-1111-1111-1111-111111111111'",
-            run_sql="UPDATE posts SET title = 'Updated by Alice' WHERE id = 'dddddddd-dddd-dddd-dddd-dddddddddddd'",
+            run_sql=("UPDATE posts SET title = 'Updated by Alice' WHERE id = 'dddddddd-dddd-dddd-dddd-dddddddddddd'"),
             should_affect_rows=True,
         ),
         # Bob (moderator) updates Alice's post (succeed)
         RlsAssertion(
             set_session="SET app.current_user_id = '22222222-2222-2222-2222-222222222222'",
-            run_sql="UPDATE posts SET content = 'Moderated by Bob' WHERE id = 'dddddddd-dddd-dddd-dddd-dddddddddddd'",
+            run_sql=("UPDATE posts SET content = 'Moderated by Bob' WHERE id = 'dddddddd-dddd-dddd-dddd-dddddddddddd'"),
             should_affect_rows=True,
         ),
         # Eve updates Alice's post (block)
         RlsAssertion(
             set_session="SET app.current_user_id = '55555555-5555-5555-5555-555555555555'",
-            run_sql="UPDATE posts SET content = 'Hacked by Eve' WHERE id = 'dddddddd-dddd-dddd-dddd-dddddddddddd'",
+            run_sql=("UPDATE posts SET content = 'Hacked by Eve' WHERE id = 'dddddddd-dddd-dddd-dddd-dddddddddddd'"),
             should_affect_rows=False,
         ),
         # Bob updates own comment (succeed)
         RlsAssertion(
             set_session="SET app.current_user_id = '22222222-2222-2222-2222-222222222222'",
-            run_sql="UPDATE comments SET content = 'Updated by Bob himself' WHERE id = '99999999-9999-9999-9999-999999999999'",
+            run_sql=(
+                "UPDATE comments SET content = 'Updated by Bob himself' "
+                "WHERE id = '99999999-9999-9999-9999-999999999999'"
+            ),
             should_affect_rows=True,
         ),
         # Alice (post author) updates Bob's comment (succeed)
         RlsAssertion(
             set_session="SET app.current_user_id = '11111111-1111-1111-1111-111111111111'",
-            run_sql="UPDATE comments SET content = 'Moderated by post author Alice' WHERE id = '99999999-9999-9999-9999-999999999999'",
+            run_sql=(
+                "UPDATE comments SET content = 'Moderated by post author Alice' "
+                "WHERE id = '99999999-9999-9999-9999-999999999999'"
+            ),
             should_affect_rows=True,
         ),
         # Alice (owner) adds moderator (succeed)
         RlsAssertion(
             set_session="SET app.current_user_id = '11111111-1111-1111-1111-111111111111'",
-            run_sql="INSERT INTO channel_moderators (channel_id, user_id) VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '33333333-3333-3333-3333-333333333333')",
+            run_sql=(
+                "INSERT INTO channel_moderators (channel_id, user_id) VALUES "
+                "('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', "
+                "'33333333-3333-3333-3333-333333333333')"
+            ),
             should_affect_rows=True,
         ),
         # Charlie adds self as moderator to Bob's channel (block)
         RlsAssertion(
             set_session="SET app.current_user_id = '33333333-3333-3333-3333-333333333333'",
-            run_sql="INSERT INTO channel_moderators (channel_id, user_id) VALUES ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '33333333-3333-3333-3333-333333333333')",
+            run_sql=(
+                "INSERT INTO channel_moderators (channel_id, user_id) VALUES "
+                "('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', "
+                "'33333333-3333-3333-3333-333333333333')"
+            ),
             should_affect_rows=False,
         ),
     ]
@@ -265,10 +293,14 @@ Use `current_setting('app.current_user_id')` to get the current user ID from ses
                 ON CONFLICT (id) DO NOTHING;
             """)
             await cur.execute("""
-                INSERT INTO channels (id, name, description, is_public, owner_id) VALUES
-                ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'general', 'General discussion channel', true, '11111111-1111-1111-1111-111111111111'),
-                ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'tech-talk', 'Technical discussions', true, '22222222-2222-2222-2222-222222222222'),
-                ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'random', 'Random conversations', false, '33333333-3333-3333-3333-333333333333')
+                INSERT INTO channels (id, name, description, is_public, owner_id)
+                VALUES
+                ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'general',
+                 'General discussion channel', true, '11111111-1111-1111-1111-111111111111'),
+                ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'tech-talk',
+                 'Technical discussions', true, '22222222-2222-2222-2222-222222222222'),
+                ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'random',
+                 'Random conversations', false, '33333333-3333-3333-3333-333333333333')
                 ON CONFLICT (id) DO NOTHING;
             """)
             await cur.execute("""
@@ -278,26 +310,39 @@ Use `current_setting('app.current_user_id')` to get the current user ID from ses
                 ON CONFLICT (channel_id, user_id) DO NOTHING;
             """)
             await cur.execute("""
-                INSERT INTO posts (id, channel_id, author_id, title, content) VALUES
-                ('dddddddd-dddd-dddd-dddd-dddddddddddd', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-1111-1111-111111111111', 'Welcome to the platform!', 'This is our first post'),
-                ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '33333333-3333-3333-3333-333333333333', 'Hello everyone', 'Nice to meet you all'),
-                ('ffffffff-ffff-ffff-ffff-ffffffffffff', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '22222222-2222-2222-2222-222222222222', 'PostgreSQL RLS Tutorial', 'Let''s discuss Row Level Security'),
-                ('10101010-1010-1010-1010-101010101010', 'cccccccc-cccc-cccc-cccc-cccccccccccc', '55555555-5555-5555-5555-555555555555', 'Random thoughts', 'Just some random content here')
+                INSERT INTO posts (id, channel_id, author_id, title, content)
+                VALUES
+                ('dddddddd-dddd-dddd-dddd-dddddddddddd', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+                 '11111111-1111-1111-1111-111111111111', 'Welcome to the platform!',
+                 'This is our first post'),
+                ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+                 '33333333-3333-3333-3333-333333333333', 'Hello everyone', 'Nice to meet you all'),
+                ('ffffffff-ffff-ffff-ffff-ffffffffffff', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+                 '22222222-2222-2222-2222-222222222222', 'PostgreSQL RLS Tutorial',
+                 'Let''s discuss Row Level Security'),
+                ('10101010-1010-1010-1010-101010101010', 'cccccccc-cccc-cccc-cccc-cccccccccccc',
+                 '55555555-5555-5555-5555-555555555555', 'Random thoughts',
+                 'Just some random content here')
                 ON CONFLICT (id) DO NOTHING;
             """)
             await cur.execute("""
                 INSERT INTO comments (id, post_id, author_id, content) VALUES
-                ('99999999-9999-9999-9999-999999999999', 'dddddddd-dddd-dddd-dddd-dddddddddddd', '22222222-2222-2222-2222-222222222222', 'Great to have you here!'),
-                ('88888888-8888-8888-8888-888888888888', 'dddddddd-dddd-dddd-dddd-dddddddddddd', '33333333-3333-3333-3333-333333333333', 'Thanks for setting this up'),
-                ('77777777-7777-7777-7777-777777777777', 'ffffffff-ffff-ffff-ffff-ffffffffffff', '44444444-4444-4444-4444-444444444444', 'RLS is really powerful!'),
-                ('66666666-6666-6666-6666-666666666666', 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', '11111111-1111-1111-1111-111111111111', 'Welcome Charlie!')
+                ('99999999-9999-9999-9999-999999999999', 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+                 '22222222-2222-2222-2222-222222222222', 'Great to have you here!'),
+                ('88888888-8888-8888-8888-888888888888', 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+                 '33333333-3333-3333-3333-333333333333', 'Thanks for setting this up'),
+                ('77777777-7777-7777-7777-777777777777', 'ffffffff-ffff-ffff-ffff-ffffffffffff',
+                 '44444444-4444-4444-4444-444444444444', 'RLS is really powerful!'),
+                ('66666666-6666-6666-6666-666666666666', 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
+                 '11111111-1111-1111-1111-111111111111', 'Welcome Charlie!')
                 ON CONFLICT (id) DO NOTHING;
             """)
             # Indexes
             await cur.execute("""
                 CREATE INDEX IF NOT EXISTS idx_channels_owner_id ON channels(owner_id);
                 CREATE INDEX IF NOT EXISTS idx_channels_is_public ON channels(is_public);
-                CREATE INDEX IF NOT EXISTS idx_channel_moderators_channel_user ON channel_moderators(channel_id, user_id);
+                CREATE INDEX IF NOT EXISTS idx_channel_moderators_channel_user
+                    ON channel_moderators(channel_id, user_id);
                 CREATE INDEX IF NOT EXISTS idx_channel_moderators_user ON channel_moderators(user_id);
                 CREATE INDEX IF NOT EXISTS idx_posts_channel_id ON posts(channel_id);
                 CREATE INDEX IF NOT EXISTS idx_posts_author_id ON posts(author_id);

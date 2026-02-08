@@ -27,14 +27,19 @@ class TransactionalInventoryTransferTask(PostgresTask):
 
 ## Your Task
 
-1. Create a function **transfer_parts(source_inventory_id, target_inventory_id, part_num, color_id, quantity, reason)**
-   that:
-   - Validates: source/target inventory and part/color exist, quantity between 1 and 500, sufficient quantity at source, no self-transfer (source ≠ target).
+1. Create a function **transfer_parts(source_inventory_id, target_inventory_id, part_num, color_id, quantity, \
+reason)** that:
+   - Validates: source/target inventory and part/color exist, quantity between 1 and 500, \
+sufficient quantity at source, no self-transfer (source ≠ target).
    - Decrements quantity in **lego_inventory_parts** for the source; increments (or inserts) for the target.
-   - Logs each transfer in a table named **inventory_transfer_log** with at least: source_id, target_id, part_num, color_id, quantity, reason, transfer_status, error_message (or equivalent), timestamp.
-   - Uses a single transaction (all or nothing). On validation failure, log the attempt with transfer_status/error_message and do not transfer.
+   - Logs each transfer in a table named **inventory_transfer_log** with at least: source_id, target_id, \
+part_num, color_id, quantity, reason, transfer_status, error_message (or equivalent), timestamp.
+   - Uses a single transaction (all or nothing). On validation failure, log the attempt with \
+transfer_status/error_message and do not transfer.
 
-2. The evaluator will call the function for a success case and verify source/target quantities and that a new row was written to **inventory_transfer_log**. Use schema **public** and **lego_inventory_parts** (inventory_id, part_num, color_id, quantity).
+2. The evaluator will call the function for a success case and verify source/target quantities and that a new row was \
+written to **inventory_transfer_log**. Use schema **public** and **lego_inventory_parts** (inventory_id, part_num, \
+color_id, quantity).
 """
 
     def __init__(self, pg_config: PgConfig) -> None:

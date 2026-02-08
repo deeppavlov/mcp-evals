@@ -1,4 +1,7 @@
-"""LEGO num_parts consistency verification (mcpmark parity: mismatch count, constraint triggers, violation blocked, deferred update allowed)."""
+"""LEGO num_parts consistency verification (mcpmark parity: mismatch count, constraint.
+
+triggers, violation blocked, deferred update allowed.
+"""
 
 from __future__ import annotations
 
@@ -60,9 +63,14 @@ LIMIT 1;
 
 
 class LegoNumPartsConsistencyEvaluator(Evaluator["PostgresTask", AgentRunResult]):
-    """mcpmark parity: mismatch count in {0,1}, constraint triggers on three tables, violation blocked, deferred allowed."""
+    """mcpmark parity: mismatch count in {0,1}, constraint triggers on three tables.
 
-    async def evaluate(self, ctx: EvaluatorContext[PostgresTask, AgentRunResult]) -> EvaluatorOutput:
+    violation blocked, deferred allowed.
+    """
+
+    async def evaluate(  # noqa: C901, PLR0915
+        self, ctx: EvaluatorContext[PostgresTask, AgentRunResult]
+    ) -> EvaluatorOutput:
         """Run four checks: data consistency, triggers exist, violation blocked, deferred update then revert."""
         task = ctx.inputs
         params = task.pg_conn_params()

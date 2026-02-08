@@ -138,14 +138,17 @@ ROW_CHECKS = [
 
 
 class EmployeeHierarchyManagementTask(PostgresTask):
-    """Task: manage employee hierarchy and customer assignments (insert/update/delete, employee_performance, salary column)."""
+    """Manage employee hierarchy and customer assignments."""
 
     name = "employee_hierarchy_management"
     goal = """Manage employee hierarchy and customer assignments in the Chinook database.
 
 ## Your Task
 
-1. **Insert** two new employees (e.g. Sarah and Mike); **update** the employee who was "General Manager" (e.g. Adams) to Title **'CEO'**; update Nancy's phone as required; change any "IT" title to **'IT Specialist'**; **reassign** customers so that some are assigned to the new employees (SupportRepId 9 and 10), with those employees **reporting to the CEO** (ReportsTo = 1).
+1. **Insert** two new employees (e.g. Sarah and Mike); **update** the employee who was "General Manager" (e.g. Adams) \
+to Title **'CEO'**; update Nancy's phone as required; change any "IT" title to **'IT Specialist'**; **reassign** \
+customers so that some are assigned to the new employees (SupportRepId 9 and 10), with those employees **reporting to \
+the CEO** (ReportsTo = 1).
 
 2. Create an **employee_performance** table (structure as appropriate for tracking performance).
 
@@ -162,7 +165,8 @@ class EmployeeHierarchyManagementTask(PostgresTask):
    - 4 employees with ReportsTo = 1 (reporting to CEO)
    - Employee 1: Title **'CEO'**, ReportsTo NULL
    - Employee 2: Title **'Sales Manager'**, ReportsTo 1
-   - Tables **Employee**, **Customer**, **employee_performance** exist; **Employee** has column **salary**
+   - Tables **Employee**, **Customer**, **employee_performance** exist; **Employee** \
+has column **salary**
 
 Use quoted identifiers: "Employee", "Customer", "EmployeeId", "SupportRepId", "Title", "ReportsTo".
 """

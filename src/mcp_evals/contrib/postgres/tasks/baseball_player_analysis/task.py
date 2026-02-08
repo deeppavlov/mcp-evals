@@ -16,7 +16,8 @@ FROM baseball_player_analysis
 ORDER BY batting_average DESC, games_played DESC
 """
 
-# Canonical expected result (sportsdb: persons, display_names, stats, baseball_offensive_stats, core_person_stats, baseball_defensive_stats)
+# Canonical expected result (sportsdb: persons, display_names, stats,
+# baseball_offensive_stats, core_person_stats, baseball_defensive_stats)
 BASEBALL_PLAYER_EXPECTED = """
 SELECT
 p.id AS player_id,
@@ -96,13 +97,16 @@ ORDER BY batting_average DESC, games_played DESC;
 """
 
 
+DECIMAL_TOLERANCE = 0.001
+
+
 def _rows_match_001(actual: tuple[Any, ...], expected: tuple[Any, ...]) -> bool:
     """Compare rows with 0.001 tolerance for decimals/floats (matches mcpmark verify.py)."""
     if len(actual) != len(expected):
         return False
     for a, e in zip(actual, expected, strict=True):
         if isinstance(a, (Decimal, float)) and isinstance(e, (Decimal, float, int)):
-            if abs(float(a) - float(e)) > 0.001:
+            if abs(float(a) - float(e)) > DECIMAL_TOLERANCE:
                 return False
         elif hasattr(a, "strftime") and hasattr(e, "strftime"):
             if str(a) != str(e):
@@ -116,11 +120,14 @@ class BaseballPlayerAnalysisTask(PostgresTask):
     """Task: create baseball_player_analysis table in the sports database (sportsdb schema)."""
 
     name = "baseball_player_analysis"
-    goal = """Create a table called **baseball_player_analysis** that consolidates baseball player performance data from the sports database.
+    goal = """Create a table called **baseball_player_analysis** that consolidates
+baseball player performance data from the sports database.
 
 ## Your Task
 
-Create the `baseball_player_analysis` table with the exact structure below and populate it from the existing tables: **persons**, **display_names**, **stats**, **baseball_offensive_stats**, **core_person_stats**, **baseball_defensive_stats**.
+Create the `baseball_player_analysis` table with the exact structure below and
+populate it from the existing tables: **persons**, **display_names**, **stats**,
+**baseball_offensive_stats**, **core_person_stats**, **baseball_defensive_stats**.
 
 ### Table Structure
 
@@ -138,7 +145,8 @@ Create the `baseball_player_analysis` table with the exact structure below and p
 - **putouts** (INTEGER) — Total putouts
 - **assists** (INTEGER) — Total assists
 - **errors** (INTEGER) — Total errors
-- **fielding_percentage** (DECIMAL) — (putouts + assists) / (putouts + assists + errors); handle division by zero
+- **fielding_percentage** (DECIMAL) — (putouts + assists) / (putouts + assists + errors);
+  handle division by zero
 
 ### Data Requirements
 

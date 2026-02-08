@@ -10,7 +10,9 @@ class EmployeeProjectTrackingTask(PostgresTask):
     """Task: create project tracking tables with exact mcpmark spec (tables, data, updates, priority)."""
 
     name = "employee_project_tracking"
-    goal = """Create and manage a comprehensive employee project tracking system using database schema design and data manipulation operations. The IT team needs you to build the database structure from scratch and populate it with specific initial data to support project management workflows.
+    goal = """Create and manage a comprehensive employee project tracking system using database schema design and data \
+manipulation operations. The IT team needs you to build the database structure from scratch and populate it with \
+specific initial data to support project management workflows.
 
 ## Your Tasks:
 
@@ -52,20 +54,31 @@ class EmployeeProjectTrackingTask(PostgresTask):
 4. **Insert exactly this initial data**:
 
    **Into `employee_projects`:**
-   * Project 1: name='Database Modernization', start_date='2024-01-15', end_date='2024-06-30', budget=250000.00, status='active'
-   * Project 2: name='Employee Portal Upgrade', start_date='2024-02-01', end_date='2024-05-15', budget=180000.00, status='active'
-   * Project 3: name='HR Analytics Dashboard', start_date='2023-11-01', end_date='2024-01-31', budget=120000.00, status='active'
+   * Project 1: name='Database Modernization', start_date='2024-01-15', end_date='2024-06-30', budget=250000.00, \
+status='active'
+   * Project 2: name='Employee Portal Upgrade', start_date='2024-02-01', end_date='2024-05-15', budget=180000.00, \
+status='active'
+   * Project 3: name='HR Analytics Dashboard', start_date='2023-11-01', end_date='2024-01-31', budget=120000.00, \
+status='active'
 
    **Into `project_assignments` (assign ALL current employees):**
    * All employees from Development department → Project 1 ('Database Modernization'), role='Developer', allocation=80%
-   * All employees from Human Resources department → Project 2 ('Employee Portal Upgrade'), role='Business Analyst', allocation=60%
-   * All employees from Marketing department → Project 3 ('HR Analytics Dashboard'), role='Marketing Specialist', allocation=40%
-   * All employees from Finance department → Project 1 ('Database Modernization'), role='Financial Analyst', allocation=30%
-   * All employees from Sales department → Project 2 ('Employee Portal Upgrade'), role='Sales Representative', allocation=50%
-   * All employees from Research department → Project 3 ('HR Analytics Dashboard'), role='Research Analyst', allocation=70%
-   * All employees from Production department → Project 1 ('Database Modernization'), role='Production Coordinator', allocation=45%
-   * All employees from Quality Management department → Project 2 ('Employee Portal Upgrade'), role='QA Specialist', allocation=85%
-   * All employees from Customer Service department → Project 3 ('HR Analytics Dashboard'), role='Customer Success', allocation=35%
+   * All employees from Human Resources department → Project 2 ('Employee Portal Upgrade'), role='Business Analyst', \
+allocation=60%
+   * All employees from Marketing department → Project 3 ('HR Analytics Dashboard'), role='Marketing Specialist', \
+allocation=40%
+   * All employees from Finance department → Project 1 ('Database Modernization'), role='Financial Analyst', \
+allocation=30%
+   * All employees from Sales department → Project 2 ('Employee Portal Upgrade'), role='Sales Representative', \
+allocation=50%
+   * All employees from Research department → Project 3 ('HR Analytics Dashboard'), role='Research Analyst', \
+allocation=70%
+   * All employees from Production department → Project 1 ('Database Modernization'), role='Production Coordinator', \
+allocation=45%
+   * All employees from Quality Management department → Project 2 ('Employee Portal Upgrade'), role='QA Specialist', \
+allocation=85%
+   * All employees from Customer Service department → Project 3 ('HR Analytics Dashboard'), role='Customer Success', \
+allocation=35%
    * All employees should have assigned_date='2024-01-01'
 
    **Into `project_milestones`:**

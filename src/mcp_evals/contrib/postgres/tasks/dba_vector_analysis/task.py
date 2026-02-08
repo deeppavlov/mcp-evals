@@ -12,16 +12,21 @@ from .custom_evaluator import AnalysisCoverageScenarioEvaluator, AnalysisTableSp
 
 
 class DbaVectorAnalysisTask(PostgresTask):
-    """Task: analyze pgvector database, create vector_analysis_columns, vector_analysis_storage_consumption, vector_analysis_indices."""
+    """Task: analyze pgvector database, create vector_analysis_* tables; verify against live catalog.
+
+    Creates vector_analysis_columns, vector_analysis_storage_consumption, vector_analysis_indices.
+    """
 
     name = "dba_vector_analysis"
     goal = """# PostgreSQL Vector Database Analysis
 
-> Analyze and optimize a pgvector-powered database to understand storage patterns, performance characteristics, and data quality for embeddings in production workloads.
+> Analyze and optimize a pgvector-powered database to understand storage patterns, performance characteristics, and \
+data quality for embeddings in production workloads.
 
 ## What's this about?
 
-You've got a PostgreSQL database running with the vector extension that stores embeddings for RAG (document similarity search, image recognition), or other ML workloads.
+You've got a PostgreSQL database running with the vector extension that stores embeddings for RAG (document similarity \
+search, image recognition), or other ML workloads.
 Your job is to dive deep into this vector database and figure out what's going on under the hood.
 You need to understand:
 
@@ -34,9 +39,12 @@ You need to understand:
 
 First, get familiar with what you're working with:
 
-- Check vector extension status: ensuring it's installed properly, check version, identify any configuration issues
-- Identify all vector columns across entire database: providing me columns, types of columns, and vector dim (dimensions)
-- Map the vector landscape: understand relationships between vector tables and regular tables, foreign keys, dependencies
+- Check vector extension status: ensuring it's installed properly, check version, identify any configuration \
+issues
+- Identify all vector columns across entire database: providing me columns, types of columns, and vector dim \
+(dimensions)
+- Map the vector landscape: understand relationships between vector tables and regular tables, foreign keys, \
+dependencies
 
 Vectors can eat up a lot of storage, so let's see where the bytes are going:
 
@@ -106,7 +114,8 @@ CREATE TABLE vector_analysis_indices (
 );
 ```
 
-Use PostgreSQL system catalogs, pgvector-specific views, and storage analysis functions to gather comprehensive metrics about the vector database implementation.
+Use PostgreSQL system catalogs, pgvector-specific views, and storage analysis functions to gather comprehensive \
+metrics about the vector database implementation.
 """
 
     def __init__(self, pg_config: PgConfig) -> None:

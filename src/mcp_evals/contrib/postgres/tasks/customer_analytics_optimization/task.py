@@ -13,13 +13,16 @@ class CustomerAnalyticsOptimizationTask(PostgresTask):
 
 ## Your Task
 
-A customer analytics query (e.g. aggregating payments or rentals by customer, joining payment with customer) is running slowly. You must:
+A customer analytics query (e.g. aggregating payments or rentals by customer, joining payment with customer) is \
+running slowly. You must:
 
 1. Identify the query (e.g. via application code, common reporting queries, or EXPLAIN ANALYZE).
-2. Improve performance by adding an appropriate **index** (e.g. on **payment.customer_id**, which is frequently used in JOINs and WHERE clauses for customer-level analytics).
+2. Improve performance by adding an appropriate **index** (e.g. on **payment.customer_id**, which is frequently used \
+in JOINs and WHERE clauses for customer-level analytics).
 3. Optionally use EXPLAIN ANALYZE before and after to confirm improvement.
 
-The evaluator verifies only that an **index exists on the payment table that references the customer_id column** (no result-correctness check). Use the standard `payment` and `customer` tables in the public schema.
+The evaluator verifies only that an **index exists on the payment table that references the customer_id column** (no \
+result-correctness check). Use the standard `payment` and `customer` tables in the public schema.
 """
 
     def __init__(self, pg_config: PgConfig) -> None:

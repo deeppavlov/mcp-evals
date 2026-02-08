@@ -1,4 +1,7 @@
-"""Theme_analyst behavioral verification (mcpmark parity: 2 Star Wars sets, Technic blocked, reference/related tables)."""
+"""Theme_analyst behavioral verification (mcpmark parity: 2 Star Wars sets, Technic.
+
+blocked, reference/related tables.
+"""
 
 from __future__ import annotations
 
@@ -12,12 +15,18 @@ if TYPE_CHECKING:
     from mcp_evals.contrib.postgres.task import PostgresTask
 
 EXPECTED_STAR_WARS_SET_NUMS = frozenset({"65081-1", "K8008-1"})
+EXPECTED_THEME_ID = 18  # theme_analyst -> Star Wars (mcpmark verify_theme_function)
 
 
 class ThemeAnalystAccessEvaluator(Evaluator["PostgresTask", AgentRunResult]):
-    """Verify theme_analyst sees exactly 2 Star Wars sets, Technic blocked, reference/related tables accessible."""
+    """Verify theme_analyst sees exactly 2 Star Wars sets, Technic blocked.
 
-    async def evaluate(self, ctx: EvaluatorContext[PostgresTask, AgentRunResult]) -> EvaluatorOutput:
+    reference/related tables accessible.
+    """
+
+    async def evaluate(  # noqa: PLR0911
+        self, ctx: EvaluatorContext[PostgresTask, AgentRunResult]
+    ) -> EvaluatorOutput:
         """Run as theme_analyst and assert data access matches mcpmark test_theme_analyst_access."""
         task = ctx.inputs
         params = task.pg_conn_params()
@@ -26,13 +35,15 @@ class ThemeAnalystAccessEvaluator(Evaluator["PostgresTask", AgentRunResult]):
             async with conn.cursor() as cur:
                 await cur.execute("SET ROLE theme_analyst")
                 try:
-                    # get_user_theme_id() returns 18 for theme_analyst (mcpmark verify_theme_function)
+                    # get_user_theme_id() returns EXPECTED_THEME_ID for theme_analyst
                     await cur.execute("SELECT get_user_theme_id()")
                     row = await cur.fetchone()
-                    if row is None or row[0] != 18:
+                    if row is None or row[0] != EXPECTED_THEME_ID:
+                        got = row[0] if row is not None else None
                         return EvaluationReason(
                             value=0.0,
-                            reason=f"get_user_theme_id() as theme_analyst expected 18, got {row[0] if row is not None else None}",
+                            reason=f"get_user_theme_id() as theme_analyst expected "
+                            f"{EXPECTED_THEME_ID}, got {got}",
                         )
 
                     # Star Wars sets: exactly 2 rows with set_num in {'65081-1', 'K8008-1'}
@@ -42,7 +53,8 @@ class ThemeAnalystAccessEvaluator(Evaluator["PostgresTask", AgentRunResult]):
                     if set_nums != EXPECTED_STAR_WARS_SET_NUMS:
                         return EvaluationReason(
                             value=0.0,
-                            reason=f"theme_analyst lego_sets expected set_nums {EXPECTED_STAR_WARS_SET_NUMS}, got {set_nums}",
+                            reason=f"theme_analyst lego_sets expected set_nums "
+                            f"{EXPECTED_STAR_WARS_SET_NUMS}, got {set_nums}",
                         )
 
                     # Technic (theme_id=1) blocked: 0 sets
@@ -80,12 +92,13 @@ class ThemeAnalystAccessEvaluator(Evaluator["PostgresTask", AgentRunResult]):
                         )
                 finally:
                     await cur.execute("RESET ROLE")
-            return 1.0
-        except Exception as e:
+        except (psycopg.Error, OSError) as e:
             await conn.rollback()
             return EvaluationReason(
                 value=0.0,
                 reason=f"theme_analyst access check failed: {e!s}",
             )
+        else:
+            return 1.0
         finally:
             await conn.close()
