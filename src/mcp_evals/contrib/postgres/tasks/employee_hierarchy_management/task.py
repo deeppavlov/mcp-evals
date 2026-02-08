@@ -141,35 +141,6 @@ class EmployeeHierarchyManagementTask(PostgresTask):
     """Manage employee hierarchy and customer assignments."""
 
     name = "employee_hierarchy_management"
-    goal = """Manage employee hierarchy and customer assignments in the Chinook database.
-
-## Your Task
-
-1. **Insert** two new employees (e.g. Sarah and Mike); **update** the employee who was "General Manager" (e.g. Adams) \
-to Title **'CEO'**; update Nancy's phone as required; change any "IT" title to **'IT Specialist'**; **reassign** \
-customers so that some are assigned to the new employees (SupportRepId 9 and 10), with those employees **reporting to \
-the CEO** (ReportsTo = 1).
-
-2. Create an **employee_performance** table (structure as appropriate for tracking performance).
-
-3. **Delete** employee Robert King.
-
-4. **Promote** Laura as specified (e.g. title or reporting change).
-
-5. Add a **salary** column to the **Employee** table.
-
-6. The evaluator checks the **post-task** state:
-   - Total employees: 9
-   - Exactly 1 employee with Title **'CEO'** (Employee 1)
-   - 0 employees with Title 'IT Specialist' (or equivalent)
-   - 4 employees with ReportsTo = 1 (reporting to CEO)
-   - Employee 1: Title **'CEO'**, ReportsTo NULL
-   - Employee 2: Title **'Sales Manager'**, ReportsTo 1
-   - Tables **Employee**, **Customer**, **employee_performance** exist; **Employee** \
-has column **salary**
-
-Use quoted identifiers: "Employee", "Customer", "EmployeeId", "SupportRepId", "Title", "ReportsTo".
-"""
 
     def __init__(self, pg_config: PgConfig) -> None:
         """Init."""

@@ -62,20 +62,6 @@ class CustomerDataMigrationTask(PostgresTask):
     """Task: bulk migrate MelodyMart customers into Customer with SupportRepId=3 and Fax=NULL."""
 
     name = "customer_data_migration"
-    goal = """Migrate MelodyMart customers into the Chinook **Customer** table as a bulk load.
-
-## Your Task
-
-1. Insert (or upsert) all MelodyMart source customers into the **Customer** table with:
-   - **SupportRepId** = 3 for every migrated row
-   - **Fax** = NULL for every migrated row
-   - Migrated rows should have **CustomerId** > 59 (existing customers are 1-59)
-
-2. Ensure every row with CustomerId > 59 has exactly SupportRepId = 3 and Fax IS NULL.
-   The evaluator checks that no migrated row violates these two conditions and that
-   the set of (CustomerId, SupportRepId, Fax) for CustomerId > 59 matches the
-   expected (id, 3, NULL).
-"""
 
     def __init__(self, pg_config: PgConfig) -> None:
         """Init."""

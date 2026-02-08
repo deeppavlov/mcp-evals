@@ -4,6 +4,7 @@ from abc import ABC
 from collections.abc import Sequence
 from contextlib import AsyncExitStack
 from functools import cached_property
+from importlib.resources import files
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, ClassVar, Generic, Self, TypeVar
 
@@ -94,3 +95,20 @@ class Task(ABC, Generic[SecretsT, OutputT]):  # noqa: UP046
             proper cleanup is not guaranteed
         """
         return
+
+
+class GoalFromDescriptionMixin:
+    """Mixin that provides goal by loading description.md from the task's package.
+
+    Requires the concrete class to have __module__ set to the package that contains
+    description.md (same directory as the task module). Optional fallback: set
+    _goal on the class if description.md is missing.
+    """
+
+    @property
+    def goal(self) -> str:
+        """Load goal from description.md."""
+        try:
+            return files(self.__class__.__module__).joinpath("description.md").read_text(encoding="utf-8")
+        except FileNotFoundError:
+            return getattr(self.__class__, "_goal", "") or ""

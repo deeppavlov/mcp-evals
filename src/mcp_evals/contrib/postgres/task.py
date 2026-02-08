@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from pydantic_ai.mcp import MCPServerStdio
 
 from mcp_evals.secrets import TaskSecrets
-from mcp_evals.task import Task
+from mcp_evals.task import GoalFromDescriptionMixin, Task
 
 from .utils import Backup, PgConfig, download_backup, run_pg_restore
 
@@ -21,7 +21,7 @@ class FinishTask(BaseModel):
     answer: str | None = Field(None, description="Optional answer")
 
 
-class PostgresTask(Task[TaskSecrets, FinishTask]):
+class PostgresTask(GoalFromDescriptionMixin, Task[TaskSecrets, FinishTask]):
     """Base for postgres tasks: download backup and pg_restore, or run prepare_init for custom setup."""
 
     output_type = FinishTask

@@ -131,39 +131,6 @@ class EmployeeDemographicsReportTask(PostgresTask):
     """Task: create full demographics report tables (mcpmark parity: current, %, retention)."""
 
     name = "employee_demographics_report"
-    goal = """Create demographic report tables in the employees database for HR analytics (full mcpmark-style columns).
-
-## Your Task
-
-Create the following tables in the **employees** schema. Use **current** employees where relevant: those with a row in \
-**employees.salary** where **to_date = DATE '9999-01-01'**.
-
-1. **gender_statistics** — One row per gender with:
-   - **gender** — M/F (or as in employees.employee)
-   - **total_employees** — count of all employees (from employees.employee)
-   - **current_employees** — count of current employees (in salary with to_date = '9999-01-01')
-   - **percentage_of_workforce** — 100 * current_employees / total_current (decimal, e.g. 2 decimal places)
-
-2. **age_group_analysis** — One row per age bucket (use **current** employees only for counts and averages):
-   - **age_group** — 'under_20', '20-29', '30-39', '40-49', '50-59', '60+'
-   - **employee_count** — count of current employees in that age group
-   - **avg_salary** — average current salary (from employees.salary to_date = '9999-01-01')
-   - **avg_tenure_days** — average tenure in days (CURRENT_DATE - hire_date)
-
-3. **birth_month_distribution** — One row per month (1-12):
-   - **month_num** (or equivalent) and **month_name** (e.g. 'January', 'February')
-   - **employee_count** — total employees born in that month
-   - **current_employee_count** — current employees born in that month
-
-4. **hiring_year_summary** — One row per hire year:
-   - **hire_year** — year from employees.employee.hire_date
-   - **employees_hired** — count hired in that year
-   - **still_employed** — count of those still current (in salary to_date = '9999-01-01')
-   - **retention_rate** — 100 * still_employed / employees_hired (decimal)
-
-Use employees.employee, employees.salary. Order by the key column (gender, age_group, month_num, hire_year) for \
-verification. The evaluator uses decimal tolerance for numeric columns.
-"""
 
     def __init__(self, pg_config: PgConfig) -> None:
         """Init."""

@@ -23,18 +23,6 @@ class EmployeeRetentionAnalysisTask(PostgresTask):
     """Task: create employee retention analysis table or view in employees schema."""
 
     name = "employee_retention_analysis"
-    goal = """Create an employee retention analysis table or view in the employees database.
-
-## Your Task
-
-Create a table or view **employees.retention_analysis** with retention-related metrics, for example:
-
-- **hire_year** — year of hire (from employees.employee.hire_date)
-- **employees_hired** — count of employees hired in that year
-
-Use employees.employee. Populate or define the object so it matches the ground truth (group by hire year). Order by \
-hire_year for verification.
-"""
 
     def __init__(self, pg_config: PgConfig) -> None:
         """Init."""

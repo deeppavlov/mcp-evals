@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 from mcp_evals.contrib.filesystem.utils import Fixture, download_fixture, prepare_workspace
 from mcp_evals.secrets import TaskSecrets
-from mcp_evals.task import Task
+from mcp_evals.task import GoalFromDescriptionMixin, Task
 
 
 class FinishTask(BaseModel):
@@ -17,7 +17,7 @@ class FinishTask(BaseModel):
     answer: str | None = Field(None, description="Optional answer")
 
 
-class FilesystemTask(Task[TaskSecrets, FinishTask]):
+class FilesystemTask(GoalFromDescriptionMixin, Task[TaskSecrets, FinishTask]):
     """Base class for all filesystem tasks."""
 
     output_type = FinishTask
