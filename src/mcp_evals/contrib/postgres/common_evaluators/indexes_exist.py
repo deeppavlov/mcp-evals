@@ -53,10 +53,7 @@ class IndexesExist(Evaluator["PostgresTask", AgentRunResult]):
                         (self.schemaname, table),
                     )
                     indexdefs = [row[0] for row in await cur.fetchall()]
-                    found = any(
-                        all(col in (idx or "") for col in column_or_cols)
-                        for idx in indexdefs
-                    )
+                    found = any(all(col in (idx or "") for col in column_or_cols) for idx in indexdefs)
                     if not found:
                         return EvaluationReason(
                             value=0.0,

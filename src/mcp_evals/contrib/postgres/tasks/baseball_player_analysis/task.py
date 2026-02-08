@@ -120,49 +120,6 @@ class BaseballPlayerAnalysisTask(PostgresTask):
     """Task: create baseball_player_analysis table in the sports database (sportsdb schema)."""
 
     name = "baseball_player_analysis"
-    goal = """Create a table called **baseball_player_analysis** that consolidates
-baseball player performance data from the sports database.
-
-## Your Task
-
-Create the `baseball_player_analysis` table with the exact structure below and
-populate it from the existing tables: **persons**, **display_names**, **stats**,
-**baseball_offensive_stats**, **core_person_stats**, **baseball_defensive_stats**.
-
-### Table Structure
-
-- **player_id** (INTEGER, NOT NULL) — Player identifier
-- **player_name** (VARCHAR(255), NOT NULL) — Player's full name
-- **team_name** (VARCHAR(255)) — Set to 'Unknown' for all players
-- **games_played** (INTEGER) — Number of games/events the player participated in
-- **at_bats** (INTEGER) — Total at-bats
-- **hits** (INTEGER) — Total hits
-- **runs_scored** (INTEGER) — Total runs scored
-- **rbi** (INTEGER) — Total runs batted in
-- **home_runs** (INTEGER) — Total home runs
-- **batting_average** (DECIMAL) — hits/at_bats (handle division by zero)
-- **defensive_games** (INTEGER) — Same as games_played
-- **putouts** (INTEGER) — Total putouts
-- **assists** (INTEGER) — Total assists
-- **errors** (INTEGER) — Total errors
-- **fielding_percentage** (DECIMAL) — (putouts + assists) / (putouts + assists + errors);
-  handle division by zero
-
-### Data Requirements
-
-Include only players that meet ALL of:
-
-- Regular season statistics only (`context = 'season-regular'` in stats)
-- At least 10 games/events
-- At least 50 at-bats
-- Valid name (non-empty full_name in display_names)
-
-### Important Notes
-
-- Use 0 or appropriate default for NULLs in calculations.
-- Do NOT use ROUND — keep full precision for batting_average and fielding_percentage.
-- Sort results by **batting_average DESC**, then **games_played DESC**.
-"""
 
     def __init__(self, pg_config: PgConfig) -> None:
         """Init."""

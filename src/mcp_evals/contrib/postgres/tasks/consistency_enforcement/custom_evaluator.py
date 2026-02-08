@@ -198,9 +198,7 @@ class LegoNumPartsConsistencyEvaluator(Evaluator["PostgresTask", AgentRunResult]
     violation blocked, deferred allowed.
     """
 
-    async def evaluate(
-        self, ctx: EvaluatorContext[PostgresTask, AgentRunResult]
-    ) -> EvaluatorOutput:
+    async def evaluate(self, ctx: EvaluatorContext[PostgresTask, AgentRunResult]) -> EvaluatorOutput:
         """Run four checks: data consistency, triggers exist, violation blocked, deferred update then revert."""
         task = ctx.inputs
         params = task.pg_conn_params()
@@ -228,6 +226,4 @@ class LegoNumPartsConsistencyEvaluator(Evaluator["PostgresTask", AgentRunResult]
             candidate[2],
             candidate[3],
         )
-        return await _run_deferred_then_revert(
-            params, inventory_id, set_num, part_num, color_id
-        )
+        return await _run_deferred_then_revert(params, inventory_id, set_num, part_num, color_id)

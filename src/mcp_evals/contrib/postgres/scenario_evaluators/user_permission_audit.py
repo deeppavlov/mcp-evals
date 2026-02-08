@@ -31,7 +31,12 @@ class AuditFindingsScenarioEvaluator(Evaluator["PostgresTask", AgentRunResult]):
     expected_excessive_permissions: set[tuple[str, str, str]] | None = None
     """(username, table_name, permission_type)."""
     details_columns: tuple[str, ...] = (
-        "detail_id", "username", "issue_type", "table_name", "permission_type", "expected_access"
+        "detail_id",
+        "username",
+        "issue_type",
+        "table_name",
+        "permission_type",
+        "expected_access",
     )
 
     async def evaluate(self, ctx: EvaluatorContext[PostgresTask, AgentRunResult]) -> EvaluatorOutput:
@@ -52,9 +57,7 @@ class AuditFindingsScenarioEvaluator(Evaluator["PostgresTask", AgentRunResult]):
             if await cur.fetchone() is None:
                 return EvaluationReason(value=0.0, reason=f"Table {self.details_table} not found")
             await cur.execute(
-                sql.SQL("SELECT * FROM {} ORDER BY detail_id").format(
-                    sql.Identifier(self.details_table)
-                ),
+                sql.SQL("SELECT * FROM {} ORDER BY detail_id").format(sql.Identifier(self.details_table)),
             )
             rows = await cur.fetchall()
         if not rows:

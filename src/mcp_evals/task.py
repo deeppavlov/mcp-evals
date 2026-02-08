@@ -1,9 +1,10 @@
 """Task abstraction for evaluation tasks."""
 
-from abc import ABC
+from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from contextlib import AsyncExitStack
 from functools import cached_property
+from importlib.resources import files
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, ClassVar, Generic, Self, TypeVar
 
@@ -41,7 +42,12 @@ class Task(ABC, Generic[SecretsT, OutputT]):  # noqa: UP046
     """
 
     name: str
-    goal: str
+
+    @property
+    @abstractmethod
+    def goal(self) -> str:
+        """Prompt/instruction for the agent. Override in subclasses or use GoalFromDescriptionMixin."""
+
     evaluators: tuple[Evaluator[Self, AgentRunResult], ...]
 
     output_type: ClassVar[type[OutputT]]
@@ -94,3 +100,17 @@ class Task(ABC, Generic[SecretsT, OutputT]):  # noqa: UP046
             proper cleanup is not guaranteed
         """
         return
+
+
+class GoalFromDescriptionMixin:
+    """Mixin that provides goal by loading description.md from the task's package.
+
+    Requires the concrete class to have __module__ set to the package that contains
+    description.md (same directory as the task module). Optional fallback: set
+    _goal on the class if description.md is missing.
+    """
+
+    @property
+    def goal(self) -> str:
+        """Load goal from description.md."""
+        return files(self.__class__.__module__).joinpath("description.md").read_text(encoding="utf-8")

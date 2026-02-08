@@ -74,26 +74,6 @@ class SalesAndMusicChartsTask(PostgresTask):
     """Task: create monthly_sales_summary and top_music_charts from Invoice/InvoiceLine/Track/Album/Artist."""
 
     name = "sales_and_music_charts"
-    goal = """Create reporting objects for sales and music charts in the Chinook database.
-
-## Your Task
-
-1. **monthly_sales_summary** — Create a table or materialized view that aggregates invoice data by month:
-   - year_month (e.g. 'YYYY-MM')
-   - total_sales (sum of Invoice.Total)
-   - invoice_count
-   - avg_invoice_total
-
-2. **top_music_charts** — Create a table or view that ranks tracks, albums, and artists by revenue (from InvoiceLine \
-joined to Track/Album/Artist):
-   - chart_type ('track', 'album', 'artist')
-   - name (track name, album title, or artist name)
-   - revenue (sum of UnitPrice * Quantity)
-   - rank (row number by revenue descending)
-
-Use the existing tables: "Invoice", "InvoiceLine", "Track", "Album", "Artist". Populate or refresh the objects so \
-they contain current data.
-"""
 
     def __init__(self, pg_config: PgConfig) -> None:
         """Init."""
