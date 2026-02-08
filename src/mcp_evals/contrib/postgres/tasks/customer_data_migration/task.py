@@ -43,7 +43,7 @@ def _load_expected_migrated_rows() -> list[tuple[object, ...]]:
         "mcp_evals.contrib.postgres.tasks.customer_data_migration"
     )
     text = (ref / "customer_data.json").read_text(encoding="utf-8")
-    customers = json.load(text)
+    customers = json.loads(text)
     result: list[tuple[object, ...]] = []
     for d in customers:
         row = (

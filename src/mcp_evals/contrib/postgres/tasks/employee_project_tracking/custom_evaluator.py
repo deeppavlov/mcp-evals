@@ -129,7 +129,10 @@ async def _verify_table_structures(cur: AsyncCursor) -> EvaluatorOutput | None:
         """,
         (SCHEMA,),
     )
-    fkey_count = (await cur.fetchone())[0]
+    _row = await cur.fetchone()
+    if _row is None:
+        raise RuntimeError("COUNT(*) returns a row")
+    fkey_count = _row[0]
     if fkey_count != EXPECTED_FK_COUNT:
         return EvaluationReason(
             value=0.0,
@@ -143,7 +146,10 @@ async def _verify_table_structures(cur: AsyncCursor) -> EvaluatorOutput | None:
         """,
         (SCHEMA,),
     )
-    if (await cur.fetchone())[0] == 0:
+    _row = await cur.fetchone()
+    if _row is None:
+        raise RuntimeError("COUNT(*) returns a row")
+    if _row[0] == 0:
         return EvaluationReason(
             value=0.0,
             reason="Priority column was not added to employee_projects table",
@@ -161,7 +167,10 @@ async def _verify_indexes(cur: AsyncCursor) -> EvaluatorOutput | None:
         """,
         (SCHEMA,),
     )
-    index_count = (await cur.fetchone())[0]
+    _row = await cur.fetchone()
+    if _row is None:
+        raise RuntimeError("COUNT(*) returns a row")
+    index_count = _row[0]
     if index_count != EXPECTED_INDEX_COUNT:
         return EvaluationReason(
             value=0.0,
@@ -196,10 +205,13 @@ async def _verify_project_data(cur: AsyncCursor) -> EvaluatorOutput | None:
     return None
 
 
-async def _verify_assignment_data(cur: AsyncCursor) -> EvaluatorOutput | None:
+async def _verify_assignment_data(cur: AsyncCursor) -> EvaluatorOutput | None:  # noqa: C901
     """Verify assignment count = current employee count; department mapping; assigned_date."""
     await cur.execute("SELECT COUNT(*) FROM employees.project_assignments")
-    assignment_count = (await cur.fetchone())[0]
+    _row = await cur.fetchone()
+    if _row is None:
+        raise RuntimeError("COUNT(*) returns a row")
+    assignment_count = _row[0]
 
     await cur.execute(
         """
@@ -208,7 +220,10 @@ async def _verify_assignment_data(cur: AsyncCursor) -> EvaluatorOutput | None:
         WHERE de.to_date = '9999-01-01'
         """
     )
-    current_employee_count = (await cur.fetchone())[0]
+    _row = await cur.fetchone()
+    if _row is None:
+        raise RuntimeError("COUNT(*) returns a row")
+    current_employee_count = _row[0]
 
     if assignment_count != current_employee_count:
         return EvaluationReason(
@@ -251,10 +266,11 @@ async def _verify_assignment_data(cur: AsyncCursor) -> EvaluatorOutput | None:
                 reason=f"Department {dept} assignment mismatch: expected {expected}, got {dept_found[dept]}",
             )
 
-    await cur.execute(
-        "SELECT COUNT(*) FROM employees.project_assignments WHERE assigned_date != '2024-01-01'"
-    )
-    wrong_date_count = (await cur.fetchone())[0]
+    await cur.execute("SELECT COUNT(*) FROM employees.project_assignments WHERE assigned_date != '2024-01-01'")
+    _row = await cur.fetchone()
+    if _row is None:
+        raise RuntimeError("COUNT(*) returns a row")
+    wrong_date_count = _row[0]
     if wrong_date_count > 0:
         return EvaluationReason(
             value=0.0,

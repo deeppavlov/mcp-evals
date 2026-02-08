@@ -238,7 +238,10 @@ async def prepare_vector_environment(  # noqa: C901, PLR0912, PLR0915
                 """,
                 (title, content, url, doc_type, word_count, embedding_str),
             )
-            doc_ids.append((await cur.fetchone())[0])
+            one: Any | tuple[Any, ...] | None = await cur.fetchone()
+            if one is None:
+                raise RuntimeError("INSERT ... RETURNING id did not return a row")
+            doc_ids.append(one[0])
 
         for doc_id in doc_ids:
             num_chunks = random.randint(3, 7)
