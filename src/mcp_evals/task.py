@@ -1,6 +1,6 @@
 """Task abstraction for evaluation tasks."""
 
-from abc import ABC
+from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from contextlib import AsyncExitStack
 from functools import cached_property
@@ -42,7 +42,12 @@ class Task(ABC, Generic[SecretsT, OutputT]):  # noqa: UP046
     """
 
     name: str
-    goal: str
+
+    @property
+    @abstractmethod
+    def goal(self) -> str:
+        """Prompt/instruction for the agent. Override in subclasses or use GoalFromDescriptionMixin."""
+
     evaluators: tuple[Evaluator[Self, AgentRunResult], ...]
 
     output_type: ClassVar[type[OutputT]]
