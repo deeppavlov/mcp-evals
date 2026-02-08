@@ -15,6 +15,97 @@ if TYPE_CHECKING:
     from mcp_evals.contrib.postgres.task import PostgresTask
 
 
+async def _check_procedure(
+    cur: object,
+    procedure_schema: str,
+    procedure_name: str,
+) -> EvaluationReason | None:
+    """Return failure reason if procedure is missing."""
+    await cur.execute(  # type: ignore[union-attr]
+        """
+        SELECT 1 FROM information_schema.routines
+        WHERE routine_schema = %s AND routine_name = %s AND routine_type = 'FUNCTION'
+        """,
+        (procedure_schema, procedure_name),
+    )
+    if await cur.fetchone() is None:  # type: ignore[union-attr]
+        return EvaluationReason(
+            value=0.0,
+            reason=f"Procedure {procedure_schema}.{procedure_name} not found",
+        )
+    return None
+
+
+async def _check_trigger(
+    cur: object,
+    trigger_schema: str,
+    trigger_name: str,
+) -> EvaluationReason | None:
+    """Return failure reason if trigger is missing."""
+    await cur.execute(  # type: ignore[union-attr]
+        """
+        SELECT 1 FROM information_schema.triggers
+        WHERE trigger_schema = %s AND trigger_name = %s
+        """,
+        (trigger_schema, trigger_name),
+    )
+    if await cur.fetchone() is None:  # type: ignore[union-attr]
+        return EvaluationReason(
+            value=0.0,
+            reason=f"Trigger {trigger_schema}.{trigger_name} not found",
+        )
+    return None
+
+
+async def _check_support_table(
+    cur: object,
+    support_table_schema: str,
+    support_table_name: str,
+) -> EvaluationReason | None:
+    """Return failure reason if support table is missing."""
+    await cur.execute(  # type: ignore[union-attr]
+        """
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = %s AND table_name = %s
+        """,
+        (support_table_schema, support_table_name),
+    )
+    if await cur.fetchone() is None:  # type: ignore[union-attr]
+        return EvaluationReason(
+            value=0.0,
+            reason=f"Support table {support_table_schema}.{support_table_name} not found",
+        )
+    return None
+
+
+async def _run_state_checks(
+    cur: object,
+    state_checks: list[tuple[str, Any]],
+) -> EvaluationReason | None:
+    """Run state_checks; return first failure reason or None."""
+    for query, expected in state_checks:
+        try:
+            await safe_execute(cur, query)  # type: ignore[arg-type]
+        except AgentSqlError as e:
+            return EvaluationReason(
+                value=0.0,
+                reason=f"State check failed: {e.cause}",
+            )
+        row = await cur.fetchone()  # type: ignore[union-attr]
+        if row is None:
+            return EvaluationReason(
+                value=0.0,
+                reason=f"State check returned no row: {query[:80]}...",
+            )
+        actual = row[0] if len(row) == 1 else tuple(row)
+        if actual != expected:
+            return EvaluationReason(
+                value=0.0,
+                reason=f"State check failed: got {actual}, expected {expected}",
+            )
+    return None
+
+
 @dataclass
 class TriggerAndProcedureScenarioEvaluator(Evaluator["PostgresTask", AgentRunResult]):
     """Verify procedure exists, trigger exists, and optional state checks (counts/rows)."""
@@ -32,62 +123,15 @@ class TriggerAndProcedureScenarioEvaluator(Evaluator["PostgresTask", AgentRunRes
         """Check procedure, trigger, support table; run state_checks if provided."""
         task = ctx.inputs
         params = task.pg_conn_params()
+        fail: EvaluationReason | None = None
         async with await psycopg.AsyncConnection.connect(**params) as conn, conn.cursor() as cur:
-            await cur.execute(
-                """
-                SELECT 1 FROM information_schema.routines
-                WHERE routine_schema = %s AND routine_name = %s AND routine_type = 'FUNCTION'
-                """,
-                (self.procedure_schema, self.procedure_name),
-            )
-            if await cur.fetchone() is None:
-                return EvaluationReason(
-                    value=0.0,
-                    reason=f"Procedure {self.procedure_schema}.{self.procedure_name} not found",
+            fail = await _check_procedure(cur, self.procedure_schema, self.procedure_name)
+            if fail is None:
+                fail = await _check_trigger(cur, self.trigger_schema, self.trigger_name)
+            if fail is None:
+                fail = await _check_support_table(
+                    cur, self.support_table_schema, self.support_table_name
                 )
-            await cur.execute(
-                """
-                SELECT 1 FROM information_schema.triggers
-                WHERE trigger_schema = %s AND trigger_name = %s
-                """,
-                (self.trigger_schema, self.trigger_name),
-            )
-            if await cur.fetchone() is None:
-                return EvaluationReason(
-                    value=0.0,
-                    reason=f"Trigger {self.trigger_schema}.{self.trigger_name} not found",
-                )
-            await cur.execute(
-                """
-                SELECT 1 FROM information_schema.tables
-                WHERE table_schema = %s AND table_name = %s
-                """,
-                (self.support_table_schema, self.support_table_name),
-            )
-            if await cur.fetchone() is None:
-                return EvaluationReason(
-                    value=0.0,
-                    reason=f"Support table {self.support_table_schema}.{self.support_table_name} not found",
-                )
-            if self.state_checks:
-                for query, expected in self.state_checks:
-                    try:
-                        await safe_execute(cur, query)
-                    except AgentSqlError as e:
-                        return EvaluationReason(
-                            value=0.0,
-                            reason=f"State check failed: {e.cause}",
-                        )
-                    row = await cur.fetchone()
-                    if row is None:
-                        return EvaluationReason(
-                            value=0.0,
-                            reason=f"State check returned no row: {query[:80]}...",
-                        )
-                    actual = row[0] if len(row) == 1 else tuple(row)
-                    if actual != expected:
-                        return EvaluationReason(
-                            value=0.0,
-                            reason=f"State check failed: got {actual}, expected {expected}",
-                        )
-        return 1.0
+            if fail is None and self.state_checks:
+                fail = await _run_state_checks(cur, self.state_checks)
+        return fail if fail is not None else 1.0

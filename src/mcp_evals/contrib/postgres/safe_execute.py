@@ -2,25 +2,28 @@
 
 from __future__ import annotations
 
-from collections.abc import Coroutine
-from typing import Any
+from typing import TYPE_CHECKING
 
 import psycopg
 from pydantic_evals.evaluators import EvaluationReason, EvaluatorOutput
+
+if TYPE_CHECKING:
+    from collections.abc import Coroutine, Sequence
 
 
 class AgentSqlError(Exception):
     """Raised when agent-facing SQL fails with a non-infrastructure DB error."""
 
     def __init__(self, cause: BaseException) -> None:
+        """Store the underlying cause and delegate to Exception."""
         self.cause = cause
         super().__init__(cause)
 
 
 async def safe_execute(
-    cur: Any,
-    query: str | Any,
-    params: Any = None,
+    cur: psycopg.AsyncCursor,
+    query: str,
+    params: Sequence[object] | None = None,
 ) -> None:
     """Execute query on cursor; on DatabaseError re-raise OperationalError, else raise AgentSqlError(cause)."""
     try:
@@ -34,7 +37,9 @@ async def safe_execute(
         raise AgentSqlError(e) from e
 
 
-async def run_safe(coro: Coroutine[Any, Any, EvaluatorOutput]) -> EvaluatorOutput:
+async def run_safe(
+    coro: Coroutine[object, object, EvaluatorOutput],
+) -> EvaluatorOutput:
     """Await coroutine; on DatabaseError re-raise OperationalError, else return EvaluationReason."""
     try:
         return await coro
