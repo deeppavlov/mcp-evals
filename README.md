@@ -18,7 +18,7 @@ This library provides infrastructure for running structured evaluations of LLM a
 | **Simple user API** | Users define domains and tasks; library handles orchestration |
 | **No wheel reinvention** | pydantic-ai for LLM + MCP, pydantic_evals for evaluation, logfire for observability |
 | **Resource lifecycle** | Async context managers with safe cleanup |
-| **Maintainability** | pytest, mypy, ruff |
+| **Maintainability** | pytest, mypy, ruff | 
 
 ## Prerequisites
 
