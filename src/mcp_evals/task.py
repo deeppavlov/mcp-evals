@@ -6,7 +6,7 @@ from contextlib import AsyncExitStack
 from functools import cached_property
 from importlib.resources import files
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, ClassVar, Generic, Self, TypeVar
+from typing import Any, ClassVar, Generic, Self, TypeVar
 
 from loguru import logger
 from pydantic_ai.mcp import MCPServer
@@ -15,16 +15,11 @@ from pydantic_evals.evaluators import Evaluator
 
 from mcp_evals.secrets import TaskSecrets
 
-# workaround for python 3.12, because it doesnt support `default` value for type var
-if TYPE_CHECKING:
-    SecretsT = TypeVar("SecretsT", bound=TaskSecrets, default=TaskSecrets)
-    OutputT = TypeVar("OutputT", default=str)
-else:
-    SecretsT = TypeVar("SecretsT", bound=TaskSecrets)
-    OutputT = TypeVar("OutputT")
+SecretsT = TypeVar("SecretsT", bound=TaskSecrets, default=TaskSecrets)
+OutputT = TypeVar("OutputT", default=str)
 
 
-class Task(ABC, Generic[SecretsT, OutputT]):  # noqa: UP046
+class Task(ABC, Generic[SecretsT, OutputT]):
     """Abstract base for evaluation tasks.
 
     Required attributes (class attributes or @property):
