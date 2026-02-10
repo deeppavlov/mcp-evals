@@ -6,7 +6,7 @@ readme = "README.md"
 authors = [
     { name = "voorhs", email = "ilya_alekseev_2016@list.ru" }
 ]
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 dependencies = [
     "pydantic-ai",
     "pydantic-settings>=2.12.0,<3.0",
@@ -72,7 +72,7 @@ convention = "google"
 "tests/*.py" = ["S", "PLR2004", "ERA", "D", "ANN", "SLF"]
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.13"
 strict = true
 warn_redundant_casts = true
 warn_unreachable = true
