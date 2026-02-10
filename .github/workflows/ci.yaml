@@ -3,6 +3,10 @@ name: CI
 on:
   pull_request:
 
+env:
+  UV_PYTHON_DIR: /home/runner/uv-python-dir
+
+
 jobs:
   install:
     runs-on: ubuntu-latest
@@ -20,7 +24,7 @@ jobs:
         with:
           path: |
             .venv
-            /home/runner/work/_temp/uv-python-dir
+            ${{ env.UV_PYTHON_DIR }}
           key: ${{ steps.cache-key.outputs.key }}
 
       - name: Install uv
@@ -52,7 +56,7 @@ jobs:
         with:
           path: |
             .venv
-            /home/runner/work/_temp/uv-python-dir
+            ${{ env.UV_PYTHON_DIR }}
           key: venv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
           fail-on-cache-miss: true
 
@@ -71,7 +75,7 @@ jobs:
         with:
           path: |
             .venv
-            /home/runner/work/_temp/uv-python-dir
+            ${{ env.UV_PYTHON_DIR }}
           key: venv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
           fail-on-cache-miss: true
 
