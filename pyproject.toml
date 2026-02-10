@@ -9,23 +9,23 @@ authors = [
 requires-python = ">=3.13"
 dependencies = [
     "pydantic-ai",
-    "pydantic-settings>=2.12.0,<3.0",
-    "loguru~=0.7.3"
+    "pydantic-settings>=2.0,<3.0",
+    "loguru>=0.7,<1.0"
 ]
 
 [project.optional-dependencies]
 domain-filesystem = [
-    "aiofiles>=25.1.0,<25.2.0",
-    "appdirs>=1.4.4,<1.5.0",
-    "httpx>=0.28.1,<0.28.2",
+    "aiofiles>=25.0,<26.0",
+    "appdirs>=1.0,<2.0",
+    "httpx>=0.28,<0.29",
     "tqdm>=4.0,<5.0"
 ]
 domain-postgres = [
     "aiodocker~=0.25.0",
     "anyio>=4.0,<5.0",
-    "psycopg[binary]>=3.2,<4.0",
+    "psycopg[binary]>=3.0,<4.0",
     "httpx~=0.28",
-    "appdirs>=1.4,<2.0",
+    "appdirs>=1.0,<2.0",
 ]
 
 [dependency-groups]
@@ -48,7 +48,7 @@ build-backend = "uv_build"
 [tool.ruff]
 line-length = 120
 indent-width = 4
-target-version = "py312"
+target-version = "py313"
 
 [tool.ruff.lint]
 select = ["ALL"]
