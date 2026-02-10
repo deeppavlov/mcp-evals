@@ -8,17 +8,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Generate cache key
         id: cache-key
         run: echo "key=venv-${{ runner.os }}-${{ hashFiles('uv.lock') }}" >> $GITHUB_OUTPUT
 
-      - name: Cache venv
+      - name: Cache venv and Python
         id: cache-venv
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
-          path: .venv
+          path: |
+            .venv
+            ~/.local/share/uv/python
           key: ${{ steps.cache-key.outputs.key }}
 
       - name: Install uv
@@ -31,38 +33,28 @@ jobs:
         run: uv sync --all-groups --all-extras
 
   lint:
-    needs: install
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
-
-      - name: Restore venv cache
-        uses: actions/cache@v4
+      - uses: actions/checkout@v6
+      - uses: astral-sh/ruff-action@v3
         with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
-          fail-on-cache-miss: true
-
-      - name: Ruff
-        run: .venv/bin/ruff check .
+          version: "0.14.4" # same as in pyproject.toml
 
   type-check:
     needs: install
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
-      - name: Restore venv cache
-        uses: actions/cache@v4
+      - name: Restore venv and Python cache
+        uses: actions/cache@v5
         with:
-          path: .venv
+          path: |
+            .venv
+            ~/.local/share/uv/python
           key: venv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
           fail-on-cache-miss: true
-      
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
 
       - name: Mypy
         run: uv run mypy .
@@ -72,17 +64,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
-      - name: Restore venv cache
-        uses: actions/cache@v4
+      - name: Restore venv and Python cache
+        uses: actions/cache@v5
         with:
-          path: .venv
+          path: |
+            .venv
+            ~/.local/share/uv/python
           key: venv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
           fail-on-cache-miss: true
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
 
       - name: Run Tests
         run: uv run pytest
