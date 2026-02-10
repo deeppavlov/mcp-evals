@@ -1,0 +1,31 @@
+name: Reusable Workflow
+
+on:
+  workflow_call:
+    inputs:
+      test_command:
+        required: true
+        type: string
+        description: 'Command to run tests'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        version: "0.10.0"
+        enable-cache: "true"
+
+    - name: Install dependencies
+      run: |
+        uv sync --all-groups --all-extras
+
+    - name: Run tests
+      run: |
+        uv run ${{ inputs.test_command }}
