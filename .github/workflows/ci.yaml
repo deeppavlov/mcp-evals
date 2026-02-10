@@ -57,7 +57,7 @@ jobs:
           fail-on-cache-miss: true
 
       - name: Mypy
-        run: uv run mypy .
+        run: .venv/bin/mypy .
 
   test:
     needs: install
@@ -76,4 +76,4 @@ jobs:
           fail-on-cache-miss: true
 
       - name: Run Tests
-        run: uv run pytest
+        run: .venv/bin/pytest
