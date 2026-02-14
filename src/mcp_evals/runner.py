@@ -5,9 +5,14 @@ from typing import Any
 from pydantic_ai.agent import Agent
 from pydantic_evals.reporting import EvaluationReport
 
-from mcp_evals._internal.runner import BaseDomainRunner, DomainRunnerInferenceOnly
+from mcp_evals._internal.runner import (
+    BaseDomainRunner,
+    DomainRunnerCrossValidation,
+    DomainRunnerHoldOut,
+    DomainRunnerInferenceOnly,
+)
 from mcp_evals.domain import Domain
-from mcp_evals.types import DepsMaker, Runner
+from mcp_evals.types import DepsMaker, Runner, TrainingTestingCallback
 
 
 class BenchmarkRunner:
@@ -20,6 +25,11 @@ class BenchmarkRunner:
         runner: Runner,
         deps_maker: DepsMaker | None = None,
         experiment_name: str | None = None,
+        hold_out_test_ratio: float = 0.2,
+        cv_n_splits: int = 5,
+        random_state: int | None = None,
+        start_training: TrainingTestingCallback | None = None,
+        start_testing: TrainingTestingCallback | None = None,
     ) -> None:
         """Initialize the benchmark runner."""
         self.agent = agent
@@ -27,6 +37,11 @@ class BenchmarkRunner:
         self.runner = runner
         self.deps_maker = deps_maker
         self.experiment_name = experiment_name
+        self.hold_out_test_ratio = hold_out_test_ratio
+        self.cv_n_splits = cv_n_splits
+        self.random_state = random_state
+        self.start_training = start_training
+        self.start_testing = start_testing
 
     async def run(self) -> list[EvaluationReport]:
         """Run all tasks from all domains.
@@ -49,7 +64,21 @@ class BenchmarkRunner:
         if self.runner == Runner.INFERENCE_ONLY:
             return DomainRunnerInferenceOnly(agent=self.agent, deps_maker=self.deps_maker)
         if self.runner == Runner.HOLD_OUT:
-            raise NotImplementedError("HO is not implemented for now")
+            return DomainRunnerHoldOut(
+                agent=self.agent,
+                deps_maker=self.deps_maker,
+                test_ratio=self.hold_out_test_ratio,
+                random_state=self.random_state,
+                start_training=self.start_training,
+                start_testing=self.start_testing,
+            )
         if self.runner == Runner.CROSS_VALIDATION:
-            raise NotImplementedError("CV is not implemented for now")
+            return DomainRunnerCrossValidation(
+                agent=self.agent,
+                deps_maker=self.deps_maker,
+                n_splits=self.cv_n_splits,
+                random_state=self.random_state,
+                start_training=self.start_training,
+                start_testing=self.start_testing,
+            )
         raise ValueError("Invalid runner")

@@ -4,7 +4,7 @@ from mcp_evals.domain import Domain
 from mcp_evals.runner import BenchmarkRunner
 from mcp_evals.secrets import DomainSecrets, TaskSecrets
 from mcp_evals.task import Task
-from mcp_evals.types import DepsMaker, Runner
+from mcp_evals.types import DepsMaker, Runner, TrainingTestingCallback
 
 __all__ = [
     "BenchmarkRunner",
@@ -14,4 +14,5 @@ __all__ = [
     "Runner",
     "Task",
     "TaskSecrets",
+    "TrainingTestingCallback",
 ]

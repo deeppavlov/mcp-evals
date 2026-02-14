@@ -1,6 +1,6 @@
 """Tests for BenchmarkRunner class."""
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -8,6 +8,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic_ai.agent import Agent
 from pydantic_ai.mcp import MCPServer
+from pydantic_ai.run import AgentRunResult
+from pydantic_evals.evaluators import Evaluator
 from pydantic_evals.reporting import EvaluationReport
 
 from mcp_evals.domain import Domain
@@ -30,21 +32,32 @@ def _no_deps_maker(_task: Task[TaskSecrets, Any]) -> Any:
 INTERNAL_RUN = "mcp_evals._internal.runner._domain_runner.DomainRunnerInferenceOnly.run"
 
 
+class ConcreteTask(Task[TaskSecrets, Any]):
+    """Minimal task for runner tests."""
+
+    goal = "Test goal"
+    evaluators: tuple[Evaluator[Task[TaskSecrets, Any], AgentRunResult], ...] = ()
+
+    def __init__(self, name: str = "task") -> None:
+        self.name = name
+
+
 class ConcreteDomain(Domain[DomainSecrets]):
     """Concrete Domain implementation for testing."""
 
     name = "test_domain"
 
-    def __init__(self, name: str = "test_domain") -> None:
+    def __init__(self, name: str = "test_domain", tasks: list[ConcreteTask] | None = None) -> None:
         self.name = name
+        self._task_list = tasks if tasks is not None else []
 
     def mcp_servers(self) -> list[MCPServer]:
         """Return empty list of MCP servers."""
         return []
 
-    def tasks(self) -> list[Task[TaskSecrets, Any]]:
-        """Return empty list of tasks."""
-        return []
+    def tasks(self) -> Sequence[Task[TaskSecrets, Any]]:
+        """Return tasks."""
+        return self._task_list
 
 
 class TestBenchmarkRunnerInitialization:
@@ -255,3 +268,128 @@ class TestBenchmarkRunnerRun:
 
             mock_internal_run.assert_called_once()
             assert runner.deps_maker is custom_factory
+
+
+# Internal run paths for HO and CV (so we can patch and assert without running agent)
+INTERNAL_RUN_HOLD_OUT = "mcp_evals._internal.runner._hold_out_runner.DomainRunnerHoldOut.run_domain"
+INTERNAL_RUN_CV = "mcp_evals._internal.runner._cv_runner.DomainRunnerCrossValidation.run_domain"
+
+
+@pytest.mark.asyncio
+class TestBenchmarkRunnerHoldOut:
+    """Tests for BenchmarkRunner with Runner.HOLD_OUT."""
+
+    async def test_hold_out_returns_one_report_per_domain(self) -> None:
+        """Hold-out runner returns one EvaluationReport per domain."""
+        mock_agent = MagicMock(spec=Agent)
+        domain = ConcreteDomain(tasks=[ConcreteTask(name=f"t{i}") for i in range(5)])
+        runner = BenchmarkRunner(
+            agent=mock_agent,
+            domains=[domain],
+            runner=Runner.HOLD_OUT,
+            deps_maker=_no_deps_maker,
+            hold_out_test_ratio=0.2,
+        )
+        mock_report = MagicMock(spec=EvaluationReport)
+        mock_report.cases = [MagicMock(), MagicMock()]  # ~20% of 5 -> 1 or 2 test cases
+
+        with patch(INTERNAL_RUN_HOLD_OUT, new_callable=AsyncMock, return_value=mock_report):
+            reports = await runner.run()
+
+        assert len(reports) == 1
+        assert reports[0] is mock_report
+
+    async def test_hold_out_callbacks_invoked_in_order(self) -> None:
+        """start_training is awaited before training run, start_testing before test run."""
+        mock_agent = MagicMock(spec=Agent)
+        tasks = [ConcreteTask(name=f"t{i}") for i in range(10)]
+        domain = ConcreteDomain(tasks=tasks)
+        start_training = AsyncMock()
+        start_testing = AsyncMock()
+        runner = BenchmarkRunner(
+            agent=mock_agent,
+            domains=[domain],
+            runner=Runner.HOLD_OUT,
+            deps_maker=_no_deps_maker,
+            hold_out_test_ratio=0.2,
+            start_training=start_training,
+            start_testing=start_testing,
+        )
+
+        with patch(
+            "mcp_evals._internal.runner._hold_out_runner.tasks_to_dataset",
+            side_effect=lambda ts: MagicMock(
+                evaluate=AsyncMock(
+                    return_value=MagicMock(
+                        spec=EvaluationReport,
+                        cases=[MagicMock() for _ in range(len(ts))],
+                    )
+                )
+            ),
+        ):
+            reports = await runner.run()
+
+        assert len(reports) == 1
+        assert start_training.await_count == 1
+        assert start_testing.await_count == 1
+        assert start_training.await_count == 1
+        assert start_testing.await_count == 1
+
+
+@pytest.mark.asyncio
+class TestBenchmarkRunnerCrossValidation:
+    """Tests for BenchmarkRunner with Runner.CROSS_VALIDATION."""
+
+    async def test_cv_returns_one_report_per_domain(self) -> None:
+        """CV runner returns one merged EvaluationReport per domain."""
+        mock_agent = MagicMock(spec=Agent)
+        domain = ConcreteDomain(tasks=[ConcreteTask(name=f"t{i}") for i in range(10)])
+        runner = BenchmarkRunner(
+            agent=mock_agent,
+            domains=[domain],
+            runner=Runner.CROSS_VALIDATION,
+            deps_maker=_no_deps_maker,
+            cv_n_splits=5,
+        )
+        mock_report = MagicMock(spec=EvaluationReport)
+        mock_report.cases = [MagicMock() for _ in range(10)]
+
+        with patch(INTERNAL_RUN_CV, new_callable=AsyncMock, return_value=mock_report):
+            reports = await runner.run()
+
+        assert len(reports) == 1
+        assert reports[0] is mock_report
+
+    async def test_cv_callbacks_invoked_per_fold(self) -> None:
+        """start_training and start_testing are awaited K times (once per fold)."""
+        mock_agent = MagicMock(spec=Agent)
+        tasks = [ConcreteTask(name=f"t{i}") for i in range(6)]
+        domain = ConcreteDomain(tasks=tasks)
+        start_training = AsyncMock()
+        start_testing = AsyncMock()
+        runner = BenchmarkRunner(
+            agent=mock_agent,
+            domains=[domain],
+            runner=Runner.CROSS_VALIDATION,
+            deps_maker=_no_deps_maker,
+            cv_n_splits=3,
+            start_training=start_training,
+            start_testing=start_testing,
+        )
+
+        with patch(
+            "mcp_evals._internal.runner._cv_runner.tasks_to_dataset",
+            side_effect=lambda ts: MagicMock(
+                evaluate=AsyncMock(
+                    return_value=MagicMock(
+                        spec=EvaluationReport,
+                        cases=[MagicMock() for _ in range(len(ts))],
+                    )
+                )
+            ),
+        ):
+            reports = await runner.run()
+
+        assert len(reports) == 1
+        assert start_training.await_count == 3
+        assert start_testing.await_count == 3

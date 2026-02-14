@@ -1,15 +1,13 @@
 """Internal runner for executing domains and tasks."""
 
-from collections.abc import Awaitable, Callable
 from typing import Any
 
-from pydantic_ai.agent import Agent, AgentRunResult
+from pydantic_ai.agent import Agent
 from pydantic_evals.reporting import EvaluationReport
 
 from mcp_evals._internal.conversion import domain_to_dataset
 from mcp_evals.domain import Domain
-from mcp_evals.task import Task
-from mcp_evals.types import DepsMaker
+from mcp_evals.types import DepsMaker, EvaluatedFn
 
 from ._base import BaseDomainRunner
 from ._utils import task_lifecycle
@@ -23,8 +21,7 @@ class DomainRunnerInferenceOnly(BaseDomainRunner):
         self,
         domain: Domain[Any],
         experiment_name: str | None,
-        evaluated_fn: Callable[[Task[Any, Any]], Awaitable[AgentRunResult[Any]]]
-        | Callable[[Task[Any, Any]], AgentRunResult[Any]],
+        evaluated_fn: EvaluatedFn,
     ) -> EvaluationReport:
         dataset = domain_to_dataset(domain)
 
