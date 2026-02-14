@@ -15,6 +15,7 @@ async def run_agent_on_task(
     *,
     agent: Agent[Any, Any],
     toolset: CombinedToolset[Any],
+    deps: object | None,
 ) -> AgentRunResult[OutputDataT]:
     """The function evaluated by pydantic_evals for each Case.
 
@@ -33,4 +34,5 @@ async def run_agent_on_task(
         task.goal,
         output_type=task.output_type,
         toolsets=[toolset, *task.mcp_servers()],
+        deps=deps,
     )

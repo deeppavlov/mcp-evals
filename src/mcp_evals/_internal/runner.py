@@ -33,7 +33,9 @@ async def task_lifecycle(case: Case[Task[Any, Any], AgentRunResult, None]) -> As
         yield
 
 
-async def run_domain(domain: Domain[Any], agent: Agent[Any, Any], experiment_name: str | None) -> EvaluationReport:
+async def run_domain(
+    domain: Domain[Any], agent: Agent[Any, Any], experiment_name: str | None, deps: object | None
+) -> EvaluationReport:
     """Run all tasks in a domain.
 
     Domain is an async context manager that manages CombinedToolset lifecycle
@@ -42,11 +44,7 @@ async def run_domain(domain: Domain[Any], agent: Agent[Any, Any], experiment_nam
     async with domain:
         dataset = domain_to_dataset(domain)
 
-        evaluated_fn = partial(
-            run_agent_on_task,
-            agent=agent,
-            toolset=domain.toolset,
-        )
+        evaluated_fn = partial(run_agent_on_task, agent=agent, toolset=domain.toolset, deps=deps)
 
         return await dataset.evaluate(
             evaluated_fn,
