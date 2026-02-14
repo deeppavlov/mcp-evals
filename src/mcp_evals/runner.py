@@ -5,9 +5,9 @@ from typing import Any
 from pydantic_ai.agent import Agent
 from pydantic_evals.reporting import EvaluationReport
 
-from mcp_evals._internal.runner import run_domain
+from mcp_evals._internal.runner import BaseDomainRunner, DomainRunnerInferenceOnly
 from mcp_evals.domain import Domain
-from mcp_evals.types import DepsMaker
+from mcp_evals.types import DepsMaker, Runner
 
 
 class BenchmarkRunner:
@@ -17,21 +17,18 @@ class BenchmarkRunner:
         self,
         agent: Agent[Any, Any],
         domains: list[Domain[Any]],
-    ) -> None:
-        """Initialize the benchmark runner.
-
-        Args:
-            agent: The pydantic_ai Agent to use for task execution
-            domains: List of Domain instances to evaluate
-        """
-        self.agent = agent
-        self.domains = domains
-
-    async def run(
-        self,
+        runner: Runner,
         deps_maker: DepsMaker | None = None,
         experiment_name: str | None = None,
-    ) -> list[EvaluationReport]:
+    ) -> None:
+        """Initialize the benchmark runner."""
+        self.agent = agent
+        self.domains = domains
+        self.runner = runner
+        self.deps_maker = deps_maker
+        self.experiment_name = experiment_name
+
+    async def run(self) -> list[EvaluationReport]:
         """Run all tasks from all domains.
 
         Args:
@@ -45,15 +42,14 @@ class BenchmarkRunner:
         Returns:
             Evaluation reports for all domains
         """
-        eval_reports: list[EvaluationReport] = []
+        runner = self._create_runner()
+        return [await runner.run(domain, experiment_name=self.experiment_name) for domain in self.domains]
 
-        for domain in self.domains:
-            eval_report = await run_domain(
-                domain,
-                self.agent,
-                experiment_name=experiment_name,
-                deps_maker=deps_maker,
-            )
-            eval_reports.append(eval_report)
-
-        return eval_reports
+    def _create_runner(self) -> BaseDomainRunner:
+        if self.runner == Runner.INFERENCE_ONLY:
+            return DomainRunnerInferenceOnly(agent=self.agent, deps_maker=self.deps_maker)
+        if self.runner == Runner.HOLD_OUT:
+            raise NotImplementedError("HO is not implemented for now")
+        if self.runner == Runner.CROSS_VALIDATION:
+            raise NotImplementedError("CV is not implemented for now")
+        raise ValueError("Invalid runner")

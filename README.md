@@ -32,6 +32,7 @@ For running MCP servers you might need
 ```python
 from mcp_evals import BenchmarkRunner, Domain, Task
 from mcp_evals.evaluators import FileExists
+from mcp_evals.types import Runner
 from pydantic_ai import Agent
 from pydantic_ai.mcp import MCPServerStdio
 
@@ -63,9 +64,13 @@ class FilesystemDomain(Domain):
 
 async def main():
     agent = Agent("openai:gpt-4o")
-    runner = BenchmarkRunner(agent=agent, domains=[FilesystemDomain()])
-    report = await runner.run()
-    report.print()
+    runner = BenchmarkRunner(
+        agent=agent,
+        domains=[FilesystemDomain()],
+        runner=Runner.INFERENCE_ONLY,
+    )
+    reports = await runner.run()
+    reports[0].print()
 ```
 
 ## Basic Usage
@@ -121,6 +126,7 @@ class DatabaseDomain(Domain):
 
 ```python
 from mcp_evals import BenchmarkRunner
+from mcp_evals.types import Runner
 from pydantic_ai import Agent
 import logfire
 
@@ -135,16 +141,16 @@ async def main():
     runner = BenchmarkRunner(
         agent=agent,
         domains=[FilesystemDomain(), DatabaseDomain()],
+        runner=Runner.INFERENCE_ONLY,
     )
     
-    report = await runner.run()
-    report.print()
-    
-    # Access detailed results
-    for result in report.results:
-        print(f"{result.task_name}: {'✓' if result.passed else '✗'}")
-        for metric in result.metrics:
-            print(f"  {metric.name}: {metric.value}")
+    reports = await runner.run()
+    for report in reports:
+        report.print()
+        # Access detailed results
+        for case in report.cases:
+            passed = all(s.value == 1.0 for s in case.scores.values())
+            print(f"{case.name}: {'✓' if passed else '✗'}")
 ```
 
 ## Advanced Usage
