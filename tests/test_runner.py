@@ -1,7 +1,7 @@
 """Tests for BenchmarkRunner class."""
 
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic_ai.agent import Agent
@@ -69,6 +69,7 @@ class TestBenchmarkRunnerRun:
             agent: Agent,  # noqa: ARG001
             *,
             experiment_name: str | None = None,  # noqa: ARG001
+            deps: object | None = None,  # noqa: ARG001
         ) -> EvaluationReport:
             call_order.append(domain.name)
             if domain.name == "domain1":
@@ -145,6 +146,7 @@ class TestBenchmarkRunnerRun:
             agent: Agent,  # noqa: ARG001
             *,
             experiment_name: str | None = None,  # noqa: ARG001
+            deps: object | None = None,  # noqa: ARG001
         ) -> EvaluationReport:
             if domain.name == "domain1":
                 return mock_report1
@@ -170,6 +172,7 @@ class TestBenchmarkRunnerRun:
             agent: Agent,
             *,
             experiment_name: str | None = None,  # noqa: ARG001
+            deps: object | None = None,  # noqa: ARG001
         ) -> EvaluationReport:
             received_agents.append(agent)
             return MagicMock(spec=EvaluationReport)
@@ -179,3 +182,32 @@ class TestBenchmarkRunnerRun:
 
             assert len(received_agents) == 2
             assert all(agent is mock_agent for agent in received_agents)
+
+    async def test_passes_deps_to_run_domain(self) -> None:
+        """Test that run(deps=...) forwards custom deps to run_domain."""
+        mock_agent = MagicMock(spec=Agent)
+        domain = ConcreteDomain()
+        runner = BenchmarkRunner(agent=mock_agent, domains=[domain])
+        custom_deps = {"db": "connection", "user_id": 42}
+
+        with patch("mcp_evals.runner.run_domain", new_callable=AsyncMock) as mock_run_domain:
+            mock_run_domain.return_value = MagicMock(spec=EvaluationReport)
+            await runner.run(experiment_name=None, deps=custom_deps)
+
+            mock_run_domain.assert_called_once_with(
+                domain, mock_agent, experiment_name=None, deps=custom_deps
+            )
+
+    async def test_run_without_deps_calls_run_domain_with_none_deps(self) -> None:
+        """Test that run() without deps calls run_domain with deps=None."""
+        mock_agent = MagicMock(spec=Agent)
+        domain = ConcreteDomain()
+        runner = BenchmarkRunner(agent=mock_agent, domains=[domain])
+
+        with patch("mcp_evals.runner.run_domain", new_callable=AsyncMock) as mock_run_domain:
+            mock_run_domain.return_value = MagicMock(spec=EvaluationReport)
+            await runner.run(experiment_name="exp")
+
+            mock_run_domain.assert_called_once_with(
+                domain, mock_agent, experiment_name="exp", deps=None
+            )
