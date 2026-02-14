@@ -21,7 +21,7 @@ async def _yield_none_cm() -> AsyncGenerator[None]:
     yield None
 
 
-def _no_deps_maker() -> Any:
+def _no_deps_maker(_task: Task[TaskSecrets, Any]) -> Any:
     """Deps maker that yields None (for tests that don't need real deps)."""
     return _yield_none_cm()
 

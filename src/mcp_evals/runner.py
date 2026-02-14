@@ -35,10 +35,11 @@ class BenchmarkRunner:
         """Run all tasks from all domains.
 
         Args:
-            deps_maker: Optional callable that returns an async context manager
-                yielding deps for each task. When omitted, a default maker that
-                yields None is used (no custom deps). Pass a custom factory to
-                provide fresh deps per task (e.g. DB connection, request-scoped state).
+            deps_maker: Optional callable that takes the task instance and returns
+                an async context manager yielding deps for that task. When omitted,
+                a default maker that yields None is used (no custom deps). Pass a
+                custom factory to provide fresh deps per task (e.g. DB connection,
+                request-scoped state).
             experiment_name: Optional experiment name for reporting.
 
         Returns:

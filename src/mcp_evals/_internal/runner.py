@@ -24,7 +24,7 @@ async def _no_deps_cm() -> AsyncIterator[None]:
 
 def _default_deps_maker() -> DepsMaker:
     """Default deps maker used when user does not pass one (yields None)."""
-    return _no_deps_cm
+    return lambda _task: _no_deps_cm()
 
 
 @asynccontextmanager
@@ -54,8 +54,9 @@ async def run_domain(
 
     Domain is an async context manager that manages CombinedToolset lifecycle
     and custom user's setup/teardown logic. deps_maker is an optional
-    callable returning an async context manager that yields deps per task;
-    when omitted, a default that yields None is used.
+    callable that takes the task instance and returns an async context
+    manager that yields deps for that task; when omitted, a default
+    that yields None is used.
     """
     if deps_maker is None:
         deps_maker = _default_deps_maker()

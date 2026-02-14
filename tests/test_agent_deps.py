@@ -50,7 +50,8 @@ async def test_run_agent_on_task_uses_deps_maker_and_passes_yielded_deps_to_agen
         finally:
             exit_called.append(1)
 
-    def deps_maker() -> AbstractAsyncContextManager[object]:
+    def deps_maker(t: Task[TaskSecrets, str]) -> AbstractAsyncContextManager[object]:
+        assert t is task
         return mock_cm()
 
     result = await run_agent_on_task(task, agent=mock_agent, toolset=mock_toolset, deps_maker=deps_maker)
@@ -76,7 +77,8 @@ async def test_run_agent_on_task_with_deps_maker_yielding_none() -> None:
     async def mock_cm() -> AsyncGenerator[None]:
         yield None
 
-    def deps_maker() -> AbstractAsyncContextManager[None]:
+    def deps_maker(t: Task[TaskSecrets, str]) -> AbstractAsyncContextManager[None]:
+        assert t is task
         return mock_cm()
 
     await run_agent_on_task(task, agent=mock_agent, toolset=mock_toolset, deps_maker=deps_maker)

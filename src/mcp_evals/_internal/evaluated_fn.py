@@ -22,7 +22,7 @@ async def run_agent_on_task(
 
     Agent and toolset are bound via `functools.partial` before passing
     to `dataset.evaluate()`. Deps are obtained by entering the async context
-    manager returned by deps_maker(); that CM is entered and exited
+    manager returned by deps_maker(task); that CM is entered and exited
     for each task so each task gets fresh deps.
 
     Note: Task context (setup/teardown) is managed by `case_context_manager`,
@@ -33,7 +33,7 @@ async def run_agent_on_task(
     - `ctx.inputs`: the `Task` instance (access `task.goal`, `task.secrets`, etc.)
     - `ctx.output`: the result from `agent.run()`
     """
-    async with deps_maker() as deps:
+    async with deps_maker(task) as deps:
         return await agent.run(
             task.goal,
             output_type=task.output_type,
