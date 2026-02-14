@@ -135,7 +135,7 @@ wheels = [
 
 [[package]]
 name = "anthropic"
-version = "0.77.0"
+version = "0.79.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -147,9 +147,9 @@ dependencies = [
     { name = "sniffio" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/eb/85/6cb5da3cf91de2eeea89726316e8c5c8c31e2d61ee7cb1233d7e95512c31/anthropic-0.77.0.tar.gz", hash = "sha256:ce36efeb80cb1e25430a88440dc0f9aa5c87f10d080ab70a1bdfd5c2c5fbedb4", size = 504575, upload-time = "2026-01-29T18:20:41.507Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/15/b1/91aea3f8fd180d01d133d931a167a78a3737b3fd39ccef2ae8d6619c24fd/anthropic-0.79.0.tar.gz", hash = "sha256:8707aafb3b1176ed6c13e2b1c9fb3efddce90d17aee5d8b83a86c70dcdcca871", size = 509825, upload-time = "2026-02-07T18:06:18.388Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ac/27/9df785d3f94df9ac72f43ee9e14b8120b37d992b18f4952774ed46145022/anthropic-0.77.0-py3-none-any.whl", hash = "sha256:65cc83a3c82ce622d5c677d0d7706c77d29dc83958c6b10286e12fda6ffb2651", size = 397867, upload-time = "2026-01-29T18:20:39.481Z" },
+    { url = "https://files.pythonhosted.org/packages/95/b2/cc0b8e874a18d7da50b0fda8c99e4ac123f23bf47b471827c5f6f3e4a767/anthropic-0.79.0-py3-none-any.whl", hash = "sha256:04cbd473b6bbda4ca2e41dd670fe2f829a911530f01697d0a1e37321eb75f3cf", size = 405918, upload-time = "2026-02-07T18:06:20.246Z" },
 ]
 
 [[package]]
@@ -1356,7 +1356,7 @@ requires-dist = [
     { name = "httpx", marker = "extra == 'domain-postgres'", specifier = "~=0.28" },
     { name = "loguru", specifier = ">=0.7,<1.0" },
     { name = "psycopg", extras = ["binary"], marker = "extra == 'domain-postgres'", specifier = ">=3.0,<4.0" },
-    { name = "pydantic-ai", git = "https://github.com/voorhs/pydantic-ai?rev=d55ae56" },
+    { name = "pydantic-ai", git = "https://github.com/voorhs/pydantic-ai?rev=3d2e6a3" },
     { name = "pydantic-settings", specifier = ">=2.0,<3.0" },
     { name = "tqdm", marker = "extra == 'domain-filesystem'", specifier = ">=4.0,<5.0" },
 ]
@@ -2002,16 +2002,16 @@ email = [
 
 [[package]]
 name = "pydantic-ai"
-version = "0.0.1.dev1661+d55ae560"
-source = { git = "https://github.com/voorhs/pydantic-ai?rev=d55ae56#d55ae560278be7979a8e6e0045f6fc05f770d058" }
+version = "0.0.1.dev1730+3d2e6a34"
+source = { git = "https://github.com/voorhs/pydantic-ai?rev=3d2e6a3#3d2e6a345237f8f9962f1fef531baa58a07b5132" }
 dependencies = [
     { name = "pydantic-ai-slim", extra = ["ag-ui", "anthropic", "bedrock", "cli", "cohere", "evals", "fastmcp", "google", "groq", "huggingface", "logfire", "mcp", "mistral", "openai", "retries", "temporal", "ui", "vertexai", "xai"] },
 ]
 
 [[package]]
 name = "pydantic-ai-slim"
-version = "0.0.1.dev1661+d55ae560"
-source = { git = "https://github.com/voorhs/pydantic-ai?subdirectory=pydantic_ai_slim&rev=d55ae56#d55ae560278be7979a8e6e0045f6fc05f770d058" }
+version = "0.0.1.dev1730+3d2e6a34"
+source = { git = "https://github.com/voorhs/pydantic-ai?subdirectory=pydantic_ai_slim&rev=3d2e6a3#3d2e6a345237f8f9962f1fef531baa58a07b5132" }
 dependencies = [
     { name = "genai-prices" },
     { name = "griffe" },
@@ -2142,8 +2142,8 @@ wheels = [
 
 [[package]]
 name = "pydantic-evals"
-version = "0.0.1.dev1661+d55ae560"
-source = { git = "https://github.com/voorhs/pydantic-ai?subdirectory=pydantic_evals&rev=d55ae56#d55ae560278be7979a8e6e0045f6fc05f770d058" }
+version = "0.0.1.dev1730+3d2e6a34"
+source = { git = "https://github.com/voorhs/pydantic-ai?subdirectory=pydantic_evals&rev=3d2e6a3#3d2e6a345237f8f9962f1fef531baa58a07b5132" }
 dependencies = [
     { name = "anyio" },
     { name = "logfire-api" },
@@ -2155,8 +2155,8 @@ dependencies = [
 
 [[package]]
 name = "pydantic-graph"
-version = "0.0.1.dev1661+d55ae560"
-source = { git = "https://github.com/voorhs/pydantic-ai?subdirectory=pydantic_graph&rev=d55ae56#d55ae560278be7979a8e6e0045f6fc05f770d058" }
+version = "0.0.1.dev1730+3d2e6a34"
+source = { git = "https://github.com/voorhs/pydantic-ai?subdirectory=pydantic_graph&rev=3d2e6a3#3d2e6a345237f8f9962f1fef531baa58a07b5132" }
 dependencies = [
     { name = "httpx" },
     { name = "logfire-api" },

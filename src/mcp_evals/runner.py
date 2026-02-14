@@ -7,6 +7,7 @@ from pydantic_evals.reporting import EvaluationReport
 
 from mcp_evals._internal.runner import run_domain
 from mcp_evals.domain import Domain
+from mcp_evals.types import DepsMaker
 
 
 class BenchmarkRunner:
@@ -26,8 +27,20 @@ class BenchmarkRunner:
         self.agent = agent
         self.domains = domains
 
-    async def run(self, experiment_name: str | None) -> list[EvaluationReport]:
+    async def run(
+        self,
+        deps_maker: DepsMaker | None = None,
+        experiment_name: str | None = None,
+    ) -> list[EvaluationReport]:
         """Run all tasks from all domains.
+
+        Args:
+            deps_maker: Optional callable that takes the task instance and returns
+                an async context manager yielding deps for that task. When omitted,
+                a default maker that yields None is used (no custom deps). Pass a
+                custom factory to provide fresh deps per task (e.g. DB connection,
+                request-scoped state).
+            experiment_name: Optional experiment name for reporting.
 
         Returns:
             Evaluation reports for all domains
@@ -35,7 +48,12 @@ class BenchmarkRunner:
         eval_reports: list[EvaluationReport] = []
 
         for domain in self.domains:
-            eval_report = await run_domain(domain, self.agent, experiment_name=experiment_name)
+            eval_report = await run_domain(
+                domain,
+                self.agent,
+                experiment_name=experiment_name,
+                deps_maker=deps_maker,
+            )
             eval_reports.append(eval_report)
 
         return eval_reports
