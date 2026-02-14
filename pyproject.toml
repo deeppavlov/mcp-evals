@@ -39,7 +39,7 @@ dev = [
 ]
 
 [tool.uv.sources]
-pydantic-ai = { git = "https://github.com/voorhs/pydantic-ai", rev = "d55ae56" }
+pydantic-ai = { git = "https://github.com/voorhs/pydantic-ai", rev = "3d2e6a3" }
 
 [build-system]
 requires = ["uv_build>=0.8.8,<0.9.0"]
