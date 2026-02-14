@@ -13,8 +13,18 @@ from pydantic_evals.reporting import EvaluationReport
 from mcp_evals._internal.conversion import domain_to_dataset
 from mcp_evals._internal.evaluated_fn import run_agent_on_task
 from mcp_evals.domain import Domain
-from mcp_evals.runner import DepsLifecycleFactory
 from mcp_evals.task import Task
+from mcp_evals.types import DepsLifecycleFactory
+
+
+@asynccontextmanager
+async def _no_deps_cm() -> AsyncIterator[None]:
+    yield None
+
+
+def _default_deps_lifecycle() -> DepsLifecycleFactory:
+    """Default deps lifecycle used when user does not pass one (yields None)."""
+    return _no_deps_cm
 
 
 @asynccontextmanager
@@ -38,14 +48,18 @@ async def run_domain(
     domain: Domain[Any],
     agent: Agent[Any, Any],
     experiment_name: str | None,
-    deps_lifecycle: DepsLifecycleFactory,
+    deps_lifecycle: DepsLifecycleFactory | None = None,
 ) -> EvaluationReport:
     """Run all tasks in a domain.
 
     Domain is an async context manager that manages CombinedToolset lifecycle
-    and custom user's setup/teardown logic. deps_lifecycle is a callable
-    returning an async context manager that yields deps per task.
+    and custom user's setup/teardown logic. deps_lifecycle is an optional
+    callable returning an async context manager that yields deps per task;
+    when omitted, a default that yields None is used.
     """
+    if deps_lifecycle is None:
+        deps_lifecycle = _default_deps_lifecycle()
+
     async with domain:
         dataset = domain_to_dataset(domain)
 

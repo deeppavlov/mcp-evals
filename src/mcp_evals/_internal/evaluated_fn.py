@@ -7,8 +7,8 @@ from pydantic_ai.output import OutputDataT
 from pydantic_ai.run import AgentRunResult
 from pydantic_ai.toolsets import CombinedToolset
 
-from mcp_evals.runner import DepsLifecycleFactory
 from mcp_evals.task import Task
+from mcp_evals.types import DepsLifecycleFactory
 
 
 async def run_agent_on_task(

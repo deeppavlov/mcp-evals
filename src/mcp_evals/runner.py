@@ -1,7 +1,5 @@
 """Benchmark runner for executing evaluation benchmarks."""
 
-from collections.abc import Callable
-from contextlib import AbstractAsyncContextManager
 from typing import Any
 
 from pydantic_ai.agent import Agent
@@ -9,8 +7,7 @@ from pydantic_evals.reporting import EvaluationReport
 
 from mcp_evals._internal.runner import run_domain
 from mcp_evals.domain import Domain
-
-DepsLifecycleFactory = Callable[[], AbstractAsyncContextManager[object]]
+from mcp_evals.types import DepsLifecycleFactory
 
 
 class BenchmarkRunner:
@@ -32,15 +29,16 @@ class BenchmarkRunner:
 
     async def run(
         self,
-        deps_lifecycle: DepsLifecycleFactory,
+        deps_lifecycle: DepsLifecycleFactory | None = None,
         experiment_name: str | None = None,
     ) -> list[EvaluationReport]:
         """Run all tasks from all domains.
 
         Args:
-            deps_lifecycle: Callable that returns an async context manager yielding
-                deps for each task. Entered and exited inside each task run to provide
-                fresh deps (e.g. DB connection, request-scoped state) per task.
+            deps_lifecycle: Optional callable that returns an async context manager
+                yielding deps for each task. When omitted, a default lifecycle that
+                yields None is used (no custom deps). Pass a custom factory to
+                provide fresh deps per task (e.g. DB connection, request-scoped state).
             experiment_name: Optional experiment name for reporting.
 
         Returns:
@@ -50,7 +48,10 @@ class BenchmarkRunner:
 
         for domain in self.domains:
             eval_report = await run_domain(
-                domain, self.agent, experiment_name=experiment_name, deps_lifecycle=deps_lifecycle
+                domain,
+                self.agent,
+                experiment_name=experiment_name,
+                deps_lifecycle=deps_lifecycle,
             )
             eval_reports.append(eval_report)
 
