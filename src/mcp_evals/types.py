@@ -3,4 +3,4 @@
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
 
-type DepsLifecycleFactory = Callable[[], AbstractAsyncContextManager[object]]
+type DepsMaker = Callable[[], AbstractAsyncContextManager[object]]

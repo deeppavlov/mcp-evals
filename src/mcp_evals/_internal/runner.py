@@ -14,7 +14,7 @@ from mcp_evals._internal.conversion import domain_to_dataset
 from mcp_evals._internal.evaluated_fn import run_agent_on_task
 from mcp_evals.domain import Domain
 from mcp_evals.task import Task
-from mcp_evals.types import DepsLifecycleFactory
+from mcp_evals.types import DepsMaker
 
 
 @asynccontextmanager
@@ -22,8 +22,8 @@ async def _no_deps_cm() -> AsyncIterator[None]:
     yield None
 
 
-def _default_deps_lifecycle() -> DepsLifecycleFactory:
-    """Default deps lifecycle used when user does not pass one (yields None)."""
+def _default_deps_maker() -> DepsMaker:
+    """Default deps maker used when user does not pass one (yields None)."""
     return _no_deps_cm
 
 
@@ -48,17 +48,17 @@ async def run_domain(
     domain: Domain[Any],
     agent: Agent[Any, Any],
     experiment_name: str | None,
-    deps_lifecycle: DepsLifecycleFactory | None = None,
+    deps_maker: DepsMaker | None = None,
 ) -> EvaluationReport:
     """Run all tasks in a domain.
 
     Domain is an async context manager that manages CombinedToolset lifecycle
-    and custom user's setup/teardown logic. deps_lifecycle is an optional
+    and custom user's setup/teardown logic. deps_maker is an optional
     callable returning an async context manager that yields deps per task;
     when omitted, a default that yields None is used.
     """
-    if deps_lifecycle is None:
-        deps_lifecycle = _default_deps_lifecycle()
+    if deps_maker is None:
+        deps_maker = _default_deps_maker()
 
     async with domain:
         dataset = domain_to_dataset(domain)
@@ -67,7 +67,7 @@ async def run_domain(
             run_agent_on_task,
             agent=agent,
             toolset=domain.toolset,
-            deps_lifecycle=deps_lifecycle,
+            deps_maker=deps_maker,
         )
 
         return await dataset.evaluate(

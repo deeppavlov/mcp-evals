@@ -1,4 +1,4 @@
-"""Tests for deps_lifecycle passed to pydantic_ai agent.run."""
+"""Tests for deps_maker passed to pydantic_ai agent.run."""
 
 from collections.abc import AsyncGenerator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
@@ -30,8 +30,8 @@ class _SimpleTask(Task[TaskSecrets, str]):
 
 
 @pytest.mark.asyncio
-async def test_run_agent_on_task_uses_deps_lifecycle_and_passes_yielded_deps_to_agent_run() -> None:
-    """run_agent_on_task enters deps_lifecycle() CM and passes yielded value to agent.run()."""
+async def test_run_agent_on_task_uses_deps_maker_and_passes_yielded_deps_to_agent_run() -> None:
+    """run_agent_on_task enters deps_maker() CM and passes yielded value to agent.run()."""
     mock_result = MagicMock(spec=AgentRunResult)
     mock_agent = MagicMock(spec=Agent)
     mock_agent.run = AsyncMock(return_value=mock_result)
@@ -50,10 +50,10 @@ async def test_run_agent_on_task_uses_deps_lifecycle_and_passes_yielded_deps_to_
         finally:
             exit_called.append(1)
 
-    def deps_lifecycle() -> AbstractAsyncContextManager[object]:
+    def deps_maker() -> AbstractAsyncContextManager[object]:
         return mock_cm()
 
-    result = await run_agent_on_task(task, agent=mock_agent, toolset=mock_toolset, deps_lifecycle=deps_lifecycle)
+    result = await run_agent_on_task(task, agent=mock_agent, toolset=mock_toolset, deps_maker=deps_maker)
 
     assert result is mock_result
     mock_agent.run.assert_called_once()
@@ -64,8 +64,8 @@ async def test_run_agent_on_task_uses_deps_lifecycle_and_passes_yielded_deps_to_
 
 
 @pytest.mark.asyncio
-async def test_run_agent_on_task_with_deps_lifecycle_yielding_none() -> None:
-    """run_agent_on_task with deps_lifecycle yielding None passes None to agent.run()."""
+async def test_run_agent_on_task_with_deps_maker_yielding_none() -> None:
+    """run_agent_on_task with deps_maker yielding None passes None to agent.run()."""
     mock_result = MagicMock(spec=AgentRunResult)
     mock_agent = MagicMock(spec=Agent)
     mock_agent.run = AsyncMock(return_value=mock_result)
@@ -76,10 +76,10 @@ async def test_run_agent_on_task_with_deps_lifecycle_yielding_none() -> None:
     async def mock_cm() -> AsyncGenerator[None]:
         yield None
 
-    def deps_lifecycle() -> AbstractAsyncContextManager[None]:
+    def deps_maker() -> AbstractAsyncContextManager[None]:
         return mock_cm()
 
-    await run_agent_on_task(task, agent=mock_agent, toolset=mock_toolset, deps_lifecycle=deps_lifecycle)
+    await run_agent_on_task(task, agent=mock_agent, toolset=mock_toolset, deps_maker=deps_maker)
 
     call_kw = mock_agent.run.call_args.kwargs
     assert call_kw.get("deps") is None
