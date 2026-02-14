@@ -13,6 +13,7 @@ from pydantic_evals.reporting import EvaluationReport
 from mcp_evals._internal.conversion import domain_to_dataset
 from mcp_evals._internal.evaluated_fn import run_agent_on_task
 from mcp_evals.domain import Domain
+from mcp_evals.runner import DepsLifecycleFactory
 from mcp_evals.task import Task
 
 
@@ -34,17 +35,26 @@ async def task_lifecycle(case: Case[Task[Any, Any], AgentRunResult, None]) -> As
 
 
 async def run_domain(
-    domain: Domain[Any], agent: Agent[Any, Any], experiment_name: str | None, deps: object | None
+    domain: Domain[Any],
+    agent: Agent[Any, Any],
+    experiment_name: str | None,
+    deps_lifecycle: DepsLifecycleFactory,
 ) -> EvaluationReport:
     """Run all tasks in a domain.
 
     Domain is an async context manager that manages CombinedToolset lifecycle
-    and custom user's setup/teardown logic.
+    and custom user's setup/teardown logic. deps_lifecycle is a callable
+    returning an async context manager that yields deps per task.
     """
     async with domain:
         dataset = domain_to_dataset(domain)
 
-        evaluated_fn = partial(run_agent_on_task, agent=agent, toolset=domain.toolset, deps=deps)
+        evaluated_fn = partial(
+            run_agent_on_task,
+            agent=agent,
+            toolset=domain.toolset,
+            deps_lifecycle=deps_lifecycle,
+        )
 
         return await dataset.evaluate(
             evaluated_fn,
