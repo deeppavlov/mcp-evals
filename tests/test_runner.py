@@ -393,3 +393,115 @@ class TestBenchmarkRunnerCrossValidation:
         assert len(reports) == 1
         assert start_training.await_count == 3
         assert start_testing.await_count == 3
+
+
+@pytest.mark.asyncio
+class TestBenchmarkRunnerMaxTasks:
+    """Tests for max_tasks limiting the number of tasks run per domain."""
+
+    async def test_inference_only_max_tasks_limits_cases(self) -> None:
+        """With max_tasks=2, report contains at most 2 cases (first 2 tasks)."""
+        mock_agent = MagicMock(spec=Agent)
+        domain = ConcreteDomain(tasks=[ConcreteTask(name=f"t{i}") for i in range(5)])
+        runner = BenchmarkRunner(
+            agent=mock_agent,
+            domains=[domain],
+            runner=Runner.INFERENCE_ONLY,
+            deps_maker=_no_deps_maker,
+            max_tasks=2,
+        )
+        mock_result = MagicMock(spec=AgentRunResult)
+
+        with patch(
+            "mcp_evals._internal.runner._base.run_agent_on_task",
+            new_callable=AsyncMock,
+            return_value=mock_result,
+        ):
+            reports = await runner.run()
+
+        assert len(reports) == 1
+        assert len(reports[0].cases) == 2
+
+    async def test_hold_out_max_tasks_limits_task_list(self) -> None:
+        """With max_tasks=2, hold_out_split is called with n_tasks=2."""
+        mock_agent = MagicMock(spec=Agent)
+        domain = ConcreteDomain(tasks=[ConcreteTask(name=f"t{i}") for i in range(5)])
+        runner = BenchmarkRunner(
+            agent=mock_agent,
+            domains=[domain],
+            runner=Runner.HOLD_OUT,
+            deps_maker=_no_deps_maker,
+            max_tasks=2,
+            hold_out_test_ratio=0.5,
+        )
+        call_args: list[tuple[int, float, int | None]] = []
+
+        def capture_hold_out(n_tasks: int, test_ratio: float, random_state: int | None) -> tuple[list[int], list[int]]:
+            call_args.append((n_tasks, test_ratio, random_state))
+            from mcp_evals._internal.runner._splits import hold_out_split as real  # noqa: PLC0415
+
+            return real(n_tasks, test_ratio, random_state)
+
+        with (
+            patch(
+                "mcp_evals._internal.runner._hold_out_runner.hold_out_split",
+                side_effect=capture_hold_out,
+            ),
+            patch(
+                "mcp_evals._internal.runner._hold_out_runner.tasks_to_dataset",
+                side_effect=lambda ts: MagicMock(
+                    evaluate=AsyncMock(
+                        return_value=MagicMock(
+                            spec=EvaluationReport,
+                            cases=[MagicMock() for _ in range(len(ts))],
+                        )
+                    )
+                ),
+            ),
+        ):
+            await runner.run()
+
+        assert len(call_args) == 1
+        assert call_args[0][0] == 2
+
+    async def test_cv_max_tasks_limits_task_list(self) -> None:
+        """With max_tasks=2, k_fold_split is called with n_tasks=2."""
+        mock_agent = MagicMock(spec=Agent)
+        domain = ConcreteDomain(tasks=[ConcreteTask(name=f"t{i}") for i in range(5)])
+        runner = BenchmarkRunner(
+            agent=mock_agent,
+            domains=[domain],
+            runner=Runner.CROSS_VALIDATION,
+            deps_maker=_no_deps_maker,
+            max_tasks=2,
+            cv_n_splits=2,
+        )
+        call_args: list[int] = []
+
+        def capture_k_fold(n_tasks: int, n_splits: int, random_state: int | None) -> Any:
+            call_args.append(n_tasks)
+            from mcp_evals._internal.runner._splits import k_fold_split as real  # noqa: PLC0415
+
+            return real(n_tasks, n_splits, random_state)
+
+        with (
+            patch(
+                "mcp_evals._internal.runner._cv_runner.k_fold_split",
+                side_effect=capture_k_fold,
+            ),
+            patch(
+                "mcp_evals._internal.runner._cv_runner.tasks_to_dataset",
+                side_effect=lambda ts: MagicMock(
+                    evaluate=AsyncMock(
+                        return_value=MagicMock(
+                            spec=EvaluationReport,
+                            cases=[MagicMock() for _ in range(len(ts))],
+                        )
+                    )
+                ),
+            ),
+        ):
+            await runner.run()
+
+        assert len(call_args) == 1
+        assert call_args[0] == 2

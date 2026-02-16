@@ -129,6 +129,12 @@ def main() -> None:
         default=None,
         help="Experiment name. Use it to differentiate runs.",
     )
+    parser.add_argument(
+        "--max-tasks",
+        type=int,
+        default=None,
+        help="Max number of tasks to run per domain (default: all).",
+    )
 
     args = parser.parse_args()
 
@@ -161,9 +167,12 @@ def main() -> None:
         domains=[domain],
         runner=Runner.INFERENCE_ONLY,
         experiment_name=args.experiment_name,
+        max_tasks=args.max_tasks,
     )
 
     logger.info(f"Running {args.domain} tasks with model: {args.model}")
+    if args.max_tasks is not None:
+        logger.info(f"Running up to {args.max_tasks} tasks per domain")
 
     # Run benchmark
     async def run() -> None:

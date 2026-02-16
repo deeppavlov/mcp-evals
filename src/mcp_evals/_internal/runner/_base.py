@@ -15,9 +15,15 @@ from ._utils import default_deps_maker
 
 
 class BaseDomainRunner(ABC):
-    def __init__(self, agent: Agent[Any, Any], deps_maker: DepsMaker | None = None) -> None:
+    def __init__(
+        self,
+        agent: Agent[Any, Any],
+        deps_maker: DepsMaker | None = None,
+        max_tasks: int | None = None,
+    ) -> None:
         self.agent = agent
         self.deps_maker = deps_maker
+        self.max_tasks = max_tasks
 
     async def run(self, domain: Domain[Any], experiment_name: str | None = None) -> EvaluationReport:
         deps_maker = self.deps_maker or default_deps_maker()

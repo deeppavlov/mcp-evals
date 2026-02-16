@@ -22,12 +22,13 @@ class DomainRunnerCrossValidation(BaseDomainRunner):
         agent: Agent[Any, Any],
         deps_maker: DepsMaker | None = None,
         *,
+        max_tasks: int | None = None,
         n_splits: int = 5,
         random_state: int | None = None,
         start_training: TrainingTestingCallback | None = None,
         start_testing: TrainingTestingCallback | None = None,
     ) -> None:
-        super().__init__(agent=agent, deps_maker=deps_maker)
+        super().__init__(agent=agent, deps_maker=deps_maker, max_tasks=max_tasks)
         self.n_splits = n_splits
         self.random_state = random_state
         self.start_training = start_training
@@ -40,6 +41,8 @@ class DomainRunnerCrossValidation(BaseDomainRunner):
         evaluated_fn: EvaluatedFn,
     ) -> EvaluationReport:
         tasks = list(domain.tasks())
+        if self.max_tasks is not None:
+            tasks = tasks[: self.max_tasks]
         fold_reports: list[EvaluationReport] = []
 
         for fold_idx, (train_indices, test_indices) in enumerate(

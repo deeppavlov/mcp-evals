@@ -14,8 +14,13 @@ from ._utils import task_lifecycle
 
 
 class DomainRunnerInferenceOnly(BaseDomainRunner):
-    def __init__(self, agent: Agent[Any, Any], deps_maker: DepsMaker | None = None) -> None:
-        super().__init__(agent=agent, deps_maker=deps_maker)
+    def __init__(
+        self,
+        agent: Agent[Any, Any],
+        deps_maker: DepsMaker | None = None,
+        max_tasks: int | None = None,
+    ) -> None:
+        super().__init__(agent=agent, deps_maker=deps_maker, max_tasks=max_tasks)
 
     async def run_domain(
         self,
@@ -23,7 +28,7 @@ class DomainRunnerInferenceOnly(BaseDomainRunner):
         experiment_name: str | None,
         evaluated_fn: EvaluatedFn,
     ) -> EvaluationReport:
-        dataset = domain_to_dataset(domain)
+        dataset = domain_to_dataset(domain, max_tasks=self.max_tasks)
 
         return await dataset.evaluate(
             evaluated_fn,

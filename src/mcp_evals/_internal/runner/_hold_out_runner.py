@@ -22,12 +22,13 @@ class DomainRunnerHoldOut(BaseDomainRunner):
         agent: Agent[Any, Any],
         deps_maker: DepsMaker | None = None,
         *,
+        max_tasks: int | None = None,
         test_ratio: float = 0.2,
         random_state: int | None = None,
         start_training: TrainingTestingCallback | None = None,
         start_testing: TrainingTestingCallback | None = None,
     ) -> None:
-        super().__init__(agent=agent, deps_maker=deps_maker)
+        super().__init__(agent=agent, deps_maker=deps_maker, max_tasks=max_tasks)
         self.test_ratio = test_ratio
         self.random_state = random_state
         self.start_training = start_training
@@ -40,6 +41,8 @@ class DomainRunnerHoldOut(BaseDomainRunner):
         evaluated_fn: EvaluatedFn,
     ) -> EvaluationReport:
         tasks = list(domain.tasks())
+        if self.max_tasks is not None:
+            tasks = tasks[: self.max_tasks]
         train_indices, test_indices = hold_out_split(len(tasks), self.test_ratio, self.random_state)
 
         if self.start_training is not None:

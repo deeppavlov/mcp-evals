@@ -29,6 +29,11 @@ def tasks_to_dataset(tasks: Sequence[Task[Any, Any]]) -> Dataset[Task[Any, Any],
     return Dataset(cases=cases)
 
 
-def domain_to_dataset(domain: Domain[Any]) -> Dataset[Task[Any, Any], AgentRunResult[Any]]:
+def domain_to_dataset(
+    domain: Domain[Any], max_tasks: int | None = None
+) -> Dataset[Task[Any, Any], AgentRunResult[Any]]:
     """Convert mcp_evals Domain to pydantic_evals Dataset."""
-    return tasks_to_dataset(domain.tasks())
+    tasks = domain.tasks()
+    if max_tasks is not None:
+        tasks = tasks[:max_tasks]
+    return tasks_to_dataset(tasks)

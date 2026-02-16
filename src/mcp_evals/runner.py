@@ -18,13 +18,14 @@ from mcp_evals.types import DepsMaker, Runner, TrainingTestingCallback
 class BenchmarkRunner:
     """Runner for executing evaluation benchmarks across multiple domains."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         agent: Agent[Any, Any],
         domains: list[Domain[Any]],
         runner: Runner,
         deps_maker: DepsMaker | None = None,
         experiment_name: str | None = None,
+        max_tasks: int | None = None,
         hold_out_test_ratio: float = 0.2,
         cv_n_splits: int = 5,
         random_state: int | None = None,
@@ -37,6 +38,7 @@ class BenchmarkRunner:
         self.runner = runner
         self.deps_maker = deps_maker
         self.experiment_name = experiment_name
+        self.max_tasks = max_tasks
         self.hold_out_test_ratio = hold_out_test_ratio
         self.cv_n_splits = cv_n_splits
         self.random_state = random_state
@@ -62,11 +64,16 @@ class BenchmarkRunner:
 
     def _create_runner(self) -> BaseDomainRunner:
         if self.runner == Runner.INFERENCE_ONLY:
-            return DomainRunnerInferenceOnly(agent=self.agent, deps_maker=self.deps_maker)
+            return DomainRunnerInferenceOnly(
+                agent=self.agent,
+                deps_maker=self.deps_maker,
+                max_tasks=self.max_tasks,
+            )
         if self.runner == Runner.HOLD_OUT:
             return DomainRunnerHoldOut(
                 agent=self.agent,
                 deps_maker=self.deps_maker,
+                max_tasks=self.max_tasks,
                 test_ratio=self.hold_out_test_ratio,
                 random_state=self.random_state,
                 start_training=self.start_training,
@@ -76,6 +83,7 @@ class BenchmarkRunner:
             return DomainRunnerCrossValidation(
                 agent=self.agent,
                 deps_maker=self.deps_maker,
+                max_tasks=self.max_tasks,
                 n_splits=self.cv_n_splits,
                 random_state=self.random_state,
                 start_training=self.start_training,
