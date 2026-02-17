@@ -33,9 +33,9 @@ class ParticipantReportOptimizationTask(PostgresTask):
 
     name = "participant_report_optimization"
 
-    def __init__(self, pg_config: PgConfig) -> None:
+    def __init__(self, pg_config: PgConfig, tool_retries: int = 1) -> None:
         """Init."""
-        super().__init__(pg_config=pg_config, category_id=Backup.SPORTS)
+        super().__init__(pg_config=pg_config, category_id=Backup.SPORTS, tool_retries=tool_retries)
         self.evaluators = (
             SqlResultMatches(
                 PARTICIPANT_REPORT_QUERY,

@@ -38,6 +38,10 @@ class Task(ABC, Generic[SecretsT, OutputT]):
 
     name: str
 
+    def __init__(self, tool_retries: int = 1) -> None:
+        """Init."""
+        self.tool_retries = tool_retries
+
     @property
     @abstractmethod
     def goal(self) -> str:
@@ -51,7 +55,11 @@ class Task(ABC, Generic[SecretsT, OutputT]):
     _stack: AsyncExitStack[Any] | None = None
 
     def mcp_servers(self) -> Sequence[MCPServer]:
-        """Return task-specific MCP server."""
+        """Return task-specific MCP server.
+
+        Note:
+            this method should pass `tool_retries` to MCP toolsets (if present)
+        """
         return []
 
     @cached_property

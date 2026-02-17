@@ -26,7 +26,9 @@ class ConcreteTask(Task[TaskSecrets, OutputT]):
         name: str = "test_task",
         goal: str = "Test goal",
         evaluators: tuple[Evaluator[Self, AgentRunResult], ...] | None = None,
+        tool_retries: int = 1,
     ) -> None:
+        super().__init__(tool_retries=tool_retries)
         self.name = name
         self.goal = goal
         self.evaluators = evaluators or ()

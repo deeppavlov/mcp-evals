@@ -41,12 +41,19 @@ class Domain[SecretsT: DomainSecrets](ABC):
     """
 
     name: str
-
     _stack: AsyncExitStack[Any] | None = None
+
+    def __init__(self, tool_retries: int = 1) -> None:
+        """Init."""
+        self.tool_retries = tool_retries
 
     @abstractmethod
     def mcp_servers(self) -> Sequence[MCPServer]:
-        """Return MCP server configurations."""
+        """Return MCP server configurations.
+
+        Note:
+            this method should pass `tool_retries` to MCP toolsets (if present)
+        """
 
     @abstractmethod
     def tasks(self) -> Sequence["Task[Any, Any]"]:

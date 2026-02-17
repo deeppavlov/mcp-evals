@@ -68,7 +68,9 @@ class MockTask(Task[TaskSecrets, str]):
         evaluators: tuple[Evaluator[Task[TaskSecrets, str], AgentRunResult], ...] | None = None,
         setup_called: list[bool] | None = None,
         teardown_called: list[bool] | None = None,
+        tool_retries: int = 1,
     ) -> None:
+        super().__init__(tool_retries=tool_retries)
         self.name = name
         self.goal = goal
         self.evaluators = evaluators or ()
@@ -97,7 +99,9 @@ class MockDomain(Domain[DomainSecrets]):
         toolset: CombinedToolset | None = None,
         setup_called: list[bool] | None = None,
         teardown_called: list[bool] | None = None,
+        tool_retries: int = 1,
     ) -> None:
+        super().__init__(tool_retries=tool_retries)
         self.name = name
         self._mcp_servers = mcp_servers or []
         self._tasks = tasks or []

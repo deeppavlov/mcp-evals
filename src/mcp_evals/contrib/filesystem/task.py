@@ -22,9 +22,9 @@ class FilesystemTask(GoalFromDescriptionMixin, Task[TaskSecrets, FinishTask]):
 
     output_type = FinishTask
 
-    def __init__(self, work_dir: Path, fixture: Fixture) -> None:
+    def __init__(self, work_dir: Path, fixture: Fixture, tool_retries: int = 1) -> None:
         """Init."""
-        super().__init__()
+        super().__init__(tool_retries=tool_retries)
 
         self.work_dir = work_dir
         self.fixture = fixture

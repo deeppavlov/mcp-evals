@@ -24,9 +24,9 @@ class TransactionalInventoryTransferTask(PostgresTask):
 
     name = "transactional_inventory_transfer"
 
-    def __init__(self, pg_config: PgConfig) -> None:
+    def __init__(self, pg_config: PgConfig, tool_retries: int = 1) -> None:
         """Init."""
-        super().__init__(pg_config=pg_config, category_id=Backup.LEGO)
+        super().__init__(pg_config=pg_config, category_id=Backup.LEGO, tool_retries=tool_retries)
         self.evaluators = (
             TransactionalFunctionScenarioEvaluator(
                 function_name="transfer_parts",

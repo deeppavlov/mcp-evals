@@ -61,9 +61,9 @@ class CustomerDataMigrationTask(PostgresTask):
 
     name = "customer_data_migration"
 
-    def __init__(self, pg_config: PgConfig) -> None:
+    def __init__(self, pg_config: PgConfig, tool_retries: int = 1) -> None:
         """Init."""
-        super().__init__(pg_config=pg_config, category_id=Backup.CHI)
+        super().__init__(pg_config=pg_config, category_id=Backup.CHI, tool_retries=tool_retries)
         # Expected: one row per migrated id with (CustomerId, 3, NULL)
         expected_set_query = """
 SELECT "CustomerId", 3::INTEGER, NULL::character varying

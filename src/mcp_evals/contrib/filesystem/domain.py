@@ -56,6 +56,10 @@ class FilesystemDomain(Domain[DomainSecrets]):
 
     name = "filesystem"
 
+    def __init__(self, tool_retries: int = 1) -> None:
+        """Init."""
+        super().__init__(tool_retries=tool_retries)
+
     async def setup(self, stack: AsyncExitStack[Any]) -> None:
         """Create tmp dir for filesystem operations."""
         logger.debug(f"[{self.name}] Creating workspace directory...")
@@ -78,40 +82,41 @@ class FilesystemDomain(Domain[DomainSecrets]):
                     "mcp/filesystem",
                     "/projects",
                 ],
+                max_retries=self.tool_retries,
             )
         ]
 
     def tasks(self) -> Sequence[FilesystemTask]:
         """Return all filesystem tasks."""
         return [
-            MusicReportTask(self._tmp_dir, fixture=Fixture.DESKTOP),
-            ProjectManagementTask(self._tmp_dir, fixture=Fixture.DESKTOP),
-            TimelineExtractionTask(self._tmp_dir, fixture=Fixture.DESKTOP),
-            BudgetComputationTask(self._tmp_dir, fixture=Fixture.DESKTOP_TEMPLATE),
-            ContactInformationTask(self._tmp_dir, fixture=Fixture.DESKTOP_TEMPLATE),
-            FileArrangementTask(self._tmp_dir, fixture=Fixture.DESKTOP_TEMPLATE),
-            SizeClassificationTask(self._tmp_dir, fixture=Fixture.FILE_PROPERTY),
-            TimeClassificationTask(self._tmp_dir, fixture=Fixture.FILE_PROPERTY),
-            StructureAnalysisTask(self._tmp_dir, fixture=Fixture.FOLDER_STRUCTURE),
-            StructureMirrorTask(self._tmp_dir, fixture=Fixture.FOLDER_STRUCTURE),
-            DisputeReviewTask(self._tmp_dir, fixture=Fixture.LEGAL_DOCUMENT),
-            IndividualCommentsTask(self._tmp_dir, fixture=Fixture.LEGAL_DOCUMENT),
-            SolutionTracingTask(self._tmp_dir, fixture=Fixture.LEGAL_DOCUMENT),
-            AuthorFoldersTask(self._tmp_dir, fixture=Fixture.PAPERS),
-            FindMathPaperTask(self._tmp_dir, fixture=Fixture.PAPERS),
-            OrganizeLegacyPapersTask(self._tmp_dir, fixture=Fixture.PAPERS),
-            DuplicateNameTask(self._tmp_dir, fixture=Fixture.STUDENT_DATABASE),
-            EnglishTalentTask(self._tmp_dir, fixture=Fixture.STUDENT_DATABASE),
-            GradebasedScoreTask(self._tmp_dir, fixture=Fixture.STUDENT_DATABASE),
-            CodeLocatingTask(self._tmp_dir, fixture=Fixture.THREESTUDIO),
-            OutputAnalysisTask(self._tmp_dir, fixture=Fixture.THREESTUDIO),
-            RequirementsCompletionTask(self._tmp_dir, fixture=Fixture.THREESTUDIO),
-            DatasetComparisonTask(self._tmp_dir, fixture=Fixture.VOTENET),
-            DebuggingTask(self._tmp_dir, fixture=Fixture.VOTENET),
-            RequirementsWritingTask(self._tmp_dir, fixture=Fixture.VOTENET),
-            DuplicatesSearchingTask(self._tmp_dir, fixture=Fixture.FILE_CONTEXT),
-            FileMergingTask(self._tmp_dir, fixture=Fixture.FILE_CONTEXT),
-            FileSplittingTask(self._tmp_dir, fixture=Fixture.FILE_CONTEXT),
-            PatternMatchingTask(self._tmp_dir, fixture=Fixture.FILE_CONTEXT),
-            UppercaseTask(self._tmp_dir, fixture=Fixture.FILE_CONTEXT),
+            MusicReportTask(self._tmp_dir, fixture=Fixture.DESKTOP, tool_retries=self.tool_retries),
+            ProjectManagementTask(self._tmp_dir, fixture=Fixture.DESKTOP, tool_retries=self.tool_retries),
+            TimelineExtractionTask(self._tmp_dir, fixture=Fixture.DESKTOP, tool_retries=self.tool_retries),
+            BudgetComputationTask(self._tmp_dir, fixture=Fixture.DESKTOP_TEMPLATE, tool_retries=self.tool_retries),
+            ContactInformationTask(self._tmp_dir, fixture=Fixture.DESKTOP_TEMPLATE, tool_retries=self.tool_retries),
+            FileArrangementTask(self._tmp_dir, fixture=Fixture.DESKTOP_TEMPLATE, tool_retries=self.tool_retries),
+            SizeClassificationTask(self._tmp_dir, fixture=Fixture.FILE_PROPERTY, tool_retries=self.tool_retries),
+            TimeClassificationTask(self._tmp_dir, fixture=Fixture.FILE_PROPERTY, tool_retries=self.tool_retries),
+            StructureAnalysisTask(self._tmp_dir, fixture=Fixture.FOLDER_STRUCTURE, tool_retries=self.tool_retries),
+            StructureMirrorTask(self._tmp_dir, fixture=Fixture.FOLDER_STRUCTURE, tool_retries=self.tool_retries),
+            DisputeReviewTask(self._tmp_dir, fixture=Fixture.LEGAL_DOCUMENT, tool_retries=self.tool_retries),
+            IndividualCommentsTask(self._tmp_dir, fixture=Fixture.LEGAL_DOCUMENT, tool_retries=self.tool_retries),
+            SolutionTracingTask(self._tmp_dir, fixture=Fixture.LEGAL_DOCUMENT, tool_retries=self.tool_retries),
+            AuthorFoldersTask(self._tmp_dir, fixture=Fixture.PAPERS, tool_retries=self.tool_retries),
+            FindMathPaperTask(self._tmp_dir, fixture=Fixture.PAPERS, tool_retries=self.tool_retries),
+            OrganizeLegacyPapersTask(self._tmp_dir, fixture=Fixture.PAPERS, tool_retries=self.tool_retries),
+            DuplicateNameTask(self._tmp_dir, fixture=Fixture.STUDENT_DATABASE, tool_retries=self.tool_retries),
+            EnglishTalentTask(self._tmp_dir, fixture=Fixture.STUDENT_DATABASE, tool_retries=self.tool_retries),
+            GradebasedScoreTask(self._tmp_dir, fixture=Fixture.STUDENT_DATABASE, tool_retries=self.tool_retries),
+            CodeLocatingTask(self._tmp_dir, fixture=Fixture.THREESTUDIO, tool_retries=self.tool_retries),
+            OutputAnalysisTask(self._tmp_dir, fixture=Fixture.THREESTUDIO, tool_retries=self.tool_retries),
+            RequirementsCompletionTask(self._tmp_dir, fixture=Fixture.THREESTUDIO, tool_retries=self.tool_retries),
+            DatasetComparisonTask(self._tmp_dir, fixture=Fixture.VOTENET, tool_retries=self.tool_retries),
+            DebuggingTask(self._tmp_dir, fixture=Fixture.VOTENET, tool_retries=self.tool_retries),
+            RequirementsWritingTask(self._tmp_dir, fixture=Fixture.VOTENET, tool_retries=self.tool_retries),
+            DuplicatesSearchingTask(self._tmp_dir, fixture=Fixture.FILE_CONTEXT, tool_retries=self.tool_retries),
+            FileMergingTask(self._tmp_dir, fixture=Fixture.FILE_CONTEXT, tool_retries=self.tool_retries),
+            FileSplittingTask(self._tmp_dir, fixture=Fixture.FILE_CONTEXT, tool_retries=self.tool_retries),
+            PatternMatchingTask(self._tmp_dir, fixture=Fixture.FILE_CONTEXT, tool_retries=self.tool_retries),
+            UppercaseTask(self._tmp_dir, fixture=Fixture.FILE_CONTEXT, tool_retries=self.tool_retries),
         ]

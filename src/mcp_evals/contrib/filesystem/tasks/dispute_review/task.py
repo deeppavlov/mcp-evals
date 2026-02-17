@@ -20,9 +20,9 @@ class DisputeReviewTask(FilesystemTask):
 
     name = "dispute_review"
 
-    def __init__(self, work_dir: Path, fixture: Fixture) -> None:
+    def __init__(self, work_dir: Path, fixture: Fixture, tool_retries: int = 1) -> None:
         """Initialize the task with evaluators."""
-        super().__init__(work_dir=work_dir, fixture=fixture)
+        super().__init__(work_dir=work_dir, fixture=fixture, tool_retries=tool_retries)
         self.evaluators = (
             FileExists("dispute_review.txt"),
             OutputFormat(),

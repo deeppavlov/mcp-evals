@@ -54,9 +54,9 @@ class PostgresDomain(Domain[PgConfig]):
     _container: DockerContainer | None = None
     _docker: aiodocker.Docker | None = None
 
-    def __init__(self) -> None:
+    def __init__(self, tool_retries: int = 1) -> None:
         """Init."""
-        super().__init__()
+        super().__init__(tool_retries=tool_retries)
 
     async def setup(self, stack: AsyncExitStack[Any]) -> None:
         """Create and start PostgreSQL container; store pg_config."""
@@ -118,26 +118,26 @@ class PostgresDomain(Domain[PgConfig]):
             raise RuntimeError("PostgresDomain.setup() must run before tasks()")
         cfg = self.secrets
         return [
-            BaseballPlayerAnalysisTask(cfg),
-            ConsistencyEnforcementTask(cfg),
-            CustomerAnalyticsOptimizationTask(cfg),
-            CustomerAnalysisFixTask(cfg),
-            CustomerDataMigrationTask(cfg),
-            DbaVectorAnalysisTask(cfg),
-            DatabaseSecurityPoliciesTask(cfg),
-            EmployeeDemographicsReportTask(cfg),
-            EmployeeHierarchyManagementTask(cfg),
-            EmployeePerformanceAnalysisTask(cfg),
-            EmployeeProjectTrackingTask(cfg),
-            EmployeeRetentionAnalysisTask(cfg),
-            ExecutiveDashboardAutomationTask(cfg),
-            FilmInventoryManagementTask(cfg),
-            ManagementStructureAnalysisTask(cfg),
-            ParticipantReportOptimizationTask(cfg),
-            RlsBusinessAccessTask(cfg),
-            SalesAndMusicChartsTask(cfg),
-            TeamRosterManagementTask(cfg),
-            TransactionalInventoryTransferTask(cfg),
+            BaseballPlayerAnalysisTask(cfg, tool_retries=self.tool_retries),
+            ConsistencyEnforcementTask(cfg, tool_retries=self.tool_retries),
+            CustomerAnalyticsOptimizationTask(cfg, tool_retries=self.tool_retries),
+            CustomerAnalysisFixTask(cfg, tool_retries=self.tool_retries),
+            CustomerDataMigrationTask(cfg, tool_retries=self.tool_retries),
+            DbaVectorAnalysisTask(cfg, tool_retries=self.tool_retries),
+            DatabaseSecurityPoliciesTask(cfg, tool_retries=self.tool_retries),
+            EmployeeDemographicsReportTask(cfg, tool_retries=self.tool_retries),
+            EmployeeHierarchyManagementTask(cfg, tool_retries=self.tool_retries),
+            EmployeePerformanceAnalysisTask(cfg, tool_retries=self.tool_retries),
+            EmployeeProjectTrackingTask(cfg, tool_retries=self.tool_retries),
+            EmployeeRetentionAnalysisTask(cfg, tool_retries=self.tool_retries),
+            ExecutiveDashboardAutomationTask(cfg, tool_retries=self.tool_retries),
+            FilmInventoryManagementTask(cfg, tool_retries=self.tool_retries),
+            ManagementStructureAnalysisTask(cfg, tool_retries=self.tool_retries),
+            ParticipantReportOptimizationTask(cfg, tool_retries=self.tool_retries),
+            RlsBusinessAccessTask(cfg, tool_retries=self.tool_retries),
+            SalesAndMusicChartsTask(cfg, tool_retries=self.tool_retries),
+            TeamRosterManagementTask(cfg, tool_retries=self.tool_retries),
+            TransactionalInventoryTransferTask(cfg, tool_retries=self.tool_retries),
         ]
 
 

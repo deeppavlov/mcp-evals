@@ -26,14 +26,16 @@ class PostgresTask(GoalFromDescriptionMixin, Task[TaskSecrets, FinishTask]):
 
     output_type = FinishTask
 
-    def __init__(self, pg_config: PgConfig, category_id: Backup | None) -> None:
+    def __init__(self, pg_config: PgConfig, category_id: Backup | None, tool_retries: int = 1) -> None:
         """Init.
 
         Args:
             pg_config: PostgreSQL connection config.
             category_id: Backup to restore, or None for tasks that use prepare_init.
+            tool_retries: number of retries of attempting to call MCP tools
         """
-        super().__init__()
+        super().__init__(tool_retries=tool_retries)
+
         self._pg_config = pg_config
         self._category_id = category_id
         self._database_name: str | None = None
@@ -103,6 +105,7 @@ WHERE datname = %s AND pid <> pg_backend_pid()",
                 ],
                 env={"DATABASE_URI": uri},
                 timeout=60,
+                max_retries=self.tool_retries,
             )
         ]
 
