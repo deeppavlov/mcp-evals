@@ -54,6 +54,7 @@ from pydantic_ai import Agent
 from pydantic_ai.messages import ModelMessage, ModelRequest, ModelRequestPart, ToolReturnPart
 
 from mcp_evals import BenchmarkRunner, Domain
+from mcp_evals.types import Runner
 
 logfire.configure(send_to_logfire="if-token-present")
 logfire.instrument_pydantic_ai()
@@ -128,6 +129,12 @@ def main() -> None:
         default=None,
         help="Experiment name. Use it to differentiate runs.",
     )
+    parser.add_argument(
+        "--max-tasks",
+        type=int,
+        default=None,
+        help="Max number of tasks to run per domain (default: all).",
+    )
 
     args = parser.parse_args()
 
@@ -155,13 +162,21 @@ def main() -> None:
 
         domain = FilesystemDomain()
 
-    runner = BenchmarkRunner(agent=agent, domains=[domain])
+    runner = BenchmarkRunner(
+        agent=agent,
+        domains=[domain],
+        runner=Runner.INFERENCE_ONLY,
+        experiment_name=args.experiment_name,
+        max_tasks=args.max_tasks,
+    )
 
     logger.info(f"Running {args.domain} tasks with model: {args.model}")
+    if args.max_tasks is not None:
+        logger.info(f"Running up to {args.max_tasks} tasks per domain")
 
     # Run benchmark
     async def run() -> None:
-        reports = await runner.run(experiment_name=args.experiment_name)
+        reports = await runner.run()
         report = reports[0]
         logger.info(f"\nDomain: {args.domain}")
         logger.info(f"Total tasks: {len(report.cases)}")

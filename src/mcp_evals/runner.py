@@ -5,33 +5,47 @@ from typing import Any
 from pydantic_ai.agent import Agent
 from pydantic_evals.reporting import EvaluationReport
 
-from mcp_evals._internal.runner import run_domain
+from mcp_evals._internal.runner import (
+    BaseDomainRunner,
+    DomainRunnerCrossValidation,
+    DomainRunnerHoldOut,
+    DomainRunnerInferenceOnly,
+)
 from mcp_evals.domain import Domain
-from mcp_evals.types import DepsMaker
+from mcp_evals.types import DepsMaker, Runner, TrainingTestingCallback
 
 
 class BenchmarkRunner:
     """Runner for executing evaluation benchmarks across multiple domains."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         agent: Agent[Any, Any],
         domains: list[Domain[Any]],
-    ) -> None:
-        """Initialize the benchmark runner.
-
-        Args:
-            agent: The pydantic_ai Agent to use for task execution
-            domains: List of Domain instances to evaluate
-        """
-        self.agent = agent
-        self.domains = domains
-
-    async def run(
-        self,
+        runner: Runner,
         deps_maker: DepsMaker | None = None,
         experiment_name: str | None = None,
-    ) -> list[EvaluationReport]:
+        max_tasks: int | None = None,
+        hold_out_test_ratio: float = 0.2,
+        cv_n_splits: int = 5,
+        random_state: int | None = None,
+        start_training: TrainingTestingCallback | None = None,
+        start_testing: TrainingTestingCallback | None = None,
+    ) -> None:
+        """Initialize the benchmark runner."""
+        self.agent = agent
+        self.domains = domains
+        self.runner = runner
+        self.deps_maker = deps_maker
+        self.experiment_name = experiment_name
+        self.max_tasks = max_tasks
+        self.hold_out_test_ratio = hold_out_test_ratio
+        self.cv_n_splits = cv_n_splits
+        self.random_state = random_state
+        self.start_training = start_training
+        self.start_testing = start_testing
+
+    async def run(self) -> list[EvaluationReport]:
         """Run all tasks from all domains.
 
         Args:
@@ -45,15 +59,34 @@ class BenchmarkRunner:
         Returns:
             Evaluation reports for all domains
         """
-        eval_reports: list[EvaluationReport] = []
+        runner = self._create_runner()
+        return [await runner.run(domain, experiment_name=self.experiment_name) for domain in self.domains]
 
-        for domain in self.domains:
-            eval_report = await run_domain(
-                domain,
-                self.agent,
-                experiment_name=experiment_name,
-                deps_maker=deps_maker,
+    def _create_runner(self) -> BaseDomainRunner:
+        if self.runner == Runner.INFERENCE_ONLY:
+            return DomainRunnerInferenceOnly(
+                agent=self.agent,
+                deps_maker=self.deps_maker,
+                max_tasks=self.max_tasks,
             )
-            eval_reports.append(eval_report)
-
-        return eval_reports
+        if self.runner == Runner.HOLD_OUT:
+            return DomainRunnerHoldOut(
+                agent=self.agent,
+                deps_maker=self.deps_maker,
+                max_tasks=self.max_tasks,
+                test_ratio=self.hold_out_test_ratio,
+                random_state=self.random_state,
+                start_training=self.start_training,
+                start_testing=self.start_testing,
+            )
+        if self.runner == Runner.CROSS_VALIDATION:
+            return DomainRunnerCrossValidation(
+                agent=self.agent,
+                deps_maker=self.deps_maker,
+                max_tasks=self.max_tasks,
+                n_splits=self.cv_n_splits,
+                random_state=self.random_state,
+                start_training=self.start_training,
+                start_testing=self.start_testing,
+            )
+        raise ValueError("Invalid runner")
