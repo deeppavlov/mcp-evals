@@ -21,9 +21,9 @@ class DuplicateNameTask(FilesystemTask):
 
     name = "duplicate_name"
 
-    def __init__(self, work_dir: Path, fixture: Fixture) -> None:
+    def __init__(self, work_dir: Path, fixture: Fixture, tool_retries: int = 1) -> None:
         """Initialize the task with evaluators."""
-        super().__init__(work_dir=work_dir, fixture=fixture)
+        super().__init__(work_dir=work_dir, fixture=fixture, tool_retries=tool_retries)
         self.evaluators = (
             FileExists("namesake.txt"),
             ExpectedResults(),

@@ -34,9 +34,9 @@ class TimeClassificationTask(FilesystemTask):
 
     name = "time_classification"
 
-    def __init__(self, work_dir: Path, fixture: Fixture) -> None:
+    def __init__(self, work_dir: Path, fixture: Fixture, tool_retries: int = 1) -> None:
         """Initialize the task with evaluators."""
-        super().__init__(work_dir=work_dir, fixture=fixture)
+        super().__init__(work_dir=work_dir, fixture=fixture, tool_retries=tool_retries)
 
         # Create a custom resolver for nested month/day structure
         def resolve_nested_time_dirs(base_path: Path, key: str) -> Path | None:
