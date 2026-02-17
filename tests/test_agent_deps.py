@@ -85,3 +85,41 @@ async def test_run_agent_on_task_with_deps_maker_yielding_none() -> None:
 
     call_kw = mock_agent.run.call_args.kwargs
     assert call_kw.get("deps") is None
+
+
+@pytest.mark.asyncio
+async def test_run_agent_on_task_invokes_run_result_processor_after_run() -> None:
+    """run_agent_on_task calls run_result_processor(task, result, deps) after agent.run()."""
+    mock_result = MagicMock(spec=AgentRunResult)
+    mock_agent = MagicMock(spec=Agent)
+    mock_agent.run = AsyncMock(return_value=mock_result)
+    mock_toolset = MagicMock(spec=CombinedToolset)
+    task = _SimpleTask()
+    custom_deps = object()
+
+    processed: list[tuple[Task[TaskSecrets, str], AgentRunResult, object]] = []
+
+    async def run_result_processor(t: Task[TaskSecrets, str], r: AgentRunResult, d: object) -> None:
+        processed.append((t, r, d))
+
+    @asynccontextmanager
+    async def mock_cm() -> AsyncGenerator[object]:
+        yield custom_deps
+
+    def deps_maker(t: Task[TaskSecrets, str]) -> AbstractAsyncContextManager[object]:  # noqa: ARG001
+        return mock_cm()
+
+    result = await run_agent_on_task(
+        task,
+        agent=mock_agent,
+        toolset=mock_toolset,
+        deps_maker=deps_maker,
+        run_result_processor=run_result_processor,
+    )
+
+    assert result is mock_result
+    assert len(processed) == 1
+    proc_task, proc_result, proc_deps = processed[0]
+    assert proc_task is task
+    assert proc_result is mock_result
+    assert proc_deps is custom_deps

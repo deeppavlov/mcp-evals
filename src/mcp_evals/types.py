@@ -17,6 +17,8 @@ type EvaluatedFn = (
     Callable[[Task[Any, Any]], Awaitable[AgentRunResult[Any]]] | Callable[[Task[Any, Any]], AgentRunResult[Any]]
 )
 
+type RunResultProcessor = Callable[[Task[Any, Any], AgentRunResult[Any], object], Awaitable[None]]
+
 
 class Runner(StrEnum):
     """Different running strategies implemented in mcp_evals."""

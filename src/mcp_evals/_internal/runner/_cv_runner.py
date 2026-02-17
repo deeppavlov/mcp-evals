@@ -7,7 +7,7 @@ from pydantic_evals.reporting import EvaluationReport
 
 from mcp_evals._internal.conversion import tasks_to_dataset
 from mcp_evals.domain import Domain
-from mcp_evals.types import DepsMaker, EvaluatedFn, TrainingTestingCallback
+from mcp_evals.types import DepsMaker, EvaluatedFn, RunResultProcessor, TrainingTestingCallback
 
 from ._base import BaseDomainRunner
 from ._splits import k_fold_split
@@ -27,8 +27,14 @@ class DomainRunnerCrossValidation(BaseDomainRunner):
         random_state: int | None = None,
         start_training: TrainingTestingCallback | None = None,
         start_testing: TrainingTestingCallback | None = None,
+        run_result_processor: RunResultProcessor | None = None,
     ) -> None:
-        super().__init__(agent=agent, deps_maker=deps_maker, max_tasks=max_tasks)
+        super().__init__(
+            agent=agent,
+            deps_maker=deps_maker,
+            max_tasks=max_tasks,
+            run_result_processor=run_result_processor,
+        )
         self.n_splits = n_splits
         self.random_state = random_state
         self.start_training = start_training
