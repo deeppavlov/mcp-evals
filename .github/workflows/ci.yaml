@@ -8,9 +8,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: astral-sh/ruff-action@v3
+      - name: "Install ruff"
+        uses: astral-sh/ruff-action@v3
         with:
           version: "0.14.14" # same as in pyproject.toml
+          args: "--version"
+      - name: "Check if formatted"
+        run: "ruff format --check"
+      - name: "Check codestyle"
+        run: "ruff check"
 
   type-check:
     uses: ./.github/workflows/reusable.yaml
