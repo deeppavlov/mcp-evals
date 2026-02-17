@@ -56,6 +56,10 @@ class FilesystemDomain(Domain[DomainSecrets]):
 
     name = "filesystem"
 
+    def __init__(self, tool_retries: int = 1) -> None:
+        """Init."""
+        self.tool_retries = tool_retries
+
     async def setup(self, stack: AsyncExitStack[Any]) -> None:
         """Create tmp dir for filesystem operations."""
         logger.debug(f"[{self.name}] Creating workspace directory...")
@@ -78,6 +82,7 @@ class FilesystemDomain(Domain[DomainSecrets]):
                     "mcp/filesystem",
                     "/projects",
                 ],
+                max_retries=self.tool_retries,
             )
         ]
 

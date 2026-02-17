@@ -54,9 +54,9 @@ class PostgresDomain(Domain[PgConfig]):
     _container: DockerContainer | None = None
     _docker: aiodocker.Docker | None = None
 
-    def __init__(self) -> None:
+    def __init__(self, tool_retries: int = 1) -> None:
         """Init."""
-        super().__init__()
+        super().__init__(tool_retries=tool_retries)
 
     async def setup(self, stack: AsyncExitStack[Any]) -> None:
         """Create and start PostgreSQL container; store pg_config."""
