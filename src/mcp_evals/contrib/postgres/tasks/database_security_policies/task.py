@@ -12,9 +12,9 @@ class DatabaseSecurityPoliciesTask(PostgresTask):
 
     name = "database_security_policies"
 
-    def __init__(self, pg_config: PgConfig) -> None:
+    def __init__(self, pg_config: PgConfig, tool_retries: int = 1) -> None:
         """Init."""
-        super().__init__(pg_config=pg_config, category_id=Backup.LEGO)
+        super().__init__(pg_config=pg_config, category_id=Backup.LEGO, tool_retries=tool_retries)
         self.evaluators = (
             RoleExists("theme_analyst"),
             RlsEnabled(

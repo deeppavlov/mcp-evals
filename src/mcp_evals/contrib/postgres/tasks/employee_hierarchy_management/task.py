@@ -142,9 +142,9 @@ class EmployeeHierarchyManagementTask(PostgresTask):
 
     name = "employee_hierarchy_management"
 
-    def __init__(self, pg_config: PgConfig) -> None:
+    def __init__(self, pg_config: PgConfig, tool_retries: int = 1) -> None:
         """Init."""
-        super().__init__(pg_config=pg_config, category_id=Backup.CHI)
+        super().__init__(pg_config=pg_config, category_id=Backup.CHI, tool_retries=tool_retries)
         self.evaluators = (
             SqlResultMatches(
                 SPECIFIC_EMPLOYEES_QUERY,

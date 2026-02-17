@@ -25,8 +25,8 @@ class _SimpleTask(Task[TaskSecrets, str]):
     output_type = str
     secrets_type = TaskSecrets
 
-    def __init__(self) -> None:
-        pass
+    def __init__(self, tool_retries: int = 1) -> None:
+        super().__init__(tool_retries=tool_retries)
 
 
 @pytest.mark.asyncio

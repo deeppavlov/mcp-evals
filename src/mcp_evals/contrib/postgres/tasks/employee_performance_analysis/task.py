@@ -39,9 +39,9 @@ class EmployeePerformanceAnalysisTask(PostgresTask):
 
     name = "employee_performance_analysis"
 
-    def __init__(self, pg_config: PgConfig) -> None:
+    def __init__(self, pg_config: PgConfig, tool_retries: int = 1) -> None:
         """Init."""
-        super().__init__(pg_config=pg_config, category_id=Backup.EMPL)
+        super().__init__(pg_config=pg_config, category_id=Backup.EMPL, tool_retries=tool_retries)
         self.evaluators = (
             SqlResultMatches(
                 EMPLOYEE_PERFORMANCE_QUERY,

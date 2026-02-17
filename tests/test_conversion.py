@@ -27,7 +27,9 @@ class ConcreteTask(Task[TaskSecrets, Any]):
         name: str = "test_task",
         goal: str = "Test goal",
         evaluators: tuple[Evaluator[Task[TaskSecrets, Any], AgentRunResult], ...] | None = None,
+        tool_retries: int = 1,
     ) -> None:
+        super().__init__(tool_retries=tool_retries)
         self.name = name
         self.goal = goal
         self.evaluators = evaluators or ()
@@ -38,7 +40,8 @@ class ConcreteDomain(Domain[DomainSecrets]):
 
     name = "test_domain"
 
-    def __init__(self, tasks: list[ConcreteTask] | None = None) -> None:
+    def __init__(self, tasks: list[ConcreteTask] | None = None, tool_retries: int = 1) -> None:
+        super().__init__(tool_retries=tool_retries)
         self._tasks = tasks or []
 
     def mcp_servers(self) -> Sequence[MCPServer]:

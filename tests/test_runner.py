@@ -38,7 +38,8 @@ class ConcreteTask(Task[TaskSecrets, Any]):
     goal = "Test goal"
     evaluators: tuple[Evaluator[Task[TaskSecrets, Any], AgentRunResult], ...] = ()
 
-    def __init__(self, name: str = "task") -> None:
+    def __init__(self, name: str = "task", tool_retries: int = 1) -> None:
+        super().__init__(tool_retries=tool_retries)
         self.name = name
 
 
@@ -47,7 +48,8 @@ class ConcreteDomain(Domain[DomainSecrets]):
 
     name = "test_domain"
 
-    def __init__(self, name: str = "test_domain", tasks: list[ConcreteTask] | None = None) -> None:
+    def __init__(self, name: str = "test_domain", tasks: list[ConcreteTask] | None = None, tool_retries: int = 1) -> None:
+        super().__init__(tool_retries=tool_retries)
         self.name = name
         self._task_list = tasks if tasks is not None else []
 
