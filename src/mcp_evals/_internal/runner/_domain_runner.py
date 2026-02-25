@@ -7,7 +7,7 @@ from pydantic_evals.reporting import EvaluationReport
 
 from mcp_evals._internal.conversion import domain_to_dataset
 from mcp_evals.domain import Domain
-from mcp_evals.types import DepsMaker, EvaluatedFn
+from mcp_evals.types import DepsMaker, EvaluatedFn, RunResultProcessor
 
 from ._base import BaseDomainRunner
 from ._utils import task_lifecycle
@@ -19,8 +19,14 @@ class DomainRunnerInferenceOnly(BaseDomainRunner):
         agent: Agent[Any, Any],
         deps_maker: DepsMaker | None = None,
         max_tasks: int | None = None,
+        run_result_processor: RunResultProcessor | None = None,
     ) -> None:
-        super().__init__(agent=agent, deps_maker=deps_maker, max_tasks=max_tasks)
+        super().__init__(
+            agent=agent,
+            deps_maker=deps_maker,
+            max_tasks=max_tasks,
+            run_result_processor=run_result_processor,
+        )
 
     async def run_domain(
         self,

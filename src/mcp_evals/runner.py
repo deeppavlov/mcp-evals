@@ -12,7 +12,7 @@ from mcp_evals._internal.runner import (
     DomainRunnerInferenceOnly,
 )
 from mcp_evals.domain import Domain
-from mcp_evals.types import DepsMaker, Runner, TrainingTestingCallback
+from mcp_evals.types import DepsMaker, Runner, RunResultProcessor, TrainingTestingCallback
 
 
 class BenchmarkRunner:
@@ -31,6 +31,7 @@ class BenchmarkRunner:
         random_state: int | None = None,
         start_training: TrainingTestingCallback | None = None,
         start_testing: TrainingTestingCallback | None = None,
+        run_result_processor: RunResultProcessor | None = None,
     ) -> None:
         """Initialize the benchmark runner."""
         self.agent = agent
@@ -44,6 +45,7 @@ class BenchmarkRunner:
         self.random_state = random_state
         self.start_training = start_training
         self.start_testing = start_testing
+        self.run_result_processor = run_result_processor
 
     async def run(self) -> list[EvaluationReport]:
         """Run all tasks from all domains.
@@ -68,6 +70,7 @@ class BenchmarkRunner:
                 agent=self.agent,
                 deps_maker=self.deps_maker,
                 max_tasks=self.max_tasks,
+                run_result_processor=self.run_result_processor,
             )
         if self.runner == Runner.HOLD_OUT:
             return DomainRunnerHoldOut(
@@ -78,6 +81,7 @@ class BenchmarkRunner:
                 random_state=self.random_state,
                 start_training=self.start_training,
                 start_testing=self.start_testing,
+                run_result_processor=self.run_result_processor,
             )
         if self.runner == Runner.CROSS_VALIDATION:
             return DomainRunnerCrossValidation(
@@ -88,5 +92,6 @@ class BenchmarkRunner:
                 random_state=self.random_state,
                 start_training=self.start_training,
                 start_testing=self.start_testing,
+                run_result_processor=self.run_result_processor,
             )
         raise ValueError("Invalid runner")

@@ -8,7 +8,7 @@ from pydantic_ai.run import AgentRunResult
 from pydantic_ai.toolsets import CombinedToolset
 
 from mcp_evals.task import Task
-from mcp_evals.types import DepsMaker
+from mcp_evals.types import DepsMaker, RunResultProcessor
 
 
 async def run_agent_on_task(
@@ -17,6 +17,7 @@ async def run_agent_on_task(
     agent: Agent[Any, Any],
     toolset: CombinedToolset[Any],
     deps_maker: DepsMaker,
+    run_result_processor: RunResultProcessor | None = None,
 ) -> AgentRunResult[OutputDataT]:
     """The function evaluated by pydantic_evals for each Case.
 
@@ -34,9 +35,12 @@ async def run_agent_on_task(
     - `ctx.output`: the result from `agent.run()`
     """
     async with deps_maker(task) as deps:
-        return await agent.run(
+        result = await agent.run(
             task.goal,
             output_type=task.output_type,
             toolsets=[toolset, *task.mcp_servers()],
             deps=deps,
         )
+        if run_result_processor is not None:
+            await run_result_processor(task, result, deps)
+        return result
