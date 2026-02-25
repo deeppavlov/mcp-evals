@@ -15,7 +15,7 @@ dependencies = [
 
 [project.optional-dependencies]
 domain-filesystem = [
-    "aiofiles>=25.0,<26.0",
+    "aiofiles>=24.0,<25.0",
     "appdirs>=1.0,<2.0",
     "httpx>=0.28,<0.29",
     "tqdm>=4.0,<5.0"
