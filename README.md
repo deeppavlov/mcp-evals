@@ -16,7 +16,7 @@ This library provides infrastructure for running structured evaluations of LLM a
 |-----------|----------------|
 | **Code-first** | All tasks defined in Python, no YAML/JSON configs |
 | **Simple user API** | Users define domains and tasks; library handles orchestration |
-| **No wheel reinvention** | pydantic-ai for LLM + MCP, pydantic_evals for evaluation, logfire for observability |
+| **No wheel reinvention** | pydantic-ai for LLM + MCP, pydantic_evals for evaluation, loguru for logging, logfire for observability |
 | **Resource lifecycle** | Async context managers with safe cleanup |
 | **Maintainability** | pytest, mypy, ruff | 
 
@@ -30,37 +30,10 @@ For running MCP servers you might need
 ## Quick Start
 
 ```python
-from mcp_evals import BenchmarkRunner, Domain, Task
-from mcp_evals.evaluators import FileExists
+from mcp_evals import BenchmarkRunner
+from mcp_evals.contrib.filesystem import FilesystemDomain
 from mcp_evals.types import Runner
 from pydantic_ai import Agent
-from pydantic_ai.mcp import MCPServerStdio
-
-# Simple task as class with attributes
-class CreateConfigTask(Task):
-    name = "create_config"
-    goal = "Create a config.json file with default settings"
-    
-    def __init__(self):
-        # mutable attributes should be attached to instance, not class
-        self.evaluators = [FileExists("config.json")]
-
-class CreateReadmeTask(Task):
-    name = "create_readme"
-    goal = "Create a README.md with project description"
-    
-    def __init__(self):
-        # mutable attributes should be attached to instance, not class
-        self.evaluators = [FileExists("README.md")]
-
-class FilesystemDomain(Domain):
-    name = "filesystem"
-    
-    def mcp_servers(self):
-        return [MCPServerStdio("uvx", "mcp-server-filesystem", "/workspace")]
-    
-    def tasks(self):
-        return [CreateConfigTask(), CreateReadmeTask()]
 
 async def main():
     agent = Agent("openai:gpt-4o")
@@ -73,85 +46,82 @@ async def main():
     reports[0].print()
 ```
 
+Requires `uv sync --extra domain-filesystem` and Docker. To run the full benchmark:
+
+```bash
+uv run python scripts/run_domain_tasks.py
+```
+
 ## Basic Usage
+
+Here's the plan on how to create and run your own tasks.
 
 ### 1. Define Tasks
 
-Tasks are abstract async context managers that define what the agent should accomplish and how to verify it:
+Tasks define what the agent should accomplish, how to verify it and optionally how to allocate resources for that:
 
 ```python
 from mcp_evals import Task
-from mcp_evals.evaluators import SQLQueryReturns
+from mcp_evals.contrib.filesystem.common_evaluators import FileExists, ContentMatches
 
-class CreateUsersTableTask(Task):
-    name = "create_users_table"
-    goal = "Create a users table with id, name, and email columns"
-    evaluators = [
-        SQLQueryReturns(
-            query="SELECT name FROM sqlite_master WHERE type='table'",
-            expected=["users"],
-        ),
-    ]
+class CreateConfigTask(Task):
+    name = "create_config"
+    goal = "Create a config.json file with default settings"
+    evaluators = [FileExists("config.json")]
 
-class InsertUserTask(Task):
-    name = "insert_user"
-    goal = "Insert a user named 'Alice' with email 'alice@example.com'"
+class CreateReadmeTask(Task):
+    name = "create_readme"
+    goal = "Create a README.md with project description"
     evaluators = [
-        SQLQueryReturns(
-            query="SELECT name, email FROM users",
-            expected=[("Alice", "alice@example.com")],
-        ),
+        FileExists("README.md"),
+        ContentMatches("README.md", pattern=r"project description"),
     ]
 ```
 
+This example uses evaluators implemented for Filesystem domain tasks, adapted from mcpmark.
+
 ### 2. Define a Domain
 
-A domain encapsulates an environment (MCP servers) and groups related tasks:
+A domain encapsulates an environment (resources like MCP servers, temporary directories, docker containers) and groups related tasks. Pre-built domains adapted from mcpmark: `FilesystemDomain` and `PostgresDomain` in `mcp_evals.contrib.filesystem` and `mcp_evals.contrib.postgres`:
 
 ```python
 from mcp_evals import Domain
 from pydantic_ai.mcp import MCPServerStdio
 
-class DatabaseDomain(Domain):
-    name = "database"
+class CustomDomain(Domain):
+    name = "custom"
     
     def mcp_servers(self):
-        return [MCPServerStdio("uvx", "mcp-server-sqlite", "test.db")]
+        return [MCPServerStdio("uvx", "mcp-server-filesystem", "/workspace")]
     
     def tasks(self):
-        return [CreateUsersTableTask(), InsertUserTask()]
+        return [CreateConfigTask(), CreateReadmeTask()]
 ```
 
 ### 3. Run the Benchmark
 
 ```python
 from mcp_evals import BenchmarkRunner
+from mcp_evals.contrib.filesystem import FilesystemDomain
 from mcp_evals.types import Runner
 from pydantic_ai import Agent
-import logfire
-
-logfire.configure()
 
 async def main():
-    agent = Agent(
-        "openai:gpt-4o",
-        system_prompt="You are a helpful assistant.",
-    )
-    
+    agent = Agent("openai:gpt-4o", system_prompt="You are a helpful assistant.")
     runner = BenchmarkRunner(
         agent=agent,
-        domains=[FilesystemDomain(), DatabaseDomain()],
+        domains=[FilesystemDomain()],
         runner=Runner.INFERENCE_ONLY,
     )
-    
     reports = await runner.run()
     for report in reports:
         report.print()
-        # Access detailed results
         for case in report.cases:
             passed = all(s.value == 1.0 for s in case.scores.values())
             print(f"{case.name}: {'✓' if passed else '✗'}")
 ```
+
+For observability, use `logfire.configure()` and `logfire.instrument_pydantic_ai()` (optional).
 
 ## Advanced Usage
 
@@ -160,8 +130,7 @@ async def main():
 Create domain-specific evaluators using `pydantic_evals` base classes:
 
 ```python
-from pydantic_evals.evaluators import Evaluator, EvaluatorContext
-from pydantic_evals import EvaluatorOutput, EvaluationReason
+from pydantic_evals.evaluators import Evaluator, EvaluatorContext, EvaluatorOutput, EvaluationReason
 
 class APIResponseContains(Evaluator[TaskInput, TaskOutput]):
     endpoint: str
@@ -184,18 +153,20 @@ class APIResponseContains(Evaluator[TaskInput, TaskOutput]):
 
 See [pydantic_evals documentation](https://ai.pydantic.dev/evals/) for more details on evaluator types and context.
 
-### 2. Tasks with Lifecycle (Setup/Teardown)
+### 2. Tasks with Lifecycle (Setup)
 
-Tasks can implement `setup()` for initialization and use `AsyncExitStack` for clean resource management:
+Tasks implement `setup(stack)` and register cleanup via the `AsyncExitStack`. No `teardown()` — the stack handles cleanup when the task context exits:
 
 ```python
 from contextlib import AsyncExitStack
 from pathlib import Path
+from typing import Any
+
 import aiofiles.tempfile
 import os
 
 from mcp_evals import Task
-from mcp_evals.evaluators import FileExists, ContentMatches
+from mcp_evals.contrib.filesystem.common_evaluators import ContentMatches, FileExists
 
 class MusicReportTask(Task):
     name = "music_report"
@@ -204,78 +175,62 @@ class MusicReportTask(Task):
         FileExists("music/music_analysis_report.txt"),
         ContentMatches("music/music_analysis_report.txt", pattern=r"晴天.*2\.576"),
     ]
-    
-    _stack: AsyncExitStack | None = None  # Track context state
-    
-    async def setup(self) -> None:
-        # Prevent re-entry
-        if self._stack is not None:
-            raise RuntimeError(f"Task {self.name} context already entered")
-        
-        self._stack = AsyncExitStack()
-        await self._stack.__aenter__()
-        
-        # Create temp directory using async context manager
+
+    async def setup(self, stack: AsyncExitStack[Any]) -> None:
+        # Create temp directory — stack.enter_async_context ensures cleanup
         temp_dir_ctx = aiofiles.tempfile.TemporaryDirectory()
-        self.test_dir = Path(await self._stack.enter_async_context(temp_dir_ctx))
-        
+        self.test_dir = Path(await stack.enter_async_context(temp_dir_ctx))
+
         # Download and extract test fixtures
         archive_path = await download_fixtures("music_collection.tar.gz")
-        self._stack.callback(lambda: archive_path.unlink(missing_ok=True))
-        
+        stack.callback(lambda: archive_path.unlink(missing_ok=True))
+
         await extract_archive(archive_path, self.test_dir)
-        
-        # Set environment variable for MCP server (will be cleared on teardown)
+
+        # Set env var for MCP server; restore on exit
         old_value = os.environ.get("FILESYSTEM_ROOT")
         os.environ["FILESYSTEM_ROOT"] = str(self.test_dir)
-        self._stack.callback(lambda: self._restore_env("FILESYSTEM_ROOT", old_value))
-    
-    async def teardown(self) -> None:
-        if self._stack is not None:
-            await self._stack.aclose()
-            self._stack = None
-    
-    @staticmethod
-    def _restore_env(key: str, old_value: str | None) -> None:
-        if old_value is None:
-            os.environ.pop(key, None)
-        else:
-            os.environ[key] = old_value
+        stack.callback(lambda: _restore_env("FILESYSTEM_ROOT", old_value))
+
+def _restore_env(key: str, old_value: str | None) -> None:
+    if old_value is None:
+        os.environ.pop(key, None)
+    else:
+        os.environ[key] = old_value
 ```
 
 ### 3. Tasks with Secrets
 
-Use pydantic-settings for type-safe secret management:
+Use `TaskSecrets` (pydantic-settings) and `Task[SecretsT]` for type-safe secret management. Access `self.secrets` and register cleanup via `stack`:
 
 ```python
-from pydantic_settings import BaseSettings
+from contextlib import AsyncExitStack
+from typing import Any
+
 from mcp_evals import Task, TaskSecrets
 
 class GitHubSecrets(TaskSecrets):
     github_token: str
     github_username: str
 
-class CreateRepoTask(Task):
+class CreateRepoTask(Task[GitHubSecrets]):
     name = "create_repo"
     goal = "Create a GitHub repository named 'test-repo' with a README"
     evaluators = [RepoExists("test-repo"), FileInRepoExists("test-repo", "README.md")]
-    secrets_type = GitHubSecrets  # Declares which secrets this task needs
-    
-    async def setup(self) -> None:
-        # Secrets are loaded automatically from environment
+    secrets_type = GitHubSecrets
+
+    async def setup(self, stack: AsyncExitStack[Any]) -> None:
         print(f"Will create repo under: {self.secrets.github_username}")
-    
-    async def teardown(self) -> None:
-        # Clean up: delete the repo created during the task
-        await delete_github_repo(
+        # Register sync cleanup for when task context exits
+        stack.callback(lambda: sync_delete_github_repo(
             repo="test-repo",
             token=self.secrets.github_token,
-        )
+        ))
 ```
 
 ### 4. Domains with Secrets
 
-Use pydantic-settings for type-safe secret management at the domain level — useful when MCP servers require authentication:
+Use `DomainSecrets` and `Domain[SecretsT]` for type-safe secrets at the domain level:
 
 ```python
 from mcp_evals import Domain, DomainSecrets
@@ -285,12 +240,11 @@ class SlackSecrets(DomainSecrets):
     slack_bot_token: str
     slack_team_id: str
 
-class SlackDomain(Domain):
+class SlackDomain(Domain[SlackSecrets]):
     name = "slack"
-    secrets_type = SlackSecrets  # Declares which secrets this domain needs
-    
+    secrets_type = SlackSecrets
+
     def mcp_servers(self):
-        # Secrets are loaded automatically from environment
         return [
             MCPServerStdio(
                 "uvx", "mcp-server-slack",
@@ -300,46 +254,43 @@ class SlackDomain(Domain):
                 },
             )
         ]
-    
+
     def tasks(self):
         return [SendMessageTask(), ListChannelsTask()]
 ```
 
-### 5. Domains with Lifecycle (Setup/Teardown)
+### 5. Domains with Lifecycle (Setup)
 
-Domains can implement `setup()` and `teardown()` for custom initialization and cleanup logic:
+Domains implement `setup(stack)` and register cleanup via the stack. No `teardown()` — the stack handles cleanup when the domain context exits:
 
 ```python
+from contextlib import AsyncExitStack
+from typing import Any
+
+import shutil
+import tempfile
+
 from mcp_evals import Domain
 from pydantic_ai.mcp import MCPServerStdio
-import tempfile
-import shutil
 
 class DatabaseDomain(Domain):
     name = "database"
-    
-    async def setup(self) -> None:
+
+    async def setup(self, stack: AsyncExitStack[Any]) -> None:
         """Called before MCP servers are started."""
-        # Create a fresh temp directory for this domain's database
         self._temp_dir = tempfile.mkdtemp(prefix="mcp_evals_")
         self._db_path = f"{self._temp_dir}/test.db"
-        
-        # Optionally seed the database with initial data
+        stack.callback(lambda: shutil.rmtree(self._temp_dir, ignore_errors=True))
+
         await self._seed_database()
-    
-    async def teardown(self) -> None:
-        """Called after MCP servers are stopped."""
-        # Clean up temp directory
-        shutil.rmtree(self._temp_dir, ignore_errors=True)
-    
+
     def mcp_servers(self):
         return [MCPServerStdio("uvx", "mcp-server-sqlite", self._db_path)]
-    
+
     def tasks(self):
         return [CreateUsersTableTask(), InsertUserTask()]
-    
+
     async def _seed_database(self) -> None:
-        # Custom initialization logic
         ...
 ```
 
@@ -348,14 +299,20 @@ class DatabaseDomain(Domain):
 Use `@property` for dynamic goal generation:
 
 ```python
+from mcp_evals.contrib.filesystem.common_evaluators import ContentMatches, FileExists
+
 class ParameterizedTask(Task):
     name = "create_config"
-    evaluators = [FileExists("config.json"), JsonFieldEquals("config.json", "port", 8080)]
-    
-    def __init__(self, app_name: str, port: int = 8080):
+    evaluators = [
+        FileExists("config.json"),
+        ContentMatches("config.json", pattern=r'"port":\s*8080'),
+    ]
+
+    def __init__(self, app_name: str, port: int = 8080, tool_retries: int = 1) -> None:
+        super().__init__(tool_retries=tool_retries)
         self.app_name = app_name
         self.port = port
-    
+
     @property
     def goal(self) -> str:
         return f"Create config.json with app_name='{self.app_name}' and port={self.port}"
@@ -368,6 +325,97 @@ class MyDomain(Domain):
             ParameterizedTask("api-gateway", port=8080),
         ]
 ```
+
+### 7. Deps Maker
+
+Provide per-task dependencies (e.g. DB connections, request-scoped state) via `deps_maker`. It receives the task and returns an async context manager yielding deps; those deps are passed to `agent.run(deps=deps)` and to `run_result_processor`:
+
+```python
+from contextlib import asynccontextmanager
+from typing import Any
+
+from mcp_evals import BenchmarkRunner
+from mcp_evals.task import Task
+from mcp_evals.types import DepsMaker, Runner
+
+def db_deps_maker(task: Task[Any, Any]) -> Any:  # returns AbstractAsyncContextManager
+    @asynccontextmanager
+    async def _cm():
+        conn = await get_db_connection()
+        try:
+            yield conn
+        finally:
+            await conn.close()
+
+    return _cm()
+
+runner = BenchmarkRunner(
+    agent=agent,
+    domains=[MyDomain()],
+    runner=Runner.INFERENCE_ONLY,
+    deps_maker=db_deps_maker,
+)
+```
+
+The agent and any tools can use `deps` to access the connection. When omitted, a default maker that yields `None` is used.
+
+### 8. Training and Testing Callbacks
+
+For `Runner.HOLD_OUT` and `Runner.CROSS_VALIDATION`, you can pass `start_training` and `start_testing` callbacks. They are invoked before the training phase and before the testing phase respectively (e.g. to persist a model, switch weights, or log phase changes):
+
+```python
+from loguru import logger
+
+from mcp_evals import BenchmarkRunner
+from mcp_evals.types import Runner, TrainingTestingCallback
+
+async def before_training() -> None:
+    logger.info("Starting training phase...")
+    # e.g. reset model, clear caches
+
+async def before_testing() -> None:
+    logger.info("Starting testing phase...")
+    # e.g. load trained weights, persist model
+
+runner = BenchmarkRunner(
+    agent=agent,
+    domains=[MyDomain()],
+    runner=Runner.HOLD_OUT,
+    hold_out_test_ratio=0.2,
+    start_training=before_training,
+    start_testing=before_testing,
+)
+```
+
+### 9. Run Result Processor
+
+Use `run_result_processor` to handle each agent run result (e.g. logging, persisting outputs, syncing to external systems). It receives `(task, run_result, deps)` and is called after each task execution:
+
+```python
+from typing import Any
+
+from mcp_evals import BenchmarkRunner
+from mcp_evals.types import Runner, RunResultProcessor
+from pydantic_ai.run import AgentRunResult
+
+async def log_and_persist(
+    task: Any,
+    result: AgentRunResult,
+    deps: object,
+) -> None:
+    # Log, persist, or sync to your system
+    print(f"Task {task.name}: {result.output}")
+    await save_result_to_db(task.name, result, deps)
+
+runner = BenchmarkRunner(
+    agent=agent,
+    domains=[MyDomain()],
+    runner=Runner.INFERENCE_ONLY,
+    run_result_processor=log_and_persist,
+)
+```
+
+The third argument `deps` is the object yielded by `deps_maker(task)` for this run (or `None` if using the default).
 
 ## Architecture
 
@@ -446,11 +494,11 @@ sequenceDiagram
             E->>MCP: Check environment state
             E-->>R: EvaluatorOutput
             Note over R: case_context_manager exits task context
-            R->>R: task.teardown()
+            R->>R: task stack cleanup
         end
-        
+
         D->>MCP: Disconnect servers (CombinedToolset cleanup)
-        D->>D: domain.teardown()
+        D->>D: domain stack cleanup
     end
     
     R-->>U: BenchmarkReport
@@ -491,9 +539,9 @@ The library manages resource lifecycle at two levels:
 | Domain | `async with domain:` | Per domain | MCP connections, CombinedToolset, domain-level fixtures |
 | Task | `case_context_manager` | Per task execution | Temp files, env vars, task-level fixtures |
 
-**Domain context managers** handle MCP server connections (via `pydantic_ai.CombinedToolset`) and domain-level setup/teardown.
+**Domain context managers** handle MCP server connections (via `pydantic_ai.CombinedToolset`) and domain-level setup via `setup(stack)` with stack-based cleanup.
 
-**Task context managers** handle task-specific setup/teardown (fixtures, environment). The task context is managed via `case_context_manager` parameter passed to `dataset.evaluate()`, ensuring it spans both:
+**Task context managers** handle task-specific setup via `setup(stack)` (fixtures, environment). The task context is managed via `case_context_manager` parameter passed to `dataset.evaluate()`, ensuring it spans both:
 - Task execution (agent.run)
 - Evaluator execution (evaluator.evaluate)
 
@@ -515,7 +563,7 @@ Users don't need to manage these contexts directly—`BenchmarkRunner` handles e
 ```
 mcp-evals/
 ├── scripts/
-│   └── run_filesystem_tasks.py
+│   └── run_domain_tasks.py       # Run domain tasks (filesystem, postgres)
 ├── src/
 │   └── mcp_evals/
 │       ├── __init__.py           # Public API: Domain, Task, BenchmarkRunner, etc.
@@ -523,25 +571,21 @@ mcp-evals/
 │       ├── task.py               # Task ABC (async context manager)
 │       ├── secrets.py            # DomainSecrets, TaskSecrets base classes
 │       ├── runner.py             # BenchmarkRunner facade
-│       ├── evaluators/
-│       │   ├── __init__.py       # Public evaluators
-│       │   └── builtin.py        # FileExists, ContentMatches, SQLQueryReturns, etc.
-│       ├── _internal/
-│       │   ├── __init__.py
-│       │   ├── conversion.py     # Domain → Dataset, Task → Case conversion
-│       │   ├── evaluated_fn.py   # run_agent_on_task() for pydantic_evals
-│       │   └── runner.py         # Internal runner wiring to pydantic_evals
+│       ├── evaluators/           # Base evaluator types (pydantic_evals re-exports)
+│       ├── _internal/            # Internal runner, conversion, evaluated_fn
 │       └── contrib/              # Pre-built domains and tasks
-│           └── filesystem/       # Filesystem-based benchmark tasks
+│           ├── filesystem/       # Filesystem domain (Docker + mcp/filesystem)
+│           │   └── common_evaluators/  # FileExists, ContentMatches, etc.
+│           └── postgres/         # Postgres domain (Docker + postgres-mcp)
 └── tests/
 ```
 
 ## Dependencies
 
-- **[pydantic-ai](https://ai.pydantic.dev/)** — LLM provider abstraction + MCP client
-- **[pydantic-evals](https://ai.pydantic.dev/evals/)** (specifically, [our fork](https://github.com/voorhs/pydantic-ai/tree/f/case-context-manager)) — Evaluation infrastructure (Dataset, Case, Evaluator)
+- **[pydantic-ai](https://ai.pydantic.dev/)** — LLM provider abstraction + MCP client (uses [our fork](https://github.com/voorhs/pydantic-ai) with pydantic_evals)
 - **[pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/)** — Environment-based secrets management
-- **[logfire](https://pydantic.dev/logfire)** — Observability and tracing
+- **[loguru](https://github.com/Delgan/loguru)** — Logging
+- **[logfire](https://pydantic.dev/logfire)** — Optional observability (via pydantic-ai extra)
 
 ## Development
 
