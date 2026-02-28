@@ -3,6 +3,7 @@
 from typing import Any
 
 from pydantic_ai.agent import Agent
+from pydantic_ai.usage import UsageLimits
 from pydantic_evals.reporting import EvaluationReport
 
 from mcp_evals._internal.runner import (
@@ -32,6 +33,7 @@ class BenchmarkRunner:
         start_training: TrainingTestingCallback | None = None,
         start_testing: TrainingTestingCallback | None = None,
         run_result_processor: RunResultProcessor | None = None,
+        usage_limits: UsageLimits | None = None,
     ) -> None:
         """Initialize the benchmark runner."""
         self.agent = agent
@@ -46,6 +48,7 @@ class BenchmarkRunner:
         self.start_training = start_training
         self.start_testing = start_testing
         self.run_result_processor = run_result_processor
+        self.usage_limits = usage_limits
 
     async def run(self) -> list[EvaluationReport]:
         """Run all tasks from all domains.
@@ -71,6 +74,7 @@ class BenchmarkRunner:
                 deps_maker=self.deps_maker,
                 max_tasks=self.max_tasks,
                 run_result_processor=self.run_result_processor,
+                usage_limits=self.usage_limits,
             )
         if self.runner == Runner.HOLD_OUT:
             return DomainRunnerHoldOut(
@@ -82,6 +86,7 @@ class BenchmarkRunner:
                 start_training=self.start_training,
                 start_testing=self.start_testing,
                 run_result_processor=self.run_result_processor,
+                usage_limits=self.usage_limits,
             )
         if self.runner == Runner.CROSS_VALIDATION:
             return DomainRunnerCrossValidation(
@@ -93,5 +98,6 @@ class BenchmarkRunner:
                 start_training=self.start_training,
                 start_testing=self.start_testing,
                 run_result_processor=self.run_result_processor,
+                usage_limits=self.usage_limits,
             )
         raise ValueError("Invalid runner")
