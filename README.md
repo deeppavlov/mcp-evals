@@ -417,6 +417,10 @@ runner = BenchmarkRunner(
 
 The third argument `deps` is the object yielded by `deps_maker(task)` for this run (or `None` if using the default).
 
+## Logfire Note
+
+Pydantic-ai tech stack includes awesame [Logfire](https://logfire.pydantic.dev/docs/) --- observability tool for inspecting LLM tool calls and responces. However, if you want to use it, you'd better use some non-Russian proxy, so your spans are sent without any problem.
+
 ## Architecture
 
 ### High-Level Flow
