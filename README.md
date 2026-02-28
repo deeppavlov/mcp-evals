@@ -558,9 +558,10 @@ Users don't need to manage these contexts directly—`BenchmarkRunner` handles e
 - [x] error handling
 - [x] testing strategy
 - [x] `Domain` re-entry protection
+- [ ] (?) use dishka with scopes BENCHMARK > DOMAIN > PHASE > TASK
 - [ ] check tasks names uniqueness within a single domain
 - [ ] check domains names uniqueness within a single benchmark run
-- [ ] untie `contrib` and core mcp_evals; make them optional packages (e.g. `mcp-evals-filesystem`)
+- [ ] untie `contrib` and core mcp_evals; make them external packages (e.g. `mcp-evals-filesystem`)
 
 ## Project Structure
 
