@@ -6,6 +6,7 @@ from pydantic_ai.agent import Agent
 from pydantic_ai.output import OutputDataT
 from pydantic_ai.run import AgentRunResult
 from pydantic_ai.toolsets import CombinedToolset
+from pydantic_ai.usage import UsageLimits
 
 from mcp_evals.task import Task
 from mcp_evals.types import DepsMaker, RunResultProcessor
@@ -18,6 +19,7 @@ async def run_agent_on_task(
     toolset: CombinedToolset[Any],
     deps_maker: DepsMaker,
     run_result_processor: RunResultProcessor | None = None,
+    usage_limits: UsageLimits | None = None,
 ) -> AgentRunResult[OutputDataT]:
     """The function evaluated by pydantic_evals for each Case.
 
@@ -40,6 +42,7 @@ async def run_agent_on_task(
             output_type=task.output_type,
             toolsets=[toolset, *task.mcp_servers()],
             deps=deps,
+            usage_limits=usage_limits,
         )
         if run_result_processor is not None:
             await run_result_processor(task, result, deps)

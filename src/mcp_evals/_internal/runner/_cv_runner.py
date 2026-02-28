@@ -3,6 +3,7 @@
 from typing import Any
 
 from pydantic_ai.agent import Agent
+from pydantic_ai.usage import UsageLimits
 from pydantic_evals.reporting import EvaluationReport
 
 from mcp_evals._internal.conversion import tasks_to_dataset
@@ -28,12 +29,14 @@ class DomainRunnerCrossValidation(BaseDomainRunner):
         start_training: TrainingTestingCallback | None = None,
         start_testing: TrainingTestingCallback | None = None,
         run_result_processor: RunResultProcessor | None = None,
+        usage_limits: UsageLimits | None = None,
     ) -> None:
         super().__init__(
             agent=agent,
             deps_maker=deps_maker,
             max_tasks=max_tasks,
             run_result_processor=run_result_processor,
+            usage_limits=usage_limits,
         )
         self.n_splits = n_splits
         self.random_state = random_state

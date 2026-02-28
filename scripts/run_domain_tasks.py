@@ -50,7 +50,7 @@ from typing import Any
 import logfire
 from dotenv import load_dotenv
 from loguru import logger
-from pydantic_ai import Agent
+from pydantic_ai import Agent, UsageLimits
 from pydantic_ai.messages import ModelMessage, ModelRequest, ModelRequestPart, ToolReturnPart
 
 from mcp_evals import BenchmarkRunner, Domain
@@ -168,6 +168,7 @@ def main() -> None:
         runner=Runner.INFERENCE_ONLY,
         experiment_name=args.experiment_name,
         max_tasks=args.max_tasks,
+        usage_limits=UsageLimits(request_limit=25),
     )
 
     logger.info(f"Running {args.domain} tasks with model: {args.model}")
