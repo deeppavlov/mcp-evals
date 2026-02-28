@@ -8,4 +8,4 @@ ThreeStudio is a comprehensive codebase that implements various diffusion-based 
 
 What is the output of `guidance_out`, returned by the code at line 137 in `threestudio/systems/zero123.py`?
 
-Clearly state the structure of it and where you find the answer (file and line numbers).Write your answer in a file named `answer.txt` in the test directory root. Do not add extra explanation or formatting beyond what is required by the task.
+Clearly state the structure of it and where you find the answer (file and line numbers).Write your answer in a file named `answer.txt` in the working directory root. Do not add extra explanation or formatting beyond what is required by the task.

@@ -1,8 +1,8 @@
 Please use FileSystem tools to finish the following task:
 
-1. **Create the main directory structure**:
+1. **Create the working directory structure**:
 
-   - Create a new directory in main directory called `organized_projects`
+   - Create a new directory in working directory called `organized_projects`
    - Inside `organized_projects`, create 3 main subdirectories: `experiments`, `learning`, and `personal`
    - Inside `experiments`, create 2 subdirectories: `ml_projects` and `data_analysis`
    - Inside `learning`, create 2 subdirectories: `progress_tracking` and `resources`

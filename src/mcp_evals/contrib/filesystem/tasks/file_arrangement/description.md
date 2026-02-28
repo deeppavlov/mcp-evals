@@ -6,7 +6,7 @@ You are tasked with organizing files on an AI researcher's desktop into a struct
 
 ### Task Objectives
 
-1. **Create the following folder structure** in the main directory:
+1. **Create the following folder structure** in the working directory:
 
    - `work/` - for work, research and projects related files
    - `life/` - for personal life related files

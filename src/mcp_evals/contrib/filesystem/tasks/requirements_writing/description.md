@@ -6,7 +6,7 @@ The VoteNet project is a 3D object detection framework for point clouds. Your ta
 
 ### Task Objectives
 
-1. **Create a requirements.txt file** in the main directory
+1. **Create a requirements.txt file** in the working directory
 2. **Include all essential dependencies** needed to run the VoteNet codebase
 3. **Ensure the file format is correct** (one dependency per line)
 4. **Save the file as `requirements.txt`** in the current working directory

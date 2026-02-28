@@ -29,7 +29,7 @@ Between v1 and v9, these four people make comments on the clauses. The comment f
 
 ### Output Requirements
 
-**File Name:** `tracing.csv` (must be placed in the main directory)
+**File Name:** `tracing.csv` (must be placed in the working directory)
 
 **CSV Structure:**
 

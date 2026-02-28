@@ -6,7 +6,7 @@ You are given a directory containing multiple text files of varying sizes. Your 
 
 ### Task Objectives
 
-1. **Identify the 10 smallest .txt files** in the test directory
+1. **Identify the 10 smallest .txt files** in the working directory
 2. **Sort the selected files alphabetically** by filename
 3. **Merge the content** of these files into a single file
 4. **Add file headers** (file name) before each file's content

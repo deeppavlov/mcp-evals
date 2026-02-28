@@ -6,8 +6,8 @@ You are given a directory containing multiple text files. Some files have identi
 
 ### Task Objectives
 
-1. **Scan all text files** in the test directory to identify groups with identical content
-2. **Create a 'duplicates' directory** in the test directory root
+1. **Scan all text files** in the working directory to identify groups with identical content
+2. **Create a 'duplicates' directory** in the working directory root
 3. **Move all duplicate files** into the 'duplicates' directory
 4. **Leave unique files** in their original location
 

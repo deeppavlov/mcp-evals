@@ -8,7 +8,7 @@ Your task is to compile all contact information from all the files into a single
 
 1. **Scan all files** in the directory
 2. **Extract contact information** for all individuals and organizations found
-3. **Create a CSV file** named `contact_info.csv` in the main directory
+3. **Create a CSV file** named `contact_info.csv` in the working directory
 4. **Structure the CSV** with the following columns:
    - First column: Name (required)
    - Second column: Email (required)
@@ -30,7 +30,7 @@ After creating the contact_info.csv file, analyze the data to answer:
 
 Hint: focus on the contact information in contact_info.csv.
 
-Write your answer in a file named `answer.txt` in the main directory.
+Write your answer in a file named `answer.txt` in the working directory.
 
 ### Important Notes
 

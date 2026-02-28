@@ -13,7 +13,7 @@ ThreeStudio is a comprehensive codebase that implements various diffusion-based 
 
 ### Expected Output
 
-Create a file named `answer.txt` in the test directory root
+Create a file named `answer.txt` in the working directory root
 
 **Requirements:**
 - Only include the file path, no additional text or explanation

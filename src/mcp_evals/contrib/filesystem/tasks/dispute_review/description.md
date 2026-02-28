@@ -20,4 +20,4 @@ Between v1 and v9, these four people make comments on the clauses. The comment f
 
 ## Task
 
-Your task is to review these versions and identify all clauses that have been commented in **v5,6,7 (in folder legal_files/)**. Generate a file named `dispute_review.txt` in the main directory. In this file, list each commented clause on a separate line and indicate the number of comments for each clause in the format "Clause number:number of comments". Clause number should be in the format of X.X.
+Your task is to review these versions and identify all clauses that have been commented in **v5,6,7 (in folder legal_files/)**. Generate a file named `dispute_review.txt` in the working directory. In this file, list each commented clause on a separate line and indicate the number of comments for each clause in the format "Clause number:number of comments". Clause number should be in the format of X.X.

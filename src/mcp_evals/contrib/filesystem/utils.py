@@ -40,15 +40,16 @@ except ImportError as e:
 class Fixture(StrEnum):
     """Enumeration of available filesystem test fixture categories."""
 
+    # fixtures marked with '!' consume a lot of tokens due to huge text files in them
     DESKTOP = "desktop"
     FILE_CONTEXT = "file_context"
     FILE_PROPERTY = "file_property"
-    FOLDER_STRUCTURE = "folder_structure"
-    PAPERS = "papers"
-    STUDENT_DATABASE = "student_database"
-    THREESTUDIO = "threestudio"
+    FOLDER_STRUCTURE = "folder_structure"  # !
+    PAPERS = "papers"  # !
+    STUDENT_DATABASE = "student_database"  # !
+    THREESTUDIO = "threestudio"  # !
     VOTENET = "votenet"
-    LEGAL_DOCUMENT = "legal_document"
+    LEGAL_DOCUMENT = "legal_document"  # !
     DESKTOP_TEMPLATE = "desktop_template"
 
 

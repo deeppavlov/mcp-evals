@@ -14,7 +14,7 @@ There is a bug in the VoteNet backbone module that needs to be identified and fi
 ### Expected Output
 
 1. **Fix the bug** in the code file directly
-2. **Create `answer.txt`** in the test directory root with the format: `path`
+2. **Create `answer.txt`** in the working directory root with the format: `path`
 
 **Requirements:**
 

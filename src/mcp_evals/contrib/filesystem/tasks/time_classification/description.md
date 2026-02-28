@@ -2,11 +2,11 @@ Please use FileSystem tools to finish the following task:
 
 ### Task Description
 
-Analyze the creation time (ctime) of all files in the test directory and organize them into a hierarchical directory structure based on their creation dates.
+Analyze the creation time (ctime) of all files in the working directory and organize them into a hierarchical directory structure based on their creation dates.
 
 ### Task Objectives
 
-1. **Read metadata** of all files in the test directory
+1. **Read metadata** of all files in the working directory
 2. **Analyze creation times** (ctime) of all files (excluding .DS_Store)
 3. **Create directory structure** organized by month/day based on creation time
 4. **Move files** to appropriate directories
