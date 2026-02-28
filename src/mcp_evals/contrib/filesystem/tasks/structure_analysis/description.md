@@ -1,6 +1,6 @@
 Please use FileSystem tools to finish the following task:
 
-You need to recursively traverse the entire folder structure under the main directory and generate a detailed statistical report in a file named `structure_analysis.txt`.
+You need to recursively traverse the entire folder structure under the working directory and generate a detailed statistical report in a file named `structure_analysis.txt`.
 
 In all tasks, ignore `.DS_Store` files.
 
@@ -30,7 +30,7 @@ total size of all files: Z
 
 Identify the deepest folder path(s) in the directory and calculate its depth level.
 
-- Use relative paths based on main directory.
+- Use relative paths based on working directory.
 - **Write the folder path only up to the folder, not including the file name.For example, if the file path is `./complex_structure/A/B/C/def.txt`, then the path in your report should be `complex_structure/A/B/C`, and the depth is `4`.**
 - If multiple deepest paths exist, list only one.
 

@@ -19,7 +19,7 @@ class RequirementsWritingTask(FilesystemTask):
     """Task for creating requirements.txt file for VoteNet.
 
     The agent must:
-    1. Create requirements.txt file in the main directory
+    1. Create requirements.txt file in the working directory
     2. Include all essential dependencies needed to run VoteNet
     3. Ensure file format is correct (one dependency per line)
     4. Include at least: matplotlib, opencv, plyfile, trimesh, pointnet2, networkx

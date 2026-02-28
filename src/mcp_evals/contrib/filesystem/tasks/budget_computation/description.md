@@ -8,7 +8,7 @@ You need to analyze all the files in the desktop environment to calculate person
 
 1. **Locate and analyze all files** in the desktop environment
 2. **Extract personal life expenses** from the files (such as salary, food, living material, tax, expenses on the internet, ...) (exclude expenses in project/work)
-3. **Create a file named `total_budget.txt`** in the main directory
+3. **Create a file named `total_budget.txt`** in the working directory
 4. **Format each expense entry** as `file_path;price` (one per line)
 5. **Add total sum** as the last line, rounded to 2 decimal places
 
@@ -17,7 +17,7 @@ You need to analyze all the files in the desktop environment to calculate person
 The `total_budget.txt` file should contain:
 
 - One expense per line in format: `file_path;price`
-- File path should be the relative path from the main directory
+- File path should be the relative path from the working directory
 - Price should be rounded to 2 decimal places
 - Last line should be the total sum
 - No additional text or explanations

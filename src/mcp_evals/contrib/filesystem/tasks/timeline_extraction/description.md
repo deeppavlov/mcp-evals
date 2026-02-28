@@ -1,6 +1,6 @@
 Please use FileSystem tools to finish the following task:
 
-Read all the files under current path, extract every time/plan information that clearly indicates 2024, and integrate them into a list and create a file in main directory called `timeline.txt`. Write the timeline in the file in the following format.
+Read all the files under current path, extract every time/plan information that clearly indicates 2024, and integrate them into a list and create a file in working directory called `timeline.txt`. Write the timeline in the file in the following format.
 
 ### Rules
 - If a task only shows month without day, use the 1st day of that month
