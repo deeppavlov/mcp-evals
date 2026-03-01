@@ -2,8 +2,9 @@
 
 import asyncio
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
+import logfire
 from loguru import logger
 from pydantic_ai.agent import Agent
 from pydantic_ai.output import OutputDataT
@@ -14,6 +15,9 @@ from pydantic_evals.evaluators import EvaluationReason, EvaluatorOutput
 
 from mcp_evals.task import Task
 from mcp_evals.types import DepsMaker, RunResultProcessor
+
+if TYPE_CHECKING:
+    from pydantic_ai.messages import ModelMessage
 
 
 def _eval_failed(outcome: EvaluatorOutput) -> bool:
@@ -92,44 +96,46 @@ async def run_agent_on_task_with_self_correction(
     Evaluators use ctx.inputs (task) and ctx.output (result); we use a minimal
     SimpleNamespace for ctx since EvaluatorContext has many internal fields.
     """
-    goal = task.goal
+    inputs = task.goal
     result: AgentRunResult[OutputDataT] | None = None
+    message_history: list[ModelMessage] = []
 
     for attempt in range(max_retries):
         async with deps_maker(task) as deps:
             result = await agent.run(
-                goal,
+                inputs,
                 output_type=task.output_type,
                 toolsets=[toolset, *task.mcp_servers()],
                 deps=deps,
                 usage_limits=usage_limits,
+                message_history=message_history,
             )
             if run_result_processor is not None:
                 await run_result_processor(task, result, deps)
 
-        ctx = SimpleNamespace(inputs=task, output=result)
-        failures: list[tuple[str, str]] = []
-        for evaluator in task.evaluators:
-            raw = evaluator.evaluate(cast("Any", ctx))
-            outcome = cast(
-                "EvaluatorOutput",
-                await raw if asyncio.iscoroutine(raw) else raw,
-            )
-            if _eval_failed(outcome):
-                name = getattr(evaluator, "name", evaluator.__class__.__name__)
-                failures.append((name, _get_failure_reason(outcome)))
+        with logfire.suppress_instrumentation():
+            ctx = SimpleNamespace(inputs=task, output=result)
+            failures: list[tuple[str, str]] = []
+            for evaluator in task.evaluators:
+                raw = evaluator.evaluate(cast("Any", ctx))
+                outcome = cast(
+                    "EvaluatorOutput",
+                    await raw if asyncio.iscoroutine(raw) else raw,
+                )
+                if _eval_failed(outcome):
+                    name = getattr(evaluator, "name", evaluator.__class__.__name__)
+                    failures.append((name, _get_failure_reason(outcome)))
 
         if not failures:
             return result
 
         if attempt < max_retries - 1:
-            lines = [f"- {name}: {reason}" for name, reason in failures]
-            feedback = "\n".join(lines)
-            goal = (
-                f"{task.goal}\n\n"
-                f"[Previous attempt failed (attempt {attempt + 1}/{max_retries}). "
-                f"Fix these issues:\n{feedback}\n]"
+            inputs = (
+                "Evaluation results:\n"
+                + "\n".join(f"- {name}: {reason}" for name, reason in failures)
+                + "\n\nPlease, try to fix these errors."
             )
+            message_history = result.all_messages()
             logger.debug(f"[{task.name}] Self-correction attempt {attempt + 1} failed, retrying with feedback")
 
     if result is None:

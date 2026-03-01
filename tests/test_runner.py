@@ -489,6 +489,7 @@ class TestRunAgentOnTaskWithSelfCorrection:
         mock_agent = MagicMock(spec=Agent)
         mock_result = MagicMock(spec=AgentRunResult)
         mock_result.output = MagicMock()
+        mock_result.all_messages = MagicMock(return_value=[])
         mock_agent.run = AsyncMock(return_value=mock_result)
 
         failing_evaluator = AsyncMock(
@@ -498,8 +499,13 @@ class TestRunAgentOnTaskWithSelfCorrection:
             ]
         )
 
+        class ChronologicalOrderEvaluator:
+            """Evaluator with a proper name (no 'name' attr, uses __class__.__name__)."""
+
+            evaluate = failing_evaluator
+
         task = ConcreteTask(name="retry_task")
-        task.evaluators = (MagicMock(evaluate=failing_evaluator),)
+        task.evaluators = (ChronologicalOrderEvaluator(),)  # type: ignore[assignment]
 
         mock_toolset = MagicMock()
 
@@ -516,17 +522,19 @@ class TestRunAgentOnTaskWithSelfCorrection:
         assert mock_agent.run.await_count == 2
         # First call: original goal
         assert mock_agent.run.call_args_list[0].args[0] == "Test goal"
-        # Second call: augmented with feedback
-        second_goal = mock_agent.run.call_args_list[1].args[0]
-        assert "Test goal" in second_goal
-        assert "Date order violation" in second_goal
-        assert "Fix these issues" in second_goal
+        # Second call: feedback only (Evaluation results format)
+        second_inputs = mock_agent.run.call_args_list[1].args[0]
+        assert "Evaluation results" in second_inputs
+        assert "Date order violation" in second_inputs
+        assert "Please, try to fix these errors" in second_inputs
+        assert "ChronologicalOrderEvaluator" in second_inputs
 
     async def test_returns_immediately_when_all_evaluators_pass(self) -> None:
         """When all evaluators pass on first try, no retries occur."""
 
         mock_agent = MagicMock(spec=Agent)
         mock_result = MagicMock(spec=AgentRunResult)
+        mock_result.all_messages = MagicMock(return_value=[])
         mock_agent.run = AsyncMock(return_value=mock_result)
 
         passing_evaluator = AsyncMock(return_value=1.0)
@@ -553,6 +561,7 @@ class TestRunAgentOnTaskWithSelfCorrection:
 
         mock_agent = MagicMock(spec=Agent)
         mock_result = MagicMock(spec=AgentRunResult)
+        mock_result.all_messages = MagicMock(return_value=[])
         mock_agent.run = AsyncMock(return_value=mock_result)
 
         always_failing = AsyncMock(return_value=EvaluationReason(value=0.0, reason="Always fails"))
