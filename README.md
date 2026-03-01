@@ -615,3 +615,11 @@ uv run mypy .
 uv run ruff check --fix
 uv run ruff format
 ```
+
+## Problematic tasks
+
+- time_classification:
+```
+{'name': 'TotalFileCountAcrossDirectories', 'value': 0, 'reason': 'Expected 8 files total, found 0', 'source': {'name': 'TotalFileCountAcrossDirectories', 'arguments': {'directories': {'07': {'25': ['bus.MOV'], '26': ['road.MOV'], '09': ['sg.jpg']}, '08': {'06': ['bear.jpg', 'bridge.jpg', 'random_file_1.txt', 'random_file_2.txt', 'random_file_3.txt']}}, 'expected_total': 8, 'system_files': ['.DS_Store', 'Thumbs.db', '.DS_Store?', '._.DS_Store', 'metadata_analyse.txt'], 'directory_resolver': '<function TimeClassificationTask.__init__.<locals>.resolve_nested_time_dirs at 0x121e184a0>'}}}
+```
+

@@ -27,7 +27,7 @@ class ChronologicalOrder(Evaluator["TimelineExtractionTask", AgentRunResult]):
             content = timeline_file.read_text(encoding="utf-8")
             lines = [line.strip() for line in content.split("\n") if line.strip()]
 
-            dates = []
+            dates: list[datetime] = []
             for line in lines:
                 date_match = re.search(r"\d{4}-\d{2}-\d{2}", line)
                 if date_match:
