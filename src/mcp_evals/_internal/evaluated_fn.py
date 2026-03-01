@@ -100,8 +100,8 @@ async def run_agent_on_task_with_self_correction(
     result: AgentRunResult[OutputDataT] | None = None
     message_history: list[ModelMessage] = []
 
-    for attempt in range(max_retries):
-        async with deps_maker(task) as deps:
+    async with deps_maker(task) as deps:
+        for attempt in range(max_retries):
             result = await agent.run(
                 inputs,
                 output_type=task.output_type,
@@ -113,30 +113,30 @@ async def run_agent_on_task_with_self_correction(
             if run_result_processor is not None:
                 await run_result_processor(task, result, deps)
 
-        with logfire.suppress_instrumentation():
-            ctx = SimpleNamespace(inputs=task, output=result)
-            failures: list[tuple[str, str]] = []
-            for evaluator in task.evaluators:
-                raw = evaluator.evaluate(cast("Any", ctx))
-                outcome = cast(
-                    "EvaluatorOutput",
-                    await raw if asyncio.iscoroutine(raw) else raw,
+            with logfire.suppress_instrumentation():
+                ctx = SimpleNamespace(inputs=task, output=result)
+                failures: list[tuple[str, str]] = []
+                for evaluator in task.evaluators:
+                    raw = evaluator.evaluate(cast("Any", ctx))
+                    outcome = cast(
+                        "EvaluatorOutput",
+                        await raw if asyncio.iscoroutine(raw) else raw,
+                    )
+                    if _eval_failed(outcome):
+                        name = evaluator.get_serialization_name()
+                        failures.append((name, _get_failure_reason(outcome)))
+
+            if not failures:
+                return result
+
+            if attempt < max_retries - 1:
+                inputs = (
+                    "Evaluation results:\n"
+                    + "\n".join(f"- {name}: {reason}" for name, reason in failures)
+                    + "\n\nPlease, try to fix these errors."
                 )
-                if _eval_failed(outcome):
-                    name = evaluator.get_serialization_name()
-                    failures.append((name, _get_failure_reason(outcome)))
-
-        if not failures:
-            return result
-
-        if attempt < max_retries - 1:
-            inputs = (
-                "Evaluation results:\n"
-                + "\n".join(f"- {name}: {reason}" for name, reason in failures)
-                + "\n\nPlease, try to fix these errors."
-            )
-            message_history = result.all_messages()
-            logger.debug(f"[{task.name}] Self-correction attempt {attempt + 1} failed, retrying with feedback")
+                message_history = result.all_messages()
+                logger.debug(f"[{task.name}] Self-correction attempt {attempt + 1} failed, retrying with feedback")
 
     if result is None:
         msg = "run_agent_on_task_with_self_correction: no result after retries"
