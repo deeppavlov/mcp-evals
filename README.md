@@ -421,6 +421,13 @@ The third argument `deps` is the object yielded by `deps_maker(task)` for this r
 
 Pydantic-ai tech stack includes awesame [Logfire](https://logfire.pydantic.dev/docs/) --- observability tool for inspecting LLM tool calls and responces. However, if you want to use it, you'd better use some non-Russian proxy, so your spans are sent without any problem.
 
+## File System Docker
+
+MCP Evals uses custom docker image for file system MCP. Before running file system tasks, build the image:
+```bash
+docker build -t mcp-filesystem-server:mcp-evals https://github.com/voorhs/mcp-filesystem-server.git\#551c35a6661aec56f9610ca6c4eef7cb9a2b3eb0
+```
+
 ## Architecture
 
 ### High-Level Flow

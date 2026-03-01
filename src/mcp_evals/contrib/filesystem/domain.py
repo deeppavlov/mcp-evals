@@ -79,7 +79,7 @@ class FilesystemDomain(Domain[DomainSecrets]):
                     f"type=bind,src={self._tmp_dir},dst=/projects",
                     "-w",
                     "/projects",
-                    "mcp/filesystem",
+                    "mcp-filesystem-server:mcp-evals",
                     "/projects",
                 ],
                 max_retries=self.tool_retries,
