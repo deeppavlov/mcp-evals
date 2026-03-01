@@ -1,15 +1,36 @@
 """The function evaluated by pydantic_evals for each Case."""
 
+from types import SimpleNamespace
 from typing import Any
 
+from loguru import logger
 from pydantic_ai.agent import Agent
 from pydantic_ai.output import OutputDataT
 from pydantic_ai.run import AgentRunResult
 from pydantic_ai.toolsets import CombinedToolset
 from pydantic_ai.usage import UsageLimits
+from pydantic_evals.evaluators import EvaluationReason, EvaluatorOutput
 
 from mcp_evals.task import Task
 from mcp_evals.types import DepsMaker, RunResultProcessor
+
+
+def _eval_failed(outcome: EvaluatorOutput) -> bool:
+    """Return True if evaluator outcome indicates failure."""
+    if isinstance(outcome, EvaluationReason):
+        return outcome.value < 1.0
+    if isinstance(outcome, (int, float)):
+        return outcome < 1.0
+    return True
+
+
+def _get_failure_reason(outcome: EvaluatorOutput) -> str:
+    """Extract human-readable reason from evaluator outcome."""
+    if isinstance(outcome, EvaluationReason) and outcome.reason:
+        return outcome.reason
+    if isinstance(outcome, (int, float)):
+        return f"Score: {outcome} (expected 1.0)"
+    return "Evaluation failed"
 
 
 async def run_agent_on_task(
@@ -47,3 +68,65 @@ async def run_agent_on_task(
         if run_result_processor is not None:
             await run_result_processor(task, result, deps)
         return result
+
+
+async def run_agent_on_task_with_self_correction(
+    task: Task[Any, OutputDataT],
+    *,
+    agent: Agent[Any, Any],
+    toolset: CombinedToolset[Any],
+    deps_maker: DepsMaker,
+    run_result_processor: RunResultProcessor | None = None,
+    usage_limits: UsageLimits | None = None,
+    max_retries: int = 3,
+) -> AgentRunResult[OutputDataT]:
+    """Run agent on task with self-correction: re-run on evaluator failures with feedback.
+
+    Runs the agent, evaluates with task.evaluators, and if any evaluator fails,
+    augments the goal with the failure reasons and retries. Continues until all
+    evaluators pass or max_retries is reached.
+
+    Task context (setup/teardown) is managed by case_context_manager, not here.
+    Evaluators use ctx.inputs (task) and ctx.output (result); we use a minimal
+    SimpleNamespace for ctx since EvaluatorContext has many internal fields.
+    """
+    goal = task.goal
+    result: AgentRunResult[OutputDataT] | None = None
+
+    for attempt in range(max_retries):
+        async with deps_maker(task) as deps:
+            result = await agent.run(
+                goal,
+                output_type=task.output_type,
+                toolsets=[toolset, *task.mcp_servers()],
+                deps=deps,
+                usage_limits=usage_limits,
+            )
+            if run_result_processor is not None:
+                await run_result_processor(task, result, deps)
+
+        ctx = SimpleNamespace(inputs=task, output=result)
+        failures: list[tuple[str, str]] = []
+        for evaluator in task.evaluators:
+            outcome = await evaluator.evaluate(ctx)
+            if _eval_failed(outcome):
+                name = getattr(evaluator, "name", evaluator.__class__.__name__)
+                failures.append((name, _get_failure_reason(outcome)))
+
+        if not failures:
+            return result
+
+        if attempt < max_retries - 1:
+            lines = [f"- {name}: {reason}" for name, reason in failures]
+            feedback = "\n".join(lines)
+            goal = (
+                f"{task.goal}\n\n"
+                f"[Previous attempt failed (attempt {attempt + 1}/{max_retries}). "
+                f"Fix these issues:\n{feedback}\n]"
+            )
+            logger.debug(f"[{task.name}] Self-correction attempt {attempt + 1} failed, retrying with feedback")
+
+    if result is None:
+        msg = "run_agent_on_task_with_self_correction: no result after retries"
+        raise RuntimeError(msg)
+    return result
