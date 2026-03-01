@@ -123,7 +123,7 @@ async def run_agent_on_task_with_self_correction(
                     await raw if asyncio.iscoroutine(raw) else raw,
                 )
                 if _eval_failed(outcome):
-                    name = getattr(evaluator, "name", evaluator.__class__.__name__)
+                    name = evaluator.get_serialization_name()
                     failures.append((name, _get_failure_reason(outcome)))
 
         if not failures:
