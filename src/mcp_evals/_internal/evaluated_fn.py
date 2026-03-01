@@ -1,7 +1,8 @@
 """The function evaluated by pydantic_evals for each Case."""
 
+import asyncio
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 from loguru import logger
 from pydantic_ai.agent import Agent
@@ -18,7 +19,8 @@ from mcp_evals.types import DepsMaker, RunResultProcessor
 def _eval_failed(outcome: EvaluatorOutput) -> bool:
     """Return True if evaluator outcome indicates failure."""
     if isinstance(outcome, EvaluationReason):
-        return outcome.value < 1.0
+        val = outcome.value
+        return val < 1.0 if isinstance(val, (int, float)) else True
     if isinstance(outcome, (int, float)):
         return outcome < 1.0
     return True
@@ -108,7 +110,11 @@ async def run_agent_on_task_with_self_correction(
         ctx = SimpleNamespace(inputs=task, output=result)
         failures: list[tuple[str, str]] = []
         for evaluator in task.evaluators:
-            outcome = await evaluator.evaluate(ctx)
+            raw = evaluator.evaluate(cast("Any", ctx))
+            outcome = cast(
+                "EvaluatorOutput",
+                await raw if asyncio.iscoroutine(raw) else raw,
+            )
             if _eval_failed(outcome):
                 name = getattr(evaluator, "name", evaluator.__class__.__name__)
                 failures.append((name, _get_failure_reason(outcome)))
