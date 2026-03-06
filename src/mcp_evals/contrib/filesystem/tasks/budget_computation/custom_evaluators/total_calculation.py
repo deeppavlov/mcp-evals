@@ -39,7 +39,7 @@ class TotalCalculation(Evaluator["BudgetComputationTask", AgentRunResult]):
                 msg = f"Total calculation mismatch: calculated {calculated_total:.2f}, stated {stated_total:.2f}"
                 return EvaluationReason(value=0.0, reason=msg)
 
-        except (OSError, UnicodeDecodeError) as e:
+        except (OSError, UnicodeDecodeError, ValueError) as e:
             return EvaluationReason(value=0.0, reason=f"Error verifying total calculation: {e}")
 
         return 1.0

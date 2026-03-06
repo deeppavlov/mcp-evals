@@ -11,6 +11,7 @@ from mcp_evals._internal.runner import (
     DomainRunnerCrossValidation,
     DomainRunnerHoldOut,
     DomainRunnerInferenceOnly,
+    DomainRunnerSelfCorrection,
 )
 from mcp_evals.domain import Domain
 from mcp_evals.types import DepsMaker, Runner, RunResultProcessor, TrainingTestingCallback
@@ -27,6 +28,7 @@ class BenchmarkRunner:
         deps_maker: DepsMaker | None = None,
         experiment_name: str | None = None,
         max_tasks: int | None = None,
+        max_self_correction_retries: int = 3,
         hold_out_test_ratio: float = 0.2,
         cv_n_splits: int = 5,
         random_state: int | None = None,
@@ -42,6 +44,7 @@ class BenchmarkRunner:
         self.deps_maker = deps_maker
         self.experiment_name = experiment_name
         self.max_tasks = max_tasks
+        self.max_self_correction_retries = max_self_correction_retries
         self.hold_out_test_ratio = hold_out_test_ratio
         self.cv_n_splits = cv_n_splits
         self.random_state = random_state
@@ -99,5 +102,14 @@ class BenchmarkRunner:
                 start_testing=self.start_testing,
                 run_result_processor=self.run_result_processor,
                 usage_limits=self.usage_limits,
+            )
+        if self.runner == Runner.SELF_CORRECTION:
+            return DomainRunnerSelfCorrection(
+                agent=self.agent,
+                deps_maker=self.deps_maker,
+                max_tasks=self.max_tasks,
+                run_result_processor=self.run_result_processor,
+                usage_limits=self.usage_limits,
+                max_self_correction_retries=self.max_self_correction_retries,
             )
         raise ValueError("Invalid runner")

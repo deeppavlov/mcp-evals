@@ -9,9 +9,10 @@ import pytest
 from pydantic_ai.agent import Agent
 from pydantic_ai.mcp import MCPServer
 from pydantic_ai.run import AgentRunResult
-from pydantic_evals.evaluators import Evaluator
+from pydantic_evals.evaluators import EvaluationReason, Evaluator
 from pydantic_evals.reporting import EvaluationReport
 
+from mcp_evals._internal.evaluated_fn import run_agent_on_task_with_self_correction
 from mcp_evals.domain import Domain
 from mcp_evals.runner import BenchmarkRunner
 from mcp_evals.secrets import DomainSecrets, TaskSecrets
@@ -36,6 +37,7 @@ class ConcreteTask(Task[TaskSecrets, Any]):
     """Minimal task for runner tests."""
 
     goal = "Test goal"
+    output_type = str
     evaluators: tuple[Evaluator[Task[TaskSecrets, Any], AgentRunResult], ...] = ()
 
     def __init__(self, name: str = "task", tool_retries: int = 1) -> None:
@@ -274,9 +276,12 @@ class TestBenchmarkRunnerRun:
             assert runner.deps_maker is custom_factory
 
 
-# Internal run paths for HO and CV (so we can patch and assert without running agent)
+# Internal run paths for HO, CV, and self-correction (so we can patch and assert without running agent)
 INTERNAL_RUN_HOLD_OUT = "mcp_evals._internal.runner._hold_out_runner.DomainRunnerHoldOut.run_domain"
 INTERNAL_RUN_CV = "mcp_evals._internal.runner._cv_runner.DomainRunnerCrossValidation.run_domain"
+INTERNAL_RUN_SELF_CORRECTION = (
+    "mcp_evals._internal.runner._self_correction_runner.DomainRunnerSelfCorrection.run_domain"
+)
 
 
 @pytest.mark.asyncio
@@ -397,6 +402,186 @@ class TestBenchmarkRunnerCrossValidation:
         assert len(reports) == 1
         assert start_training.await_count == 3
         assert start_testing.await_count == 3
+
+
+@pytest.mark.asyncio
+class TestBenchmarkRunnerSelfCorrection:
+    """Tests for BenchmarkRunner with Runner.SELF_CORRECTION."""
+
+    async def test_self_correction_returns_one_report_per_domain(self) -> None:
+        """Self-correction runner returns one EvaluationReport per domain."""
+        mock_agent = MagicMock(spec=Agent)
+        domain = ConcreteDomain(tasks=[ConcreteTask(name=f"t{i}") for i in range(3)])
+        runner = BenchmarkRunner(
+            agent=mock_agent,
+            domains=[domain],
+            runner=Runner.SELF_CORRECTION,
+            deps_maker=_no_deps_maker,
+            max_self_correction_retries=2,
+        )
+        mock_report = MagicMock(spec=EvaluationReport)
+        mock_report.cases = [MagicMock(), MagicMock(), MagicMock()]
+
+        with patch(
+            INTERNAL_RUN_SELF_CORRECTION,
+            new_callable=AsyncMock,
+            return_value=mock_report,
+        ):
+            reports = await runner.run()
+
+        assert len(reports) == 1
+        assert reports[0] is mock_report
+
+    async def test_self_correction_uses_correct_internal_runner(self) -> None:
+        """Runner.SELF_CORRECTION creates DomainRunnerSelfCorrection with correct params."""
+        mock_agent = MagicMock(spec=Agent)
+        domain = ConcreteDomain()
+        runner = BenchmarkRunner(
+            agent=mock_agent,
+            domains=[domain],
+            runner=Runner.SELF_CORRECTION,
+            deps_maker=_no_deps_maker,
+            max_self_correction_retries=5,
+        )
+        mock_report = MagicMock(spec=EvaluationReport)
+
+        with patch(
+            INTERNAL_RUN_SELF_CORRECTION,
+            new_callable=AsyncMock,
+            return_value=mock_report,
+        ) as mock_run:
+            await runner.run()
+            mock_run.assert_called_once()
+            # Verify domain was passed (as keyword)
+            assert mock_run.call_args.kwargs["domain"] is domain
+
+    async def test_self_correction_max_tasks_limits_cases(self) -> None:
+        """With max_tasks=2, self-correction report contains at most 2 cases."""
+        mock_agent = MagicMock(spec=Agent)
+        domain = ConcreteDomain(tasks=[ConcreteTask(name=f"t{i}") for i in range(5)])
+        runner = BenchmarkRunner(
+            agent=mock_agent,
+            domains=[domain],
+            runner=Runner.SELF_CORRECTION,
+            deps_maker=_no_deps_maker,
+            max_tasks=2,
+        )
+        mock_result = MagicMock(spec=AgentRunResult)
+
+        with patch(
+            "mcp_evals._internal.runner._self_correction_runner.run_agent_on_task_with_self_correction",
+            new_callable=AsyncMock,
+            return_value=mock_result,
+        ):
+            reports = await runner.run()
+
+        assert len(reports) == 1
+        assert len(reports[0].cases) == 2
+
+
+@pytest.mark.asyncio
+class TestRunAgentOnTaskWithSelfCorrection:
+    """Tests for run_agent_on_task_with_self_correction evaluated fn."""
+
+    async def test_retries_on_evaluator_failure_and_passes_feedback(self) -> None:
+        """When evaluator fails, agent is re-run with augmented goal containing feedback."""
+
+        mock_agent = MagicMock(spec=Agent)
+        mock_result = MagicMock(spec=AgentRunResult)
+        mock_result.output = MagicMock()
+        mock_result.all_messages = MagicMock(return_value=[])
+        mock_agent.run = AsyncMock(return_value=mock_result)
+
+        failing_evaluator = AsyncMock(
+            side_effect=[
+                EvaluationReason(value=0.0, reason="Date order violation"),
+                1.0,
+            ]
+        )
+
+        class ChronologicalOrderEvaluator(Evaluator):
+            """Evaluator with a proper name (no 'name' attr, uses __class__.__name__)."""
+
+            evaluate = failing_evaluator
+
+        task = ConcreteTask(name="retry_task")
+        task.evaluators = (ChronologicalOrderEvaluator(),)
+
+        mock_toolset = MagicMock()
+
+        async with task:
+            result = await run_agent_on_task_with_self_correction(
+                task,
+                agent=mock_agent,
+                toolset=mock_toolset,
+                deps_maker=_no_deps_maker,
+                max_retries=3,
+            )
+
+        assert result is mock_result
+        assert mock_agent.run.await_count == 2
+        # First call: original goal
+        assert mock_agent.run.call_args_list[0].args[0] == "Test goal"
+        # Second call: feedback only (Evaluation results format)
+        second_inputs = mock_agent.run.call_args_list[1].args[0]
+        assert "Evaluation results" in second_inputs
+        assert "Date order violation" in second_inputs
+        assert "Please, try to fix these errors" in second_inputs
+        assert "ChronologicalOrderEvaluator" in second_inputs
+
+    async def test_returns_immediately_when_all_evaluators_pass(self) -> None:
+        """When all evaluators pass on first try, no retries occur."""
+
+        mock_agent = MagicMock(spec=Agent)
+        mock_result = MagicMock(spec=AgentRunResult)
+        mock_result.all_messages = MagicMock(return_value=[])
+        mock_agent.run = AsyncMock(return_value=mock_result)
+
+        passing_evaluator = AsyncMock(return_value=1.0)
+
+        task = ConcreteTask(name="pass_task")
+        task.evaluators = (MagicMock(evaluate=passing_evaluator),)
+
+        mock_toolset = MagicMock()
+
+        async with task:
+            result = await run_agent_on_task_with_self_correction(
+                task,
+                agent=mock_agent,
+                toolset=mock_toolset,
+                deps_maker=_no_deps_maker,
+                max_retries=3,
+            )
+
+        assert result is mock_result
+        assert mock_agent.run.await_count == 1
+
+    async def test_stops_after_max_retries(self) -> None:
+        """When evaluators never pass, stops after max_retries and returns last result."""
+
+        mock_agent = MagicMock(spec=Agent)
+        mock_result = MagicMock(spec=AgentRunResult)
+        mock_result.all_messages = MagicMock(return_value=[])
+        mock_agent.run = AsyncMock(return_value=mock_result)
+
+        always_failing = AsyncMock(return_value=EvaluationReason(value=0.0, reason="Always fails"))
+
+        task = ConcreteTask(name="fail_task")
+        task.evaluators = (MagicMock(evaluate=always_failing),)
+
+        mock_toolset = MagicMock()
+
+        async with task:
+            result = await run_agent_on_task_with_self_correction(
+                task,
+                agent=mock_agent,
+                toolset=mock_toolset,
+                deps_maker=_no_deps_maker,
+                max_retries=3,
+            )
+
+        assert result is mock_result
+        assert mock_agent.run.await_count == 3
 
 
 @pytest.mark.asyncio
