@@ -499,7 +499,7 @@ class TestRunAgentOnTaskWithSelfCorrection:
             ]
         )
 
-        class ChronologicalOrderEvaluator:
+        class ChronologicalOrderEvaluator(Evaluator):
             """Evaluator with a proper name (no 'name' attr, uses __class__.__name__)."""
 
             evaluate = failing_evaluator
