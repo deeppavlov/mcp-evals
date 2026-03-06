@@ -505,7 +505,7 @@ class TestRunAgentOnTaskWithSelfCorrection:
             evaluate = failing_evaluator
 
         task = ConcreteTask(name="retry_task")
-        task.evaluators = (ChronologicalOrderEvaluator(),)  # type: ignore[assignment]
+        task.evaluators = (ChronologicalOrderEvaluator(),)
 
         mock_toolset = MagicMock()
 
