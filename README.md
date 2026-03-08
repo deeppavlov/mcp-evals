@@ -18,6 +18,7 @@ This library provides infrastructure for running structured evaluations of LLM a
 | **Simple user API** | Users define domains and tasks; library handles orchestration |
 | **No wheel reinvention** | pydantic-ai for LLM + MCP, pydantic_evals for evaluation, loguru for logging, logfire for observability |
 | **Resource lifecycle** | Async context managers with safe cleanup |
+| **Resumable runs** | Optional checkpoint per domain; finished tasks skipped on re-run |
 | **Maintainability** | pytest, mypy, ruff | 
 
 ## Prerequisites
@@ -94,9 +95,11 @@ class CustomDomain(Domain):
     def mcp_servers(self):
         return [MCPServerStdio("uvx", "mcp-server-filesystem", "/workspace")]
     
-    def tasks(self):
+    def _tasks_impl(self):
         return [CreateConfigTask(), CreateReadmeTask()]
 ```
+
+To support resumable runs after interrupts, pass `checkpoint_path=Path("...")` when constructing the domain (see [Checkpointing](#10-checkpointing-resumable-runs)).
 
 ### 3. Run the Benchmark
 
@@ -255,7 +258,7 @@ class SlackDomain(Domain[SlackSecrets]):
             )
         ]
 
-    def tasks(self):
+    def _tasks_impl(self):
         return [SendMessageTask(), ListChannelsTask()]
 ```
 
@@ -287,7 +290,7 @@ class DatabaseDomain(Domain):
     def mcp_servers(self):
         return [MCPServerStdio("uvx", "mcp-server-sqlite", self._db_path)]
 
-    def tasks(self):
+    def _tasks_impl(self):
         return [CreateUsersTableTask(), InsertUserTask()]
 
     async def _seed_database(self) -> None:
@@ -319,7 +322,7 @@ class ParameterizedTask(Task):
 
 # Usage in domain:
 class MyDomain(Domain):
-    def tasks(self):
+    def _tasks_impl(self):
         return [
             ParameterizedTask("web-server", port=3000),
             ParameterizedTask("api-gateway", port=8080),
@@ -417,6 +420,49 @@ runner = BenchmarkRunner(
 
 The third argument `deps` is the object yielded by `deps_maker(task)` for this run (or `None` if using the default).
 
+### 10. Checkpointing (resumable runs)
+
+You can resume a benchmark after an interrupt or failure without re-running tasks that already completed. Progress is stored per domain in a checkpoint file; only (scope, task) runs that finished successfully are recorded.
+
+**Setup:** Pass `checkpoint_path` when creating the domain. The domain exposes a public `checkpoint` attribute (a `Checkpoint` instance) used by the runners.
+
+```python
+from pathlib import Path
+
+from mcp_evals import Domain, Checkpoint
+from mcp_evals.contrib.filesystem import FilesystemDomain
+
+# Enable checkpointing for this domain
+domain = FilesystemDomain(checkpoint_path=Path(".checkpoints/filesystem.txt"))
+
+# checkpoint is available as a public attribute
+assert domain.checkpoint is not None
+```
+
+**Example: resume after interrupt**
+
+```python
+from pathlib import Path
+
+from mcp_evals import BenchmarkRunner
+from mcp_evals.contrib.filesystem import FilesystemDomain
+from mcp_evals.types import Runner
+from pydantic_ai import Agent
+
+async def main():
+    agent = Agent("openai:gpt-4o")
+    domain = FilesystemDomain(checkpoint_path=Path(".checkpoints/fs.txt"))
+    runner = BenchmarkRunner(
+        agent=agent,
+        domains=[domain],
+        runner=Runner.INFERENCE_ONLY,
+    )
+    # First run: runs all tasks, writes progress to .checkpoints/fs.txt
+    # After interrupt or error, run again:
+    reports = await runner.run()  # Skips tasks already in the checkpoint
+```
+
+
 ## Logfire Note
 
 Pydantic-ai tech stack includes awesame [Logfire](https://logfire.pydantic.dev/docs/) --- observability tool for inspecting LLM tool calls and responces. However, if you want to use it, you'd better use some non-Russian proxy, so your spans are sent without any problem.
@@ -486,9 +532,10 @@ sequenceDiagram
     loop For each domain
         R->>D: async with domain
         D->>D: domain.setup()
+        Note over D: If domain.checkpoint set, checkpoint.load()
         D->>MCP: Connect to MCP servers (CombinedToolset)
         MCP-->>D: Combined toolset ready
-        R->>D: domain.tasks()
+        R->>D: domain.tasks(scope)  (filtered by checkpoint when scope given)
         
         loop For each task
             Note over R: case_context_manager enters task context
@@ -506,6 +553,7 @@ sequenceDiagram
             E-->>R: EvaluatorOutput
             Note over R: case_context_manager exits task context
             R->>R: task stack cleanup
+            Note over R: If no exception, checkpoint.record_finished(scope, task.name)
         end
 
         D->>MCP: Disconnect servers (CombinedToolset cleanup)
@@ -555,6 +603,7 @@ The library manages resource lifecycle at two levels:
 **Task context managers** handle task-specific setup via `setup(stack)` (fixtures, environment). The task context is managed via `case_context_manager` parameter passed to `dataset.evaluate()`, ensuring it spans both:
 - Task execution (agent.run)
 - Evaluator execution (evaluator.evaluate)
+- On normal exit, if the domain has a checkpoint, the (scope, task name) run is recorded for resumable runs.
 
 This is critical because evaluators often need to check the environment state (files, database, etc.) that was set up during `task.setup()`, and this state must remain available until after evaluators complete.
 
@@ -578,7 +627,8 @@ mcp-evals/
 │   └── run_domain_tasks.py       # Run domain tasks (filesystem, postgres)
 ├── src/
 │   └── mcp_evals/
-│       ├── __init__.py           # Public API: Domain, Task, BenchmarkRunner, etc.
+│       ├── __init__.py           # Public API: Domain, Task, BenchmarkRunner, Checkpoint, etc.
+│       ├── checkpoint.py         # Checkpoint class for resumable runs
 │       ├── domain.py             # Domain ABC (async context manager)
 │       ├── task.py               # Task ABC (async context manager)
 │       ├── secrets.py            # DomainSecrets, TaskSecrets base classes
