@@ -114,7 +114,7 @@ class MockDomain(Domain[DomainSecrets]):
         """Return mock MCP servers."""
         return self._mcp_servers
 
-    def tasks(self) -> list[Task[TaskSecrets, Any]]:
+    def _tasks_impl(self) -> list[Task[TaskSecrets, Any]]:
         """Return mock tasks."""
         return self._tasks
 

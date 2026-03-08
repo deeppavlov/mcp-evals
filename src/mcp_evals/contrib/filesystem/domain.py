@@ -86,7 +86,7 @@ class FilesystemDomain(Domain[DomainSecrets]):
             )
         ]
 
-    def tasks(self) -> Sequence[FilesystemTask]:
+    def _tasks_impl(self) -> Sequence[FilesystemTask]:
         """Return all filesystem tasks."""
         return [
             MusicReportTask(self._tmp_dir, fixture=Fixture.DESKTOP, tool_retries=self.tool_retries),

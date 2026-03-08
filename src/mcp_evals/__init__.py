@@ -1,5 +1,6 @@
 """MCP Evals - A code-first evaluation framework for testing LLM agents' ability to use MCP tools."""
 
+from mcp_evals.checkpoint import Checkpoint
 from mcp_evals.domain import Domain
 from mcp_evals.runner import BenchmarkRunner
 from mcp_evals.secrets import DomainSecrets, TaskSecrets
@@ -8,6 +9,7 @@ from mcp_evals.types import DepsMaker, Runner, RunResultProcessor, TrainingTesti
 
 __all__ = [
     "BenchmarkRunner",
+    "Checkpoint",
     "DepsMaker",
     "Domain",
     "DomainSecrets",

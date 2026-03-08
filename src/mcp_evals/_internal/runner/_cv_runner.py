@@ -15,6 +15,61 @@ from ._splits import k_fold_split
 from ._utils import task_lifecycle
 
 
+def _filter_by_checkpoint(
+    domain: Domain[Any],
+    scope: str,
+    tasks: list[Any],
+    indices: list[int],
+) -> list[Any]:
+    """Return task subset for indices, excluding those already finished for scope."""
+    subset = [tasks[i] for i in indices]
+    if domain.checkpoint is None:
+        return subset
+    return [t for t in subset if not domain.checkpoint.is_finished(scope, t.name)]
+
+
+async def _run_fold_train(
+    domain: Domain[Any],
+    fold_idx: int,
+    tasks: list[Any],
+    train_indices: list[int],
+    evaluated_fn: EvaluatedFn,
+    experiment_name: str | None,
+) -> None:
+    """Run training phase for one fold."""
+    train_tasks = _filter_by_checkpoint(domain, f"fold_{fold_idx}_train", tasks, train_indices)
+    if not train_tasks:
+        return
+    await tasks_to_dataset(train_tasks).evaluate(
+        evaluated_fn,
+        max_concurrency=1,
+        case_context_manager=task_lifecycle(domain, scope=f"fold_{fold_idx}_train"),
+        progress=False,
+        name=f"{experiment_name or 'cv'}_train_{fold_idx}_",
+    )
+
+
+async def _run_fold_test(
+    domain: Domain[Any],
+    fold_idx: int,
+    tasks: list[Any],
+    test_indices: list[int],
+    evaluated_fn: EvaluatedFn,
+    experiment_name: str | None,
+) -> EvaluationReport | None:
+    """Run test phase for one fold; return report if there were test tasks."""
+    test_tasks = _filter_by_checkpoint(domain, f"fold_{fold_idx}_test", tasks, test_indices)
+    if not test_tasks:
+        return None
+    return await tasks_to_dataset(test_tasks).evaluate(
+        evaluated_fn,
+        max_concurrency=1,
+        case_context_manager=task_lifecycle(domain, scope=f"fold_{fold_idx}_test"),
+        progress=False,
+        name=f"{experiment_name or 'cv'}_test_{fold_idx}" if experiment_name else None,
+    )
+
+
 class DomainRunnerCrossValidation(BaseDomainRunner):
     """Runner that runs K-fold CV: per fold run train then test, merge test reports."""
 
@@ -49,7 +104,7 @@ class DomainRunnerCrossValidation(BaseDomainRunner):
         experiment_name: str | None,
         evaluated_fn: EvaluatedFn,
     ) -> EvaluationReport:
-        tasks = list(domain.tasks())
+        tasks = list(domain.tasks(scope=None))
         if self.max_tasks is not None:
             tasks = tasks[: self.max_tasks]
         fold_reports: list[EvaluationReport] = []
@@ -61,30 +116,29 @@ class DomainRunnerCrossValidation(BaseDomainRunner):
                 await self.start_training()
 
             if train_indices:
-                train_tasks = [tasks[i] for i in train_indices]
-                train_dataset = tasks_to_dataset(train_tasks)
-                await train_dataset.evaluate(
+                await _run_fold_train(
+                    domain,
+                    fold_idx,
+                    tasks,
+                    train_indices,
                     evaluated_fn,
-                    max_concurrency=1,
-                    case_context_manager=task_lifecycle,
-                    progress=False,
-                    name=f"{experiment_name or 'cv'}_train_{fold_idx}_",
+                    experiment_name,
                 )
 
             if self.start_testing is not None:
                 await self.start_testing()
 
             if test_indices:
-                test_tasks = [tasks[i] for i in test_indices]
-                test_dataset = tasks_to_dataset(test_tasks)
-                report = await test_dataset.evaluate(
+                report = await _run_fold_test(
+                    domain,
+                    fold_idx,
+                    tasks,
+                    test_indices,
                     evaluated_fn,
-                    max_concurrency=1,
-                    case_context_manager=task_lifecycle,
-                    progress=False,
-                    name=f"{experiment_name or 'cv'}_test_{fold_idx}" if experiment_name else None,
+                    experiment_name,
                 )
-                fold_reports.append(report)
+                if report is not None:
+                    fold_reports.append(report)
 
         combined_cases = []
         for report in fold_reports:

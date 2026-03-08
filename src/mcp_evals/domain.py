@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from contextlib import AsyncExitStack
 from functools import cached_property
+from pathlib import Path
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, ClassVar, Self, cast
 
@@ -11,6 +12,7 @@ from loguru import logger
 from pydantic_ai.mcp import MCPServer
 from pydantic_ai.toolsets import CombinedToolset
 
+from mcp_evals.checkpoint import Checkpoint
 from mcp_evals.secrets import DomainSecrets
 
 if TYPE_CHECKING:
@@ -30,22 +32,34 @@ class Domain[SecretsT: DomainSecrets](ABC):
     Required attributes/methods:
     - `name: str`                    - Unique domain identifier
     - `mcp_servers() -> list`        - Returns MCP server configurations
-    - `tasks() -> list[Task]`        - Returns Task instances to evaluate
+    - `_tasks_impl() -> list[Task]` - Returns all Task instances (subclass implements this)
 
     Optional attributes:
+    - `checkpoint`                   - Checkpoint instance for resumable runs (set from checkpoint_path in __init__)
     - `secrets_type: ClassVar[type]` - BaseSettings subclass for secrets
 
     Lifecycle methods (override as needed):
     - `setup()`    - Called before MCP servers are started
-    - `teardown()` - Called after MCP servers are stopped
     """
 
     name: str
     _stack: AsyncExitStack[Any] | None = None
 
-    def __init__(self, tool_retries: int = 1) -> None:
-        """Init."""
+    def __init__(
+        self,
+        tool_retries: int = 1,
+        *,
+        checkpoint_path: Path | str | None = None,
+    ) -> None:
+        """Init.
+
+        Args:
+            tool_retries: Retry count for MCP tool calls.
+            checkpoint_path: If set, enables checkpointing for resumable runs;
+                finished (scope, task) keys are stored in this file.
+        """
         self.tool_retries = tool_retries
+        self.checkpoint: Checkpoint | None = Checkpoint(Path(checkpoint_path)) if checkpoint_path is not None else None
 
     @abstractmethod
     def mcp_servers(self) -> Sequence[MCPServer]:
@@ -56,8 +70,29 @@ class Domain[SecretsT: DomainSecrets](ABC):
         """
 
     @abstractmethod
-    def tasks(self) -> Sequence["Task[Any, Any]"]:
-        """Return Task instances to evaluate in this domain."""
+    def _tasks_impl(self) -> Sequence["Task[Any, Any]"]:
+        """Return all Task instances to evaluate in this domain.
+
+        Subclasses implement this; filtering by checkpoint (when enabled) is
+        applied by tasks(scope=...).
+        """
+
+    def tasks(self, scope: str | None = "default") -> Sequence["Task[Any, Any]"]:
+        r"""Return tasks for the given scope, excluding already-finished when checkpoint is set.
+
+        Args:
+            scope: When None, return all tasks (no checkpoint filtering). Used by
+                CV/HoldOut runners that filter per phase themselves. When
+                "default", return tasks not yet finished for the default scope
+                (used by inference-only and self-correction).
+
+        Returns:
+            Task list, optionally filtered by checkpoint.
+        """
+        all_tasks = self._tasks_impl()
+        if scope is None or self.checkpoint is None:
+            return all_tasks
+        return [t for t in all_tasks if not self.checkpoint.is_finished(scope, t.name)]
 
     secrets_type: ClassVar[type[SecretsT]] = cast("type[SecretsT]", DomainSecrets)
 
@@ -82,6 +117,8 @@ class Domain[SecretsT: DomainSecrets](ABC):
             raise RuntimeError(msg)
 
         logger.debug(f"[{self.name}] Entering domain...")
+        if self.checkpoint is not None:
+            self.checkpoint.load()
         async with AsyncExitStack() as stack:
             await self.setup(stack)
             logger.debug(f"[{self.name}] Connecting to MCP servers...")

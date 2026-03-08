@@ -49,7 +49,7 @@ class DomainRunnerHoldOut(BaseDomainRunner):
         experiment_name: str | None,
         evaluated_fn: EvaluatedFn,
     ) -> EvaluationReport:
-        tasks = list(domain.tasks())
+        tasks = list(domain.tasks(scope=None))
         if self.max_tasks is not None:
             tasks = tasks[: self.max_tasks]
         train_indices, test_indices = hold_out_split(len(tasks), self.test_ratio, self.random_state)
@@ -59,14 +59,17 @@ class DomainRunnerHoldOut(BaseDomainRunner):
 
         if train_indices:
             train_tasks = [tasks[i] for i in train_indices]
-            train_dataset = tasks_to_dataset(train_tasks)
-            await train_dataset.evaluate(
-                evaluated_fn,
-                max_concurrency=1,
-                case_context_manager=task_lifecycle,
-                progress=False,
-                name=f"{experiment_name or 'ho'}_train",
-            )
+            if domain.checkpoint is not None:
+                train_tasks = [t for t in train_tasks if not domain.checkpoint.is_finished("train", t.name)]
+            if train_tasks:
+                train_dataset = tasks_to_dataset(train_tasks)
+                await train_dataset.evaluate(
+                    evaluated_fn,
+                    max_concurrency=1,
+                    case_context_manager=task_lifecycle(domain, scope="train"),
+                    progress=False,
+                    name=f"{experiment_name or 'ho'}_train",
+                )
 
         if self.start_testing is not None:
             await self.start_testing()
@@ -75,11 +78,15 @@ class DomainRunnerHoldOut(BaseDomainRunner):
             return EvaluationReport(name=experiment_name or "hold_out", cases=[])
 
         test_tasks = [tasks[i] for i in test_indices]
+        if domain.checkpoint is not None:
+            test_tasks = [t for t in test_tasks if not domain.checkpoint.is_finished("test", t.name)]
+        if not test_tasks:
+            return EvaluationReport(name=experiment_name or "hold_out", cases=[])
         test_dataset = tasks_to_dataset(test_tasks)
         return await test_dataset.evaluate(
             evaluated_fn,
             max_concurrency=1,
-            case_context_manager=task_lifecycle,
+            case_context_manager=task_lifecycle(domain, scope="test"),
             progress=False,
             name=f"{experiment_name or 'ho'}_test",
         )

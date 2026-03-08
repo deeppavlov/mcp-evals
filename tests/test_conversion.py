@@ -48,7 +48,7 @@ class ConcreteDomain(Domain[DomainSecrets]):
         """Return empty list of MCP servers."""
         return []
 
-    def tasks(self) -> Sequence[ConcreteTask]:
+    def _tasks_impl(self) -> Sequence[ConcreteTask]:
         """Return tasks."""
         return self._tasks
 

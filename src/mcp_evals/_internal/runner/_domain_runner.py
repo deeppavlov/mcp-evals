@@ -42,7 +42,7 @@ class DomainRunnerInferenceOnly(BaseDomainRunner):
         return await dataset.evaluate(
             evaluated_fn,
             max_concurrency=1,  # Sequential by default for stateful tasks
-            case_context_manager=task_lifecycle,  # Task context wraps task + evaluators
+            case_context_manager=task_lifecycle(domain, scope="default"),
             progress=False,
             name=experiment_name,
         )

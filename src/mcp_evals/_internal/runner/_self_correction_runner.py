@@ -57,7 +57,7 @@ class DomainRunnerSelfCorrection(BaseDomainRunner):
         return await dataset.evaluate(
             evaluated_fn,
             max_concurrency=1,
-            case_context_manager=task_lifecycle,
+            case_context_manager=task_lifecycle(domain, scope="default"),
             progress=False,
             name=experiment_name,
         )

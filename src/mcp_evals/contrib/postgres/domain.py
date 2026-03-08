@@ -112,7 +112,7 @@ class PostgresDomain(Domain[PgConfig]):
         """Domain provides no MCP; each task provides postgres-mcp."""
         return []
 
-    def tasks(self) -> Sequence[PostgresTask]:
+    def _tasks_impl(self) -> Sequence[PostgresTask]:
         """Return postgres tasks (each gets pg_config from domain)."""
         if self._container is None:
             raise RuntimeError("PostgresDomain.setup() must run before tasks()")
