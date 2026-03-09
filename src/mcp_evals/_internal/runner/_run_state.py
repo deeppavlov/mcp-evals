@@ -151,11 +151,7 @@ class RunState:
 
         task_names[i] is the name of the task at index i in the full task list.
         """
-        return [
-            i
-            for i in indices
-            if (split_idx, phase, task_names[i]) not in self._task_finished
-        ]
+        return [i for i in indices if (split_idx, phase, task_names[i]) not in self._task_finished]
 
     async def mark_split_phase_started(self, split_idx: int, phase: Phase) -> None:
         """Append event (call only after the corresponding start callback succeeded)."""
