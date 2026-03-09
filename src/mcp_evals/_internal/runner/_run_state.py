@@ -59,7 +59,10 @@ def _parse_event(line: str) -> RunStateEvent | None:
     line = line.strip()
     if not line:
         return None
-    return _event_type_adapter.validate_python(line)
+    try:
+        return _event_type_adapter.validate_json(line)
+    except ValidationError:
+        return None
 
 
 def _fingerprint(splittings: Sequence[Splitting]) -> list[list[int]]:
