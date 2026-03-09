@@ -1,35 +1,73 @@
-"""Internal runner for executing domains and tasks."""
+"""Unified domain runner: single runner that iterates over grouper splittings."""
 
+from functools import partial
 from typing import Any
 
 from pydantic_ai.agent import Agent
 from pydantic_ai.usage import UsageLimits
 from pydantic_evals.reporting import EvaluationReport
 
-from mcp_evals._internal.conversion import domain_to_dataset
+from mcp_evals._internal.conversion import tasks_to_dataset
+from mcp_evals._internal.evaluated_fn import run_agent_on_task, run_agent_on_task_with_self_correction
 from mcp_evals.domain import Domain
-from mcp_evals.types import DepsMaker, EvaluatedFn, RunResultProcessor
+from mcp_evals.types import DepsMaker, EvaluatedFn, RunResultProcessor, TrainingTestingCallback
 
-from ._base import BaseDomainRunner
-from ._utils import task_lifecycle
+from ._groupers import Grouper
+from ._utils import default_deps_maker, task_lifecycle
 
 
-class DomainRunnerInferenceOnly(BaseDomainRunner):
+class DomainRunner:
+    """Single runner: uses a grouper to get splittings, runs train then test per splitting, merges test reports."""
+
     def __init__(
         self,
         agent: Agent[Any, Any],
+        grouper: Grouper,
         deps_maker: DepsMaker | None = None,
+        *,
         max_tasks: int | None = None,
+        use_self_correction: bool = False,
+        max_self_correction_retries: int = 3,
+        start_training: TrainingTestingCallback | None = None,
+        start_testing: TrainingTestingCallback | None = None,
         run_result_processor: RunResultProcessor | None = None,
         usage_limits: UsageLimits | None = None,
     ) -> None:
-        super().__init__(
-            agent=agent,
-            deps_maker=deps_maker,
-            max_tasks=max_tasks,
-            run_result_processor=run_result_processor,
-            usage_limits=usage_limits,
-        )
+        self.agent = agent
+        self.deps_maker = deps_maker
+        self.max_tasks = max_tasks
+        self.run_result_processor = run_result_processor
+        self.usage_limits = usage_limits
+        self.grouper = grouper
+        self.use_self_correction = use_self_correction
+        self.max_self_correction_retries = max_self_correction_retries
+        self.start_training = start_training
+        self.start_testing = start_testing
+
+    async def run(self, domain: Domain[Any], experiment_name: str | None = None) -> EvaluationReport:
+        deps_maker = self.deps_maker or default_deps_maker()
+
+        async with domain:
+            if self.use_self_correction:
+                evaluated_fn = partial(
+                    run_agent_on_task_with_self_correction,
+                    agent=self.agent,
+                    toolset=domain.toolset,
+                    deps_maker=deps_maker,
+                    run_result_processor=self.run_result_processor,
+                    usage_limits=self.usage_limits,
+                    max_retries=self.max_self_correction_retries,
+                )
+            else:
+                evaluated_fn = partial(
+                    run_agent_on_task,
+                    agent=self.agent,
+                    toolset=domain.toolset,
+                    deps_maker=deps_maker,
+                    run_result_processor=self.run_result_processor,
+                    usage_limits=self.usage_limits,
+                )
+            return await self.run_domain(domain=domain, experiment_name=experiment_name, evaluated_fn=evaluated_fn)
 
     async def run_domain(
         self,
@@ -37,12 +75,49 @@ class DomainRunnerInferenceOnly(BaseDomainRunner):
         experiment_name: str | None,
         evaluated_fn: EvaluatedFn,
     ) -> EvaluationReport:
-        dataset = domain_to_dataset(domain, max_tasks=self.max_tasks)
+        tasks = list(domain.tasks())
+        if self.max_tasks is not None:
+            tasks = tasks[: self.max_tasks]
+        n_tasks = len(tasks)
+        test_reports: list[EvaluationReport] = []
+        base_name = experiment_name or "eval"
 
-        return await dataset.evaluate(
-            evaluated_fn,
-            max_concurrency=1,  # Sequential by default for stateful tasks
-            case_context_manager=task_lifecycle,  # Task context wraps task + evaluators
-            progress=False,
-            name=experiment_name,
-        )
+        for split_idx, splitting in enumerate(self.grouper.splittings(n_tasks)):
+            if splitting.train_indices:
+                if self.start_training is not None:
+                    await self.start_training()
+                train_tasks = [tasks[i] for i in splitting.train_indices]
+                train_dataset = tasks_to_dataset(train_tasks)
+                await train_dataset.evaluate(
+                    evaluated_fn,
+                    max_concurrency=1,
+                    case_context_manager=task_lifecycle,
+                    progress=False,
+                    name=f"{base_name}_train_{split_idx}_",
+                )
+
+            if splitting.test_indices:
+                if self.start_testing is not None:
+                    await self.start_testing()
+                test_tasks = [tasks[i] for i in splitting.test_indices]
+                test_dataset = tasks_to_dataset(test_tasks)
+                report = await test_dataset.evaluate(
+                    evaluated_fn,
+                    max_concurrency=1,
+                    case_context_manager=task_lifecycle,
+                    progress=False,
+                    name=f"{base_name}_test_{split_idx}" if experiment_name else None,
+                )
+                test_reports.append(report)
+
+        # TODO(voorhs): think about proper reports aggregation
+        if not test_reports:
+            return EvaluationReport(name=base_name, cases=[])
+
+        if len(test_reports) == 1:
+            return test_reports[0]
+
+        combined_cases = []
+        for report in test_reports:
+            combined_cases.extend(report.cases)
+        return EvaluationReport(name=base_name, cases=combined_cases)

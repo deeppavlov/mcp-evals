@@ -12,12 +12,12 @@ from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator
 from pydantic_evals.reporting import EvaluationReport
 
+from mcp_evals import CVGrouper, HoldOutGrouper, PlainGrouper
 from mcp_evals._internal.evaluated_fn import run_agent_on_task_with_self_correction
 from mcp_evals.domain import Domain
 from mcp_evals.runner import BenchmarkRunner
 from mcp_evals.secrets import DomainSecrets, TaskSecrets
 from mcp_evals.task import Task
-from mcp_evals.types import Runner
 
 
 @asynccontextmanager
@@ -30,7 +30,8 @@ def _no_deps_maker(_task: Task[TaskSecrets, Any]) -> Any:
     return _yield_none_cm()
 
 
-INTERNAL_RUN = "mcp_evals._internal.runner._domain_runner.DomainRunnerInferenceOnly.run"
+INTERNAL_RUN = "mcp_evals._internal.runner._domain_runner.DomainRunner.run"
+INTERNAL_RUN_DOMAIN = "mcp_evals._internal.runner._domain_runner.DomainRunner.run_domain"
 
 
 class ConcreteTask(Task[TaskSecrets, Any]):
@@ -78,7 +79,7 @@ class TestBenchmarkRunnerInitialization:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain1, domain2],
-            runner=Runner.INFERENCE_ONLY,
+            grouper=PlainGrouper(),
         )
 
         assert runner.agent is mock_agent
@@ -99,7 +100,7 @@ class TestBenchmarkRunnerRun:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain1, domain2],
-            runner=Runner.INFERENCE_ONLY,
+            grouper=PlainGrouper(),
             deps_maker=_no_deps_maker,
         )
 
@@ -133,7 +134,7 @@ class TestBenchmarkRunnerRun:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain],
-            runner=Runner.INFERENCE_ONLY,
+            grouper=PlainGrouper(),
             deps_maker=_no_deps_maker,
         )
 
@@ -155,7 +156,7 @@ class TestBenchmarkRunnerRun:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain1, domain2, domain3],
-            runner=Runner.INFERENCE_ONLY,
+            grouper=PlainGrouper(),
             deps_maker=_no_deps_maker,
         )
 
@@ -180,7 +181,7 @@ class TestBenchmarkRunnerRun:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[],
-            runner=Runner.INFERENCE_ONLY,
+            grouper=PlainGrouper(),
         )
 
         reports = await runner.run()
@@ -196,7 +197,7 @@ class TestBenchmarkRunnerRun:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain1, domain2],
-            runner=Runner.INFERENCE_ONLY,
+            grouper=PlainGrouper(),
             deps_maker=_no_deps_maker,
         )
 
@@ -225,7 +226,7 @@ class TestBenchmarkRunnerRun:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain1, domain2],
-            runner=Runner.INFERENCE_ONLY,
+            grouper=PlainGrouper(),
             deps_maker=_no_deps_maker,
         )
 
@@ -245,7 +246,7 @@ class TestBenchmarkRunnerRun:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain],
-            runner=Runner.INFERENCE_ONLY,
+            grouper=PlainGrouper(),
             experiment_name="exp",
         )
 
@@ -264,7 +265,7 @@ class TestBenchmarkRunnerRun:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain],
-            runner=Runner.INFERENCE_ONLY,
+            grouper=PlainGrouper(),
             deps_maker=custom_factory,
         )
 
@@ -276,17 +277,15 @@ class TestBenchmarkRunnerRun:
             assert runner.deps_maker is custom_factory
 
 
-# Internal run paths for HO, CV, and self-correction (so we can patch and assert without running agent)
-INTERNAL_RUN_HOLD_OUT = "mcp_evals._internal.runner._hold_out_runner.DomainRunnerHoldOut.run_domain"
-INTERNAL_RUN_CV = "mcp_evals._internal.runner._cv_runner.DomainRunnerCrossValidation.run_domain"
-INTERNAL_RUN_SELF_CORRECTION = (
-    "mcp_evals._internal.runner._self_correction_runner.DomainRunnerSelfCorrection.run_domain"
-)
+# Internal run_domain path for HO, CV, self-correction (patch to mock without running agent)
+INTERNAL_RUN_HOLD_OUT = INTERNAL_RUN_DOMAIN
+INTERNAL_RUN_CV = INTERNAL_RUN_DOMAIN
+INTERNAL_RUN_SELF_CORRECTION = INTERNAL_RUN_DOMAIN
 
 
 @pytest.mark.asyncio
 class TestBenchmarkRunnerHoldOut:
-    """Tests for BenchmarkRunner with Runner.HOLD_OUT."""
+    """Tests for BenchmarkRunner with HoldOutGrouper."""
 
     async def test_hold_out_returns_one_report_per_domain(self) -> None:
         """Hold-out runner returns one EvaluationReport per domain."""
@@ -295,14 +294,13 @@ class TestBenchmarkRunnerHoldOut:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain],
-            runner=Runner.HOLD_OUT,
+            grouper=HoldOutGrouper(test_ratio=0.2),
             deps_maker=_no_deps_maker,
-            hold_out_test_ratio=0.2,
         )
         mock_report = MagicMock(spec=EvaluationReport)
         mock_report.cases = [MagicMock(), MagicMock()]  # ~20% of 5 -> 1 or 2 test cases
 
-        with patch(INTERNAL_RUN_HOLD_OUT, new_callable=AsyncMock, return_value=mock_report):
+        with patch(INTERNAL_RUN_DOMAIN, new_callable=AsyncMock, return_value=mock_report):
             reports = await runner.run()
 
         assert len(reports) == 1
@@ -318,15 +316,14 @@ class TestBenchmarkRunnerHoldOut:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain],
-            runner=Runner.HOLD_OUT,
+            grouper=HoldOutGrouper(test_ratio=0.2),
             deps_maker=_no_deps_maker,
-            hold_out_test_ratio=0.2,
             start_training=start_training,
             start_testing=start_testing,
         )
 
         with patch(
-            "mcp_evals._internal.runner._hold_out_runner.tasks_to_dataset",
+            "mcp_evals._internal.runner._domain_runner.tasks_to_dataset",
             side_effect=lambda ts: MagicMock(
                 evaluate=AsyncMock(
                     return_value=MagicMock(
@@ -347,7 +344,7 @@ class TestBenchmarkRunnerHoldOut:
 
 @pytest.mark.asyncio
 class TestBenchmarkRunnerCrossValidation:
-    """Tests for BenchmarkRunner with Runner.CROSS_VALIDATION."""
+    """Tests for BenchmarkRunner with CVGrouper."""
 
     async def test_cv_returns_one_report_per_domain(self) -> None:
         """CV runner returns one merged EvaluationReport per domain."""
@@ -356,14 +353,13 @@ class TestBenchmarkRunnerCrossValidation:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain],
-            runner=Runner.CROSS_VALIDATION,
+            grouper=CVGrouper(n_splits=5),
             deps_maker=_no_deps_maker,
-            cv_n_splits=5,
         )
         mock_report = MagicMock(spec=EvaluationReport)
         mock_report.cases = [MagicMock() for _ in range(10)]
 
-        with patch(INTERNAL_RUN_CV, new_callable=AsyncMock, return_value=mock_report):
+        with patch(INTERNAL_RUN_DOMAIN, new_callable=AsyncMock, return_value=mock_report):
             reports = await runner.run()
 
         assert len(reports) == 1
@@ -379,15 +375,14 @@ class TestBenchmarkRunnerCrossValidation:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain],
-            runner=Runner.CROSS_VALIDATION,
+            grouper=CVGrouper(n_splits=3),
             deps_maker=_no_deps_maker,
-            cv_n_splits=3,
             start_training=start_training,
             start_testing=start_testing,
         )
 
         with patch(
-            "mcp_evals._internal.runner._cv_runner.tasks_to_dataset",
+            "mcp_evals._internal.runner._domain_runner.tasks_to_dataset",
             side_effect=lambda ts: MagicMock(
                 evaluate=AsyncMock(
                     return_value=MagicMock(
@@ -406,7 +401,7 @@ class TestBenchmarkRunnerCrossValidation:
 
 @pytest.mark.asyncio
 class TestBenchmarkRunnerSelfCorrection:
-    """Tests for BenchmarkRunner with Runner.SELF_CORRECTION."""
+    """Tests for BenchmarkRunner with use_self_correction=True."""
 
     async def test_self_correction_returns_one_report_per_domain(self) -> None:
         """Self-correction runner returns one EvaluationReport per domain."""
@@ -415,15 +410,16 @@ class TestBenchmarkRunnerSelfCorrection:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain],
-            runner=Runner.SELF_CORRECTION,
+            grouper=PlainGrouper(),
             deps_maker=_no_deps_maker,
+            use_self_correction=True,
             max_self_correction_retries=2,
         )
         mock_report = MagicMock(spec=EvaluationReport)
         mock_report.cases = [MagicMock(), MagicMock(), MagicMock()]
 
         with patch(
-            INTERNAL_RUN_SELF_CORRECTION,
+            INTERNAL_RUN_DOMAIN,
             new_callable=AsyncMock,
             return_value=mock_report,
         ):
@@ -433,20 +429,21 @@ class TestBenchmarkRunnerSelfCorrection:
         assert reports[0] is mock_report
 
     async def test_self_correction_uses_correct_internal_runner(self) -> None:
-        """Runner.SELF_CORRECTION creates DomainRunnerSelfCorrection with correct params."""
+        """use_self_correction=True creates DomainRunner with correct params."""
         mock_agent = MagicMock(spec=Agent)
         domain = ConcreteDomain()
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain],
-            runner=Runner.SELF_CORRECTION,
+            grouper=PlainGrouper(),
             deps_maker=_no_deps_maker,
+            use_self_correction=True,
             max_self_correction_retries=5,
         )
         mock_report = MagicMock(spec=EvaluationReport)
 
         with patch(
-            INTERNAL_RUN_SELF_CORRECTION,
+            INTERNAL_RUN_DOMAIN,
             new_callable=AsyncMock,
             return_value=mock_report,
         ) as mock_run:
@@ -462,14 +459,15 @@ class TestBenchmarkRunnerSelfCorrection:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain],
-            runner=Runner.SELF_CORRECTION,
+            grouper=PlainGrouper(),
             deps_maker=_no_deps_maker,
+            use_self_correction=True,
             max_tasks=2,
         )
         mock_result = MagicMock(spec=AgentRunResult)
 
         with patch(
-            "mcp_evals._internal.runner._self_correction_runner.run_agent_on_task_with_self_correction",
+            "mcp_evals._internal.evaluated_fn.run_agent_on_task_with_self_correction",
             new_callable=AsyncMock,
             return_value=mock_result,
         ):
@@ -595,14 +593,14 @@ class TestBenchmarkRunnerMaxTasks:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain],
-            runner=Runner.INFERENCE_ONLY,
+            grouper=PlainGrouper(),
             deps_maker=_no_deps_maker,
             max_tasks=2,
         )
         mock_result = MagicMock(spec=AgentRunResult)
 
         with patch(
-            "mcp_evals._internal.runner._base.run_agent_on_task",
+            "mcp_evals._internal.runner._domain_runner.run_agent_on_task",
             new_callable=AsyncMock,
             return_value=mock_result,
         ):
@@ -618,14 +616,13 @@ class TestBenchmarkRunnerMaxTasks:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain],
-            runner=Runner.HOLD_OUT,
+            grouper=HoldOutGrouper(test_ratio=0.5),
             deps_maker=_no_deps_maker,
             max_tasks=2,
-            hold_out_test_ratio=0.5,
         )
         call_args: list[tuple[int, float, int | None]] = []
 
-        def capture_hold_out(n_tasks: int, test_ratio: float, random_state: int | None) -> tuple[list[int], list[int]]:
+        def capture_hold_out(n_tasks: int, test_ratio: float, random_state: int | None) -> Any:
             call_args.append((n_tasks, test_ratio, random_state))
             from mcp_evals._internal.runner._splits import hold_out_split as real  # noqa: PLC0415
 
@@ -633,11 +630,11 @@ class TestBenchmarkRunnerMaxTasks:
 
         with (
             patch(
-                "mcp_evals._internal.runner._hold_out_runner.hold_out_split",
+                "mcp_evals._internal.runner._groupers.hold_out_split",
                 side_effect=capture_hold_out,
             ),
             patch(
-                "mcp_evals._internal.runner._hold_out_runner.tasks_to_dataset",
+                "mcp_evals._internal.runner._domain_runner.tasks_to_dataset",
                 side_effect=lambda ts: MagicMock(
                     evaluate=AsyncMock(
                         return_value=MagicMock(
@@ -660,10 +657,9 @@ class TestBenchmarkRunnerMaxTasks:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain],
-            runner=Runner.CROSS_VALIDATION,
+            grouper=CVGrouper(n_splits=2),
             deps_maker=_no_deps_maker,
             max_tasks=2,
-            cv_n_splits=2,
         )
         call_args: list[int] = []
 
@@ -675,11 +671,11 @@ class TestBenchmarkRunnerMaxTasks:
 
         with (
             patch(
-                "mcp_evals._internal.runner._cv_runner.k_fold_split",
+                "mcp_evals._internal.runner._groupers.k_fold_split",
                 side_effect=capture_k_fold,
             ),
             patch(
-                "mcp_evals._internal.runner._cv_runner.tasks_to_dataset",
+                "mcp_evals._internal.runner._domain_runner.tasks_to_dataset",
                 side_effect=lambda ts: MagicMock(
                     evaluate=AsyncMock(
                         return_value=MagicMock(

@@ -53,8 +53,7 @@ from loguru import logger
 from pydantic_ai import Agent, UsageLimits
 from pydantic_ai.messages import ModelMessage, ModelRequest, ModelRequestPart, ToolReturnPart
 
-from mcp_evals import BenchmarkRunner, Domain
-from mcp_evals.types import Runner
+from mcp_evals import BenchmarkRunner, Domain, PlainGrouper
 
 logfire.configure(send_to_logfire="if-token-present")
 logfire.instrument_pydantic_ai()
@@ -165,7 +164,7 @@ def main() -> None:
     runner = BenchmarkRunner(
         agent=agent,
         domains=[domain],
-        runner=Runner.INFERENCE_ONLY,
+        grouper=PlainGrouper(),
         experiment_name=args.experiment_name,
         max_tasks=args.max_tasks,
         usage_limits=UsageLimits(request_limit=25),
