@@ -1,5 +1,6 @@
 """Benchmark runner for executing evaluation benchmarks."""
 
+from pathlib import Path
 from typing import Any
 
 from pydantic_ai.agent import Agent
@@ -29,6 +30,7 @@ class BenchmarkRunner:
         run_result_processor: RunResultProcessor | None = None,
         usage_limits: UsageLimits | None = None,
         clear_state_on_success: bool = False,
+        state_dir: Path | str | None = None,
     ) -> None:
         """Initialize the benchmark runner.
 
@@ -50,6 +52,8 @@ class BenchmarkRunner:
             usage_limits: Optional usage limits for the agent.
             clear_state_on_success: If True, remove the state file when the run completes
                 fully (all phases finished), so the next run starts fresh.
+            state_dir: Base directory for state files; state is stored under
+                state_dir/.mcp_evals_state/. If None, uses current working directory.
         """
         self.agent = agent
         self.domains = domains
@@ -64,6 +68,7 @@ class BenchmarkRunner:
         self.run_result_processor = run_result_processor
         self.usage_limits = usage_limits
         self.clear_state_on_success = clear_state_on_success
+        self.state_dir = state_dir
 
     async def run(self) -> list[EvaluationReport]:
         """Run all tasks from all domains.
@@ -83,5 +88,6 @@ class BenchmarkRunner:
             run_result_processor=self.run_result_processor,
             usage_limits=self.usage_limits,
             clear_state_on_success=self.clear_state_on_success,
+            state_dir=self.state_dir,
         )
         return [await runner.run(domain, experiment_name=self.experiment_name) for domain in self.domains]

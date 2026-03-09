@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -315,7 +316,7 @@ class TestBenchmarkRunnerHoldOut:
         assert len(reports) == 1
         assert reports[0] is mock_report
 
-    async def test_hold_out_callbacks_invoked_in_order(self) -> None:
+    async def test_hold_out_callbacks_invoked_in_order(self, tmp_path: Path) -> None:
         """start_training is awaited before training run, start_testing before test run."""
         mock_agent = MagicMock(spec=Agent)
         tasks = [ConcreteTask(name=f"t{i}") for i in range(10)]
@@ -330,6 +331,7 @@ class TestBenchmarkRunnerHoldOut:
             deps_maker=_no_deps_maker,
             start_training=start_training,
             start_testing=start_testing,
+            state_dir=tmp_path,
         )
 
         with patch(
@@ -376,7 +378,7 @@ class TestBenchmarkRunnerCrossValidation:
         assert len(reports) == 1
         assert reports[0] is mock_report
 
-    async def test_cv_callbacks_invoked_per_fold(self) -> None:
+    async def test_cv_callbacks_invoked_per_fold(self, tmp_path: Path) -> None:
         """start_training and start_testing are awaited K times (once per fold)."""
         mock_agent = MagicMock(spec=Agent)
         tasks = [ConcreteTask(name=f"t{i}") for i in range(6)]
@@ -391,6 +393,7 @@ class TestBenchmarkRunnerCrossValidation:
             deps_maker=_no_deps_maker,
             start_training=start_training,
             start_testing=start_testing,
+            state_dir=tmp_path,
         )
 
         with patch(
@@ -466,7 +469,7 @@ class TestBenchmarkRunnerSelfCorrection:
             # Verify domain was passed (as keyword)
             assert mock_run.call_args.kwargs["domain"] is domain
 
-    async def test_self_correction_max_tasks_limits_cases(self) -> None:
+    async def test_self_correction_max_tasks_limits_cases(self, tmp_path: Path) -> None:
         """With max_tasks=2, self-correction report contains at most 2 cases."""
         mock_agent = MagicMock(spec=Agent)
         domain = ConcreteDomain(tasks=[ConcreteTask(name=f"t{i}") for i in range(5)])
@@ -478,6 +481,7 @@ class TestBenchmarkRunnerSelfCorrection:
             deps_maker=_no_deps_maker,
             use_self_correction=True,
             max_tasks=2,
+            state_dir=tmp_path,
         )
         mock_result = MagicMock(spec=AgentRunResult)
 
@@ -601,7 +605,7 @@ class TestRunAgentOnTaskWithSelfCorrection:
 class TestBenchmarkRunnerMaxTasks:
     """Tests for max_tasks limiting the number of tasks run per domain."""
 
-    async def test_inference_only_max_tasks_limits_cases(self) -> None:
+    async def test_inference_only_max_tasks_limits_cases(self, tmp_path: Path) -> None:
         """With max_tasks=2, report contains at most 2 cases (first 2 tasks)."""
         mock_agent = MagicMock(spec=Agent)
         domain = ConcreteDomain(tasks=[ConcreteTask(name=f"t{i}") for i in range(5)])
@@ -612,6 +616,7 @@ class TestBenchmarkRunnerMaxTasks:
             grouper=PlainGrouper(),
             deps_maker=_no_deps_maker,
             max_tasks=2,
+            state_dir=tmp_path,
         )
         mock_result = MagicMock(spec=AgentRunResult)
 
@@ -625,7 +630,7 @@ class TestBenchmarkRunnerMaxTasks:
         assert len(reports) == 1
         assert len(reports[0].cases) == 2
 
-    async def test_hold_out_max_tasks_limits_task_list(self) -> None:
+    async def test_hold_out_max_tasks_limits_task_list(self, tmp_path: Path) -> None:
         """With max_tasks=2, hold_out_split is called with n_tasks=2."""
         mock_agent = MagicMock(spec=Agent)
         domain = ConcreteDomain(tasks=[ConcreteTask(name=f"t{i}") for i in range(5)])
@@ -636,6 +641,7 @@ class TestBenchmarkRunnerMaxTasks:
             grouper=HoldOutGrouper(test_ratio=0.5),
             deps_maker=_no_deps_maker,
             max_tasks=2,
+            state_dir=tmp_path,
         )
         call_args: list[tuple[int, float, int | None]] = []
 
@@ -667,7 +673,7 @@ class TestBenchmarkRunnerMaxTasks:
         assert len(call_args) == 1
         assert call_args[0][0] == 2
 
-    async def test_cv_max_tasks_limits_task_list(self) -> None:
+    async def test_cv_max_tasks_limits_task_list(self, tmp_path: Path) -> None:
         """With max_tasks=2, k_fold_split is called with n_tasks=2."""
         mock_agent = MagicMock(spec=Agent)
         domain = ConcreteDomain(tasks=[ConcreteTask(name=f"t{i}") for i in range(5)])
@@ -678,6 +684,7 @@ class TestBenchmarkRunnerMaxTasks:
             grouper=CVGrouper(n_splits=2),
             deps_maker=_no_deps_maker,
             max_tasks=2,
+            state_dir=tmp_path,
         )
         call_args: list[int] = []
 

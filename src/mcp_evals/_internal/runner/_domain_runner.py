@@ -1,6 +1,7 @@
 """Unified domain runner: single runner that iterates over grouper splittings."""
 
 from functools import partial
+from pathlib import Path
 from typing import Any
 
 from pydantic_ai.agent import Agent
@@ -34,6 +35,7 @@ class DomainRunner:
         run_result_processor: RunResultProcessor | None = None,
         usage_limits: UsageLimits | None = None,
         clear_state_on_success: bool = False,
+        state_dir: Path | str | None = None,
     ) -> None:
         self.agent = agent
         self.deps_maker = deps_maker
@@ -46,6 +48,7 @@ class DomainRunner:
         self.start_training = start_training
         self.start_testing = start_testing
         self.clear_state_on_success = clear_state_on_success
+        self.state_dir = state_dir
 
     async def run(self, domain: Domain[Any], experiment_name: str) -> EvaluationReport:
         deps_maker = self.deps_maker or default_deps_maker()
@@ -85,7 +88,7 @@ class DomainRunner:
         splittings = list(self.grouper.splittings(n_tasks))
         test_reports: list[EvaluationReport] = []
 
-        path = await run_state_path(experiment_name)
+        path = await run_state_path(experiment_name, state_dir=self.state_dir)
         state = await RunState.load(path, n_tasks=n_tasks, splittings=splittings)
 
         task_names = [t.name for t in tasks]

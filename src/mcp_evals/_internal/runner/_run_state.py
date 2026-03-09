@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, TypeAdapter, ValidationError
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+    from pathlib import Path
 
     from ._splits import Splitting
 
@@ -196,8 +197,13 @@ class RunState:
             await self._path.unlink()
 
 
-async def run_state_path(experiment_name: str, state_dir: AnyioPath | None = None) -> AnyioPath:
+async def run_state_path(
+    experiment_name: str,
+    state_dir: AnyioPath | Path | str | None = None,
+) -> AnyioPath:
     """Path for the state file; default base is cwd with .mcp_evals_state subdir."""
+    if state_dir is not None and not isinstance(state_dir, AnyioPath):
+        state_dir = AnyioPath(state_dir)
     base_dir = state_dir or await AnyioPath.cwd()
     resolved = base_dir / ".mcp_evals_state"
     return AnyioPath(str(resolved / f"{experiment_name}.jsonl"))
