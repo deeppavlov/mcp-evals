@@ -86,7 +86,7 @@ class DomainRunner:
 
         state: RunState | None = None
         if experiment_name is not None:
-            path = run_state_path(experiment_name)
+            path = await run_state_path(experiment_name)
             state = await RunState.load(path, n_tasks=n_tasks, splittings=splittings)
 
         for split_idx, splitting in enumerate(splittings):
