@@ -45,7 +45,7 @@ class DomainRunner:
         self.start_training = start_training
         self.start_testing = start_testing
 
-    async def run(self, domain: Domain[Any], experiment_name: str | None = None) -> EvaluationReport:
+    async def run(self, domain: Domain[Any], experiment_name: str) -> EvaluationReport:
         deps_maker = self.deps_maker or default_deps_maker()
 
         async with domain:
@@ -73,7 +73,7 @@ class DomainRunner:
     async def run_domain(
         self,
         domain: Domain[Any],
-        experiment_name: str | None,
+        experiment_name: str,
         evaluated_fn: EvaluatedFn,
     ) -> EvaluationReport:
         tasks = list(domain.tasks())
@@ -84,10 +84,8 @@ class DomainRunner:
         test_reports: list[EvaluationReport] = []
         base_name = experiment_name or "eval"
 
-        state: RunState | None = None
-        if experiment_name is not None:
-            path = await run_state_path(experiment_name)
-            state = await RunState.load(path, n_tasks=n_tasks, splittings=splittings)
+        path = await run_state_path(experiment_name)
+        state = await RunState.load(path, n_tasks=n_tasks, splittings=splittings)
 
         task_names = [t.name for t in tasks]
         for split_idx, splitting in enumerate(splittings):

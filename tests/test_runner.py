@@ -79,6 +79,7 @@ class TestBenchmarkRunnerInitialization:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain1, domain2],
+            experiment_name="test-experiment",
             grouper=PlainGrouper(),
         )
 
@@ -100,6 +101,7 @@ class TestBenchmarkRunnerRun:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain1, domain2],
+            experiment_name="test-experiment",
             grouper=PlainGrouper(),
             deps_maker=_no_deps_maker,
         )
@@ -134,6 +136,7 @@ class TestBenchmarkRunnerRun:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain],
+            experiment_name="test-experiment",
             grouper=PlainGrouper(),
             deps_maker=_no_deps_maker,
         )
@@ -156,6 +159,7 @@ class TestBenchmarkRunnerRun:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain1, domain2, domain3],
+            experiment_name="test-experiment",
             grouper=PlainGrouper(),
             deps_maker=_no_deps_maker,
         )
@@ -181,6 +185,7 @@ class TestBenchmarkRunnerRun:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[],
+            experiment_name="test-experiment",
             grouper=PlainGrouper(),
         )
 
@@ -197,6 +202,7 @@ class TestBenchmarkRunnerRun:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain1, domain2],
+            experiment_name="test-experiment",
             grouper=PlainGrouper(),
             deps_maker=_no_deps_maker,
         )
@@ -226,6 +232,7 @@ class TestBenchmarkRunnerRun:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain1, domain2],
+            experiment_name="test-experiment",
             grouper=PlainGrouper(),
             deps_maker=_no_deps_maker,
         )
@@ -246,8 +253,8 @@ class TestBenchmarkRunnerRun:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain],
-            grouper=PlainGrouper(),
             experiment_name="exp",
+            grouper=PlainGrouper(),
         )
 
         with patch(INTERNAL_RUN, new_callable=AsyncMock) as mock_internal_run:
@@ -265,6 +272,7 @@ class TestBenchmarkRunnerRun:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain],
+            experiment_name="test-experiment",
             grouper=PlainGrouper(),
             deps_maker=custom_factory,
         )
@@ -294,6 +302,7 @@ class TestBenchmarkRunnerHoldOut:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain],
+            experiment_name="test-experiment",
             grouper=HoldOutGrouper(test_ratio=0.2),
             deps_maker=_no_deps_maker,
         )
@@ -316,6 +325,7 @@ class TestBenchmarkRunnerHoldOut:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain],
+            experiment_name="test-experiment",
             grouper=HoldOutGrouper(test_ratio=0.2),
             deps_maker=_no_deps_maker,
             start_training=start_training,
@@ -353,6 +363,7 @@ class TestBenchmarkRunnerCrossValidation:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain],
+            experiment_name="test-experiment",
             grouper=CVGrouper(n_splits=5),
             deps_maker=_no_deps_maker,
         )
@@ -375,6 +386,7 @@ class TestBenchmarkRunnerCrossValidation:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain],
+            experiment_name="test-experiment",
             grouper=CVGrouper(n_splits=3),
             deps_maker=_no_deps_maker,
             start_training=start_training,
@@ -410,6 +422,7 @@ class TestBenchmarkRunnerSelfCorrection:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain],
+            experiment_name="test-experiment",
             grouper=PlainGrouper(),
             deps_maker=_no_deps_maker,
             use_self_correction=True,
@@ -435,6 +448,7 @@ class TestBenchmarkRunnerSelfCorrection:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain],
+            experiment_name="test-experiment",
             grouper=PlainGrouper(),
             deps_maker=_no_deps_maker,
             use_self_correction=True,
@@ -459,6 +473,7 @@ class TestBenchmarkRunnerSelfCorrection:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain],
+            experiment_name="test-experiment",
             grouper=PlainGrouper(),
             deps_maker=_no_deps_maker,
             use_self_correction=True,
@@ -593,6 +608,7 @@ class TestBenchmarkRunnerMaxTasks:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain],
+            experiment_name="test-experiment",
             grouper=PlainGrouper(),
             deps_maker=_no_deps_maker,
             max_tasks=2,
@@ -616,6 +632,7 @@ class TestBenchmarkRunnerMaxTasks:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain],
+            experiment_name="test-experiment",
             grouper=HoldOutGrouper(test_ratio=0.5),
             deps_maker=_no_deps_maker,
             max_tasks=2,
@@ -657,6 +674,7 @@ class TestBenchmarkRunnerMaxTasks:
         runner = BenchmarkRunner(
             agent=mock_agent,
             domains=[domain],
+            experiment_name="test-experiment",
             grouper=CVGrouper(n_splits=2),
             deps_maker=_no_deps_maker,
             max_tasks=2,
