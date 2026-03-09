@@ -1,14 +1,18 @@
 """Internal runner for executing domains and tasks."""
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, Literal
 
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals import Case
 
 from mcp_evals.task import Task
 from mcp_evals.types import DepsMaker
+
+from ._run_state import ATTR_GLOBAL_INDEX, RunState
+
+Phase = Literal["train", "test"]
 
 
 @asynccontextmanager
@@ -36,3 +40,25 @@ async def task_lifecycle(case: Case[Task[Any, Any], AgentRunResult, None]) -> As
     task = case.inputs  # In mcp_evals, inputs IS the Task instance
     async with task:
         yield
+
+
+def make_task_lifecycle(
+    state: RunState | None,
+    split_idx: int,
+    phase: Phase,
+) -> Callable[..., Any]:
+    """Return a context manager factory: callable(case) for use as case_context_manager.
+
+    Marks task as finished on clean exit. Runner must set ATTR_GLOBAL_INDEX on each task.
+    """
+
+    @asynccontextmanager
+    async def _lifecycle(case: Case[Task[Any, Any], AgentRunResult, None]) -> AsyncIterator[None]:
+        task = case.inputs
+        global_index = getattr(task, ATTR_GLOBAL_INDEX, None)
+        async with task:
+            yield
+        if state is not None and global_index is not None:
+            await state.mark_task_finished(split_idx, phase, global_index)
+
+    return _lifecycle
