@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from typing import TYPE_CHECKING, Annotated, Literal
 
 import anyio
@@ -189,8 +190,14 @@ class RunState:
             await f.write(line)
         self._header_written = True
 
+    async def clear(self) -> None:
+        """Remove the state file if it exists (e.g. after a full run)."""
+        with contextlib.suppress(FileNotFoundError):
+            await self._path.unlink()
 
-async def run_state_path(experiment_name: str) -> AnyioPath:
+
+async def run_state_path(experiment_name: str, state_dir: AnyioPath | None = None) -> AnyioPath:
     """Path for the state file; default base is cwd with .mcp_evals_state subdir."""
-    resolved = await AnyioPath.cwd() / ".mcp_evals_state"
+    base_dir = state_dir or await AnyioPath.cwd()
+    resolved = base_dir / ".mcp_evals_state"
     return AnyioPath(str(resolved / f"{experiment_name}.jsonl"))

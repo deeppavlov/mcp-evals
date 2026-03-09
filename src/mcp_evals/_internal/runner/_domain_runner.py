@@ -20,7 +20,7 @@ from ._utils import default_deps_maker, make_task_lifecycle
 class DomainRunner:
     """Single runner: uses a grouper to get splittings, runs train then test per splitting, merges test reports."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         agent: Agent[Any, Any],
         grouper: Grouper,
@@ -33,6 +33,7 @@ class DomainRunner:
         start_testing: TrainingTestingCallback | None = None,
         run_result_processor: RunResultProcessor | None = None,
         usage_limits: UsageLimits | None = None,
+        clear_state_on_success: bool = False,
     ) -> None:
         self.agent = agent
         self.deps_maker = deps_maker
@@ -44,6 +45,7 @@ class DomainRunner:
         self.max_self_correction_retries = max_self_correction_retries
         self.start_training = start_training
         self.start_testing = start_testing
+        self.clear_state_on_success = clear_state_on_success
 
     async def run(self, domain: Domain[Any], experiment_name: str) -> EvaluationReport:
         deps_maker = self.deps_maker or default_deps_maker()
@@ -114,7 +116,10 @@ class DomainRunner:
                     )
                     test_reports.append(report)
 
-        return _merge_test_reports(test_reports, experiment_name)
+        report = _merge_test_reports(test_reports, experiment_name)
+        if self.clear_state_on_success:
+            await state.clear()
+        return report
 
     async def _run_train_phase(
         self,

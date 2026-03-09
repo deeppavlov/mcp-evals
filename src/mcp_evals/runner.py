@@ -28,17 +28,18 @@ class BenchmarkRunner:
         start_testing: TrainingTestingCallback | None = None,
         run_result_processor: RunResultProcessor | None = None,
         usage_limits: UsageLimits | None = None,
+        clear_state_on_success: bool = False,
     ) -> None:
         """Initialize the benchmark runner.
 
         Args:
             agent: The agent to evaluate.
             domains: Domains to run (each yields tasks).
+            experiment_name: Experiment name for reporting and state persistence.
             grouper: Grouper instance that produces train/test splittings
                 (e.g. PlainGrouper(), HoldOutGrouper(test_ratio=0.2), CVGrouper(n_splits=5)).
             deps_maker: Optional callable that takes the task instance and returns
                 an async context manager yielding deps for that task.
-            experiment_name: Optional experiment name for reporting.
             max_tasks: Optional cap on number of tasks per domain.
             use_self_correction: If True, use self-correction evaluated function
                 (agent sees evaluator feedback and can retry).
@@ -47,6 +48,8 @@ class BenchmarkRunner:
             start_testing: Optional callback invoked before each testing phase.
             run_result_processor: Optional callback invoked after each agent run.
             usage_limits: Optional usage limits for the agent.
+            clear_state_on_success: If True, remove the state file when the run completes
+                fully (all phases finished), so the next run starts fresh.
         """
         self.agent = agent
         self.domains = domains
@@ -60,6 +63,7 @@ class BenchmarkRunner:
         self.start_testing = start_testing
         self.run_result_processor = run_result_processor
         self.usage_limits = usage_limits
+        self.clear_state_on_success = clear_state_on_success
 
     async def run(self) -> list[EvaluationReport]:
         """Run all tasks from all domains.
@@ -78,5 +82,6 @@ class BenchmarkRunner:
             start_testing=self.start_testing,
             run_result_processor=self.run_result_processor,
             usage_limits=self.usage_limits,
+            clear_state_on_success=self.clear_state_on_success,
         )
         return [await runner.run(domain, experiment_name=self.experiment_name) for domain in self.domains]
