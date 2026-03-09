@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import contextlib
-from typing import TYPE_CHECKING, Annotated, Literal
+from typing import TYPE_CHECKING, Annotated, Literal, NamedTuple
 
 import anyio
 from anyio import Path as AnyioPath
@@ -17,6 +17,21 @@ if TYPE_CHECKING:
 
 
 Phase = Literal["train", "test"]
+
+
+class SplitPhaseKey(NamedTuple):
+    """Key for phase-started tracking: (split_idx, phase)."""
+
+    split_idx: int
+    phase: Phase
+
+
+class TaskFinishedKey(NamedTuple):
+    """Key for task-finished tracking: (split_idx, phase, task_name)."""
+
+    split_idx: int
+    phase: Phase
+    task_name: str
 
 
 class RunStateHeader(BaseModel):
@@ -81,9 +96,9 @@ class RunState:
         self._path = AnyioPath(path)
         self._n_tasks: int | None = None
         self._fingerprint: list[list[int]] | None = None
-        self._phase_started: set[tuple[int, str]] = set()  # (split_idx, phase)
+        self._phase_started: set[SplitPhaseKey] = set()
         self._split_finished: set[int] = set()
-        self._task_finished: set[tuple[int, str, str]] = set()  # (split_idx, phase, task_name)
+        self._task_finished: set[TaskFinishedKey] = set()
         self._header_written = False
 
     @classmethod
@@ -133,17 +148,17 @@ class RunState:
             if event is None:
                 continue
             if isinstance(event, SplitPhaseStartedEvent):
-                state._phase_started.add((event.split_idx, event.phase))
+                state._phase_started.add(SplitPhaseKey(event.split_idx, event.phase))
             elif isinstance(event, SplitFinishedEvent):
                 state._split_finished.add(event.split_idx)
             elif isinstance(event, TaskFinishedEvent):
-                state._task_finished.add((event.split_idx, event.phase, event.task_name))
+                state._task_finished.add(TaskFinishedKey(event.split_idx, event.phase, event.task_name))
 
         return state
 
     def has_split_phase_started(self, split_idx: int, phase: Phase) -> bool:
         """Return True if the start callback for this split/phase already ran successfully."""
-        return (split_idx, phase) in self._phase_started
+        return SplitPhaseKey(split_idx, phase) in self._phase_started
 
     def pending_indices(
         self,
@@ -156,13 +171,13 @@ class RunState:
 
         task_names[i] is the name of the task at index i in the full task list.
         """
-        return [i for i in indices if (split_idx, phase, task_names[i]) not in self._task_finished]
+        return [i for i in indices if TaskFinishedKey(split_idx, phase, task_names[i]) not in self._task_finished]
 
     async def mark_split_phase_started(self, split_idx: int, phase: Phase) -> None:
         """Append event (call only after the corresponding start callback succeeded)."""
         event = SplitPhaseStartedEvent(split_idx=split_idx, phase=phase)
         await self._append_event(event)
-        self._phase_started.add((split_idx, phase))
+        self._phase_started.add(SplitPhaseKey(split_idx, phase))
 
     async def mark_split_finished(self, split_idx: int) -> None:
         """Append event (call after start_testing for the next split succeeded)."""
@@ -174,7 +189,7 @@ class RunState:
         """Append event (call from task lifecycle on clean exit)."""
         event = TaskFinishedEvent(split_idx=split_idx, phase=phase, task_name=task_name)
         await self._append_event(event)
-        self._task_finished.add((split_idx, phase, task_name))
+        self._task_finished.add(TaskFinishedKey(split_idx, phase, task_name))
 
     async def _append_event(self, event: RunStateEvent) -> None:
         await self._ensure_header()
