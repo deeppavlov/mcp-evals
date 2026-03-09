@@ -13,7 +13,7 @@ from mcp_evals.domain import Domain
 from mcp_evals.types import DepsMaker, EvaluatedFn, RunResultProcessor, TrainingTestingCallback
 
 from ._groupers import Grouper
-from ._run_state import ATTR_GLOBAL_INDEX, RunState, run_state_path
+from ._run_state import RunState, run_state_path
 from ._utils import default_deps_maker, make_task_lifecycle, task_lifecycle
 
 
@@ -89,10 +89,11 @@ class DomainRunner:
             path = await run_state_path(experiment_name)
             state = await RunState.load(path, n_tasks=n_tasks, splittings=splittings)
 
+        task_names = [t.name for t in tasks]
         for split_idx, splitting in enumerate(splittings):
             if splitting.train_indices:
                 pending_train = (
-                    state.pending_indices(split_idx, "train", splitting.train_indices)
+                    state.pending_indices(split_idx, "train", splitting.train_indices, task_names)
                     if state is not None
                     else list(splitting.train_indices)
                 )
@@ -102,8 +103,6 @@ class DomainRunner:
                         await self.start_training()
                     if state is not None and run_train_callback:
                         await state.mark_split_phase_started(split_idx, "train")
-                    for idx in pending_train:
-                        setattr(tasks[idx], ATTR_GLOBAL_INDEX, idx)
                     train_tasks = [tasks[i] for i in pending_train]
                     train_dataset = tasks_to_dataset(train_tasks)
                     case_cm = make_task_lifecycle(state, split_idx, "train") if state is not None else task_lifecycle
@@ -117,7 +116,7 @@ class DomainRunner:
 
             if splitting.test_indices:
                 pending_test = (
-                    state.pending_indices(split_idx, "test", splitting.test_indices)
+                    state.pending_indices(split_idx, "test", splitting.test_indices, task_names)
                     if state is not None
                     else list(splitting.test_indices)
                 )
@@ -129,8 +128,6 @@ class DomainRunner:
                         await state.mark_split_phase_started(split_idx, "test")
                         if split_idx > 0:
                             await state.mark_split_finished(split_idx - 1)
-                    for idx in pending_test:
-                        setattr(tasks[idx], ATTR_GLOBAL_INDEX, idx)
                     test_tasks = [tasks[i] for i in pending_test]
                     test_dataset = tasks_to_dataset(test_tasks)
                     case_cm = make_task_lifecycle(state, split_idx, "test") if state is not None else task_lifecycle

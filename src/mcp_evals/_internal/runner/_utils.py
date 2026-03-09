@@ -10,7 +10,7 @@ from pydantic_evals import Case
 from mcp_evals.task import Task
 from mcp_evals.types import DepsMaker
 
-from ._run_state import ATTR_GLOBAL_INDEX, RunState
+from ._run_state import RunState
 
 Phase = Literal["train", "test"]
 
@@ -49,16 +49,15 @@ def make_task_lifecycle(
 ) -> Callable[..., Any]:
     """Return a context manager factory: callable(case) for use as case_context_manager.
 
-    Marks task as finished on clean exit. Runner must set ATTR_GLOBAL_INDEX on each task.
+    Marks task as finished on clean exit using task.name.
     """
 
     @asynccontextmanager
     async def _lifecycle(case: Case[Task[Any, Any], AgentRunResult, None]) -> AsyncIterator[None]:
         task = case.inputs
-        global_index = getattr(task, ATTR_GLOBAL_INDEX, None)
         async with task:
             yield
-        if state is not None and global_index is not None:
-            await state.mark_task_finished(split_idx, phase, global_index)
+        if state is not None:
+            await state.mark_task_finished(split_idx, phase, task.name)
 
     return _lifecycle

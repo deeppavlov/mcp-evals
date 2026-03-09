@@ -16,8 +16,6 @@ if TYPE_CHECKING:
 
 Phase = Literal["train", "test"]
 
-ATTR_GLOBAL_INDEX = "_mcp_evals_global_index"
-
 
 class RunStateHeader(BaseModel):
     """First line of state file: n_tasks and splitting fingerprint for validation."""
@@ -47,7 +45,7 @@ class TaskFinishedEvent(BaseModel):
     kind: Literal["task_finished"] = "task_finished"
     split_idx: int
     phase: Phase
-    task_global_index: int
+    task_name: str
 
 
 RunStateEvent = Annotated[SplitPhaseStartedEvent | SplitFinishedEvent | TaskFinishedEvent, Field(discriminator="kind")]
@@ -80,7 +78,7 @@ class RunState:
         self._fingerprint: list[list[int]] | None = None
         self._phase_started: set[tuple[int, str]] = set()  # (split_idx, phase)
         self._split_finished: set[int] = set()
-        self._task_finished: set[tuple[int, str, int]] = set()  # (split_idx, phase, global_index)
+        self._task_finished: set[tuple[int, str, str]] = set()  # (split_idx, phase, task_name)
         self._header_written = False
 
     @classmethod
@@ -134,7 +132,7 @@ class RunState:
             elif isinstance(event, SplitFinishedEvent):
                 state._split_finished.add(event.split_idx)
             elif isinstance(event, TaskFinishedEvent):
-                state._task_finished.add((event.split_idx, event.phase, event.task_global_index))
+                state._task_finished.add((event.split_idx, event.phase, event.task_name))
 
         return state
 
@@ -147,9 +145,17 @@ class RunState:
         split_idx: int,
         phase: Phase,
         indices: Sequence[int],
+        task_names: Sequence[str],
     ) -> list[int]:
-        """Return indices not yet marked as task_finished for this split/phase."""
-        return [i for i in indices if (split_idx, phase, i) not in self._task_finished]
+        """Return indices not yet marked as task_finished for this split/phase.
+
+        task_names[i] is the name of the task at index i in the full task list.
+        """
+        return [
+            i
+            for i in indices
+            if (split_idx, phase, task_names[i]) not in self._task_finished
+        ]
 
     async def mark_split_phase_started(self, split_idx: int, phase: Phase) -> None:
         """Append event (call only after the corresponding start callback succeeded)."""
@@ -163,11 +169,11 @@ class RunState:
         await self._append_event(event)
         self._split_finished.add(split_idx)
 
-    async def mark_task_finished(self, split_idx: int, phase: Phase, task_global_index: int) -> None:
+    async def mark_task_finished(self, split_idx: int, phase: Phase, task_name: str) -> None:
         """Append event (call from task lifecycle on clean exit)."""
-        event = TaskFinishedEvent(split_idx=split_idx, phase=phase, task_global_index=task_global_index)
+        event = TaskFinishedEvent(split_idx=split_idx, phase=phase, task_name=task_name)
         await self._append_event(event)
-        self._task_finished.add((split_idx, phase, task_global_index))
+        self._task_finished.add((split_idx, phase, task_name))
 
     async def _append_event(self, event: RunStateEvent) -> None:
         await self._ensure_header()
