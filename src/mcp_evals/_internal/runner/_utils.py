@@ -43,7 +43,7 @@ async def task_lifecycle(case: Case[Task[Any, Any], AgentRunResult, None]) -> As
 
 
 def make_task_lifecycle(
-    state: RunState | None,
+    state: RunState,
     split_idx: int,
     phase: Phase,
 ) -> Callable[..., Any]:
@@ -57,7 +57,6 @@ def make_task_lifecycle(
         task = case.inputs
         async with task:
             yield
-        if state is not None:
-            await state.mark_task_finished(split_idx, phase, task.name)
+        await state.mark_task_finished(split_idx, phase, task.name)
 
     return _lifecycle
