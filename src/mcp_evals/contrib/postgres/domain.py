@@ -2,6 +2,7 @@
 
 from collections.abc import Sequence
 from contextlib import AsyncExitStack
+from pathlib import Path
 from typing import Any
 
 from aiodocker.exceptions import DockerError
@@ -54,9 +55,9 @@ class PostgresDomain(Domain[PgConfig]):
     _container: DockerContainer | None = None
     _docker: aiodocker.Docker | None = None
 
-    def __init__(self, tool_retries: int = 1) -> None:
+    def __init__(self, tool_retries: int = 1, checkpoint_path: Path | None = None) -> None:
         """Init."""
-        super().__init__(tool_retries=tool_retries)
+        super().__init__(tool_retries=tool_retries, checkpoint_path=checkpoint_path)
 
     async def setup(self, stack: AsyncExitStack[Any]) -> None:
         """Create and start PostgreSQL container; store pg_config."""

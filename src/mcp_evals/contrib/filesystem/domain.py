@@ -56,9 +56,9 @@ class FilesystemDomain(Domain[DomainSecrets]):
 
     name = "filesystem"
 
-    def __init__(self, tool_retries: int = 1) -> None:
+    def __init__(self, tool_retries: int = 1, checkpoint_path: Path | None = None) -> None:
         """Init."""
-        super().__init__(tool_retries=tool_retries)
+        super().__init__(tool_retries=tool_retries, checkpoint_path=checkpoint_path)
 
     async def setup(self, stack: AsyncExitStack[Any]) -> None:
         """Create tmp dir for filesystem operations."""
