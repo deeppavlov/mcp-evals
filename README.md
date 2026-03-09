@@ -30,18 +30,15 @@ For running MCP servers you might need
 ## Quick Start
 
 ```python
-from mcp_evals import BenchmarkRunner
+from mcp_evals import DomainRunner, PlainGrouper
 from mcp_evals.contrib.filesystem import FilesystemDomain
 from pydantic_ai import Agent
 
 async def main():
     agent = Agent("openai:gpt-4o")
-    runner = BenchmarkRunner(
-        agent=agent,
-        domains=[FilesystemDomain()],
-    )
-    reports = await runner.run()
-    reports[0].print()
+    runner = DomainRunner(agent=agent, grouper=PlainGrouper())
+    report = await runner.run(FilesystemDomain(), experiment_name="quickstart")
+    report.print()
 ```
 
 Requires `uv sync --extra domain-filesystem` and Docker. To run the full benchmark:
@@ -99,22 +96,18 @@ class CustomDomain(Domain):
 ### 3. Run the Benchmark
 
 ```python
-from mcp_evals import BenchmarkRunner
+from mcp_evals import DomainRunner, PlainGrouper
 from mcp_evals.contrib.filesystem import FilesystemDomain
 from pydantic_ai import Agent
 
 async def main():
     agent = Agent("openai:gpt-4o", system_prompt="You are a helpful assistant.")
-    runner = BenchmarkRunner(
-        agent=agent,
-        domains=[FilesystemDomain()],
-    )
-    reports = await runner.run()
-    for report in reports:
-        report.print()
-        for case in report.cases:
-            passed = all(s.value == 1.0 for s in case.scores.values())
-            print(f"{case.name}: {'✓' if passed else '✗'}")
+    runner = DomainRunner(agent=agent, grouper=PlainGrouper())
+    report = await runner.run(FilesystemDomain(), experiment_name="my-experiment")
+    report.print()
+    for case in report.cases:
+        passed = all(s.value == 1.0 for s in case.scores.values())
+        print(f"{case.name}: {'✓' if passed else '✗'}")
 ```
 
 For observability, use `logfire.configure()` and `logfire.instrument_pydantic_ai()` (optional).
@@ -330,9 +323,9 @@ Provide per-task dependencies (e.g. DB connections, request-scoped state) via `d
 from contextlib import asynccontextmanager
 from typing import Any
 
-from mcp_evals import BenchmarkRunner
+from mcp_evals import DomainRunner, PlainGrouper
 from mcp_evals.task import Task
-from mcp_evals.types import DepsMaker, Runner
+from mcp_evals.types import DepsMaker
 
 def db_deps_maker(task: Task[Any, Any]) -> Any:  # returns AbstractAsyncContextManager
     @asynccontextmanager
@@ -345,11 +338,12 @@ def db_deps_maker(task: Task[Any, Any]) -> Any:  # returns AbstractAsyncContextM
 
     return _cm()
 
-runner = BenchmarkRunner(
+runner = DomainRunner(
     agent=agent,
-    domains=[MyDomain()],
+    grouper=PlainGrouper(),
     deps_maker=db_deps_maker,
 )
+report = await runner.run(MyDomain(), experiment_name="exp")
 ```
 
 The agent and any tools can use `deps` to access the connection. When omitted, a default maker that yields `None` is used.
@@ -361,7 +355,7 @@ For `HoldOutGrouper` and `CVGrouper`, you can pass `start_training` and `start_t
 ```python
 from loguru import logger
 
-from mcp_evals import BenchmarkRunner, HoldOutGrouper
+from mcp_evals import DomainRunner, HoldOutGrouper, PlainGrouper
 
 async def before_training() -> None:
     logger.info("Starting training phase...")
@@ -371,13 +365,13 @@ async def before_testing() -> None:
     logger.info("Starting testing phase...")
     # e.g. load trained weights, persist model
 
-runner = BenchmarkRunner(
+runner = DomainRunner(
     agent=agent,
-    domains=[MyDomain()],
     grouper=HoldOutGrouper(test_ratio=0.2),
     start_training=before_training,
     start_testing=before_testing,
 )
+report = await runner.run(MyDomain(), experiment_name="exp")
 ```
 
 ### 9. Run Result Processor
@@ -387,7 +381,7 @@ Use `run_result_processor` to handle each agent run result (e.g. logging, persis
 ```python
 from typing import Any
 
-from mcp_evals import BenchmarkRunner
+from mcp_evals import DomainRunner, PlainGrouper
 from pydantic_ai.run import AgentRunResult
 
 async def log_and_persist(
@@ -399,11 +393,12 @@ async def log_and_persist(
     print(f"Task {task.name}: {result.output}")
     await save_result_to_db(task.name, result, deps)
 
-runner = BenchmarkRunner(
+runner = DomainRunner(
     agent=agent,
-    domains=[MyDomain()],
+    grouper=PlainGrouper(),
     run_result_processor=log_and_persist,
 )
+report = await runner.run(MyDomain(), experiment_name="exp")
 ```
 
 The third argument `deps` is the object yielded by `deps_maker(task)` for this run (or `None` if using the default).
@@ -465,45 +460,43 @@ flowchart TB
 ```mermaid
 sequenceDiagram
     participant U as User Code
-    participant R as BenchmarkRunner
+    participant R as DomainRunner
     participant D as Domain
     participant A as Agent
     participant MCP as MCP Servers
     participant E as Evaluator
     participant LF as Logfire
 
-    U->>R: runner.run()
+    U->>R: runner.run(domain, experiment_name=...)
     
-    loop For each domain
-        R->>D: async with domain
-        D->>D: domain.setup()
-        D->>MCP: Connect to MCP servers (CombinedToolset)
-        MCP-->>D: Combined toolset ready
-        R->>D: domain.tasks()
+    R->>D: async with domain
+    D->>D: domain.setup()
+    D->>MCP: Connect to MCP servers (CombinedToolset)
+    MCP-->>D: Combined toolset ready
+    R->>D: domain.tasks()
+    
+    loop For each task
+        Note over R: case_context_manager enters task context
+        R->>R: task.setup()
+        R->>A: agent.run(task.goal, toolsets=[domain.toolset])
+        A->>LF: Log agent span
+        A->>MCP: Use tools
+        MCP-->>A: Tool results
+        A-->>R: Agent output
         
-        loop For each task
-            Note over R: case_context_manager enters task context
-            R->>R: task.setup()
-            R->>A: agent.run(task.goal, toolsets=[domain.toolset])
-            A->>LF: Log agent span
-            A->>MCP: Use tools
-            MCP-->>A: Tool results
-            A-->>R: Agent output
-            
-            R->>E: evaluator.evaluate(context)
-            Note over E: Task context still active
-            E->>LF: Log evaluator span
-            E->>MCP: Check environment state
-            E-->>R: EvaluatorOutput
-            Note over R: case_context_manager exits task context
-            R->>R: task stack cleanup
-        end
-
-        D->>MCP: Disconnect servers (CombinedToolset cleanup)
-        D->>D: domain stack cleanup
+        R->>E: evaluator.evaluate(context)
+        Note over E: Task context still active
+        E->>LF: Log evaluator span
+        E->>MCP: Check environment state
+        E-->>R: EvaluatorOutput
+        Note over R: case_context_manager exits task context
+        R->>R: task stack cleanup
     end
+
+    D->>MCP: Disconnect servers (CombinedToolset cleanup)
+    D->>D: domain stack cleanup
     
-    R-->>U: BenchmarkReport
+    R-->>U: EvaluationReport
 ```
 
 ### Integration with pydantic_evals
@@ -549,7 +542,7 @@ The library manages resource lifecycle at two levels:
 
 This is critical because evaluators often need to check the environment state (files, database, etc.) that was set up during `task.setup()`, and this state must remain available until after evaluators complete.
 
-Users don't need to manage these contexts directly—`BenchmarkRunner` handles everything.
+Users don't need to manage these contexts directly—`DomainRunner.run(domain, ...)` handles everything.
 
 ### TODO
 
@@ -569,12 +562,10 @@ mcp-evals/
 │   └── run_domain_tasks.py       # Run domain tasks (filesystem, postgres)
 ├── src/
 │   └── mcp_evals/
-│       ├── __init__.py           # Public API: Domain, Task, BenchmarkRunner, etc.
+│       ├── __init__.py           # Public API: Domain, Task, DomainRunner, etc.
 │       ├── domain.py             # Domain ABC (async context manager)
 │       ├── task.py               # Task ABC (async context manager)
 │       ├── secrets.py            # DomainSecrets, TaskSecrets base classes
-│       ├── runner.py             # BenchmarkRunner facade
-│       ├── evaluators/           # Base evaluator types (pydantic_evals re-exports)
 │       ├── _internal/            # Internal runner, conversion, evaluated_fn
 │       └── contrib/              # Pre-built domains and tasks
 │           ├── filesystem/       # Filesystem domain (Docker + mcp/filesystem)

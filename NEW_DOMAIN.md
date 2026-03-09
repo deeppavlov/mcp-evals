@@ -68,8 +68,8 @@
 
 ### 4. **Flow at runtime**
 
-- **Runner** (`BenchmarkRunner`) gets a list of domains. For each domain it calls `run_domain(domain, agent)`.
-- **`run_domain`**  
+- **Runner** (`DomainRunner`) is created with an agent and a grouper. You call `run(domain, experiment_name=...)` for each domain.
+- **`run(domain, experiment_name=...)`**  
   - Enters `domain` (domain `setup` → connect MCP → `domain.toolset` available).  
   - Converts `domain.tasks()` to a pydantic_evals `Dataset` (each task → `Case` with `inputs=task`, `evaluators=task.evaluators`).  
   - For each case, runs `task_lifecycle` (enter task → run agent with `domain.toolset` → run evaluators) then exits task.  
@@ -91,7 +91,7 @@ So: **domain** = MCP env + list of tasks; **task** = prompt + evaluators + optio
 | 6 | `contrib/<domain>/tasks/<task_slug>/custom_evaluators/` | Task-specific evaluators; export in `__init__.py`. |
 | 7 | `contrib/<domain>/tasks/__init__.py` | Import and export all task classes. |
 | 8 | `contrib/<domain>/__init__.py` | Export domain (and e.g. `Fixture`). |
-| 9 | Script or runner | Instantiate domain, pass to `BenchmarkRunner(agent=agent, domains=[domain])`. |
+| 9 | Script or runner | Instantiate domain, create `DomainRunner(agent=agent, grouper=PlainGrouper())`, then `await runner.run(domain, experiment_name=...)`. |
 
 This is the pattern used by the filesystem domain and its tasks (e.g. `UppercaseTask`, `TimelineExtractionTask`); you can replicate it for a new domain (e.g. “browser” or “postgres”) by adding a new `contrib/<domain>/` tree and wiring it into the runner the same way.
 

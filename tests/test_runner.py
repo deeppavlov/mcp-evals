@@ -1,4 +1,4 @@
-"""Tests for BenchmarkRunner class."""
+"""Tests for DomainRunner class."""
 
 from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
@@ -13,10 +13,9 @@ from pydantic_ai.run import AgentRunResult
 from pydantic_evals.evaluators import EvaluationReason, Evaluator
 from pydantic_evals.reporting import EvaluationReport
 
-from mcp_evals import CVGrouper, HoldOutGrouper, PlainGrouper
+from mcp_evals import CVGrouper, DomainRunner, HoldOutGrouper, PlainGrouper
 from mcp_evals._internal.evaluated_fn import run_agent_on_task_with_self_correction
 from mcp_evals.domain import Domain
-from mcp_evals.runner import BenchmarkRunner
 from mcp_evals.secrets import DomainSecrets, TaskSecrets
 from mcp_evals.task import Task
 
@@ -68,41 +67,34 @@ class ConcreteDomain(Domain[DomainSecrets]):
         return self._task_list
 
 
-class TestBenchmarkRunnerInitialization:
-    """Tests for BenchmarkRunner initialization."""
+class TestDomainRunnerInitialization:
+    """Tests for DomainRunner initialization."""
 
-    def test_stores_agent_and_domains_correctly(self) -> None:
-        """Test that BenchmarkRunner stores agent and domains correctly."""
+    def test_stores_agent_and_grouper_correctly(self) -> None:
+        """Test that DomainRunner stores agent and grouper correctly."""
         mock_agent = MagicMock(spec=Agent)
-        domain1 = ConcreteDomain(name="domain1")
-        domain2 = ConcreteDomain(name="domain2")
+        grouper = PlainGrouper()
 
-        runner = BenchmarkRunner(
+        runner = DomainRunner(
             agent=mock_agent,
-            domains=[domain1, domain2],
-            experiment_name="test-experiment",
-            grouper=PlainGrouper(),
+            grouper=grouper,
         )
 
         assert runner.agent is mock_agent
-        assert len(runner.domains) == 2
-        assert domain1 in runner.domains
-        assert domain2 in runner.domains
+        assert runner.grouper is grouper
 
 
 @pytest.mark.asyncio
-class TestBenchmarkRunnerRun:
-    """Tests for BenchmarkRunner.run() method."""
+class TestDomainRunnerRun:
+    """Tests for DomainRunner.run() method."""
 
-    async def test_runs_all_domains_sequentially(self) -> None:
-        """Test that run() runs all domains sequentially."""
+    async def test_runs_domains_sequentially_when_called_per_domain(self) -> None:
+        """When user calls run(domain, ...) per domain, each call returns that domain's report."""
         mock_agent = MagicMock(spec=Agent)
         domain1 = ConcreteDomain(name="domain1")
         domain2 = ConcreteDomain(name="domain2")
-        runner = BenchmarkRunner(
+        runner = DomainRunner(
             agent=mock_agent,
-            domains=[domain1, domain2],
-            experiment_name="test-experiment",
             grouper=PlainGrouper(),
             deps_maker=_no_deps_maker,
         )
@@ -123,21 +115,19 @@ class TestBenchmarkRunnerRun:
             return mock_report2
 
         with patch(INTERNAL_RUN, side_effect=mock_run):
-            reports = await runner.run()
+            report1 = await runner.run(domain1, experiment_name="test-experiment")
+            report2 = await runner.run(domain2, experiment_name="test-experiment")
 
-            assert len(reports) == 2
-            assert reports[0] is mock_report1
-            assert reports[1] is mock_report2
+            assert report1 is mock_report1
+            assert report2 is mock_report2
             assert call_order == ["domain1", "domain2"]
 
-    async def test_returns_list_of_evaluation_reports(self) -> None:
-        """Test that run() returns list of EvaluationReport."""
+    async def test_returns_evaluation_report(self) -> None:
+        """Test that run(domain, ...) returns a single EvaluationReport."""
         mock_agent = MagicMock(spec=Agent)
         domain = ConcreteDomain()
-        runner = BenchmarkRunner(
+        runner = DomainRunner(
             agent=mock_agent,
-            domains=[domain],
-            experiment_name="test-experiment",
             grouper=PlainGrouper(),
             deps_maker=_no_deps_maker,
         )
@@ -145,22 +135,18 @@ class TestBenchmarkRunnerRun:
         mock_report = MagicMock(spec=EvaluationReport)
 
         with patch(INTERNAL_RUN, return_value=mock_report):
-            reports = await runner.run()
+            report = await runner.run(domain, experiment_name="test-experiment")
 
-            assert isinstance(reports, list)
-            assert len(reports) == 1
-            assert reports[0] is mock_report
+            assert report is mock_report
 
-    async def test_each_domain_gets_own_report(self) -> None:
-        """Test that each domain gets its own report."""
+    async def test_each_domain_gets_own_report_when_called_separately(self) -> None:
+        """When user calls run() for each domain, each gets its own report."""
         mock_agent = MagicMock(spec=Agent)
         domain1 = ConcreteDomain(name="domain1")
         domain2 = ConcreteDomain(name="domain2")
         domain3 = ConcreteDomain(name="domain3")
-        runner = BenchmarkRunner(
+        runner = DomainRunner(
             agent=mock_agent,
-            domains=[domain1, domain2, domain3],
-            experiment_name="test-experiment",
             grouper=PlainGrouper(),
             deps_maker=_no_deps_maker,
         )
@@ -172,7 +158,11 @@ class TestBenchmarkRunnerRun:
         ]
 
         with patch(INTERNAL_RUN, side_effect=mock_reports):
-            reports = await runner.run()
+            reports = [
+                await runner.run(domain1, experiment_name="test-experiment"),
+                await runner.run(domain2, experiment_name="test-experiment"),
+                await runner.run(domain3, experiment_name="test-experiment"),
+            ]
 
             assert len(reports) == 3
             assert all(isinstance(r, EvaluationReport) for r in reports)
@@ -180,30 +170,13 @@ class TestBenchmarkRunnerRun:
             assert reports[1] is mock_reports[1]
             assert reports[2] is mock_reports[2]
 
-    async def test_handles_empty_domains_list(self) -> None:
-        """Test that run() handles empty domains list."""
-        mock_agent = MagicMock(spec=Agent)
-        runner = BenchmarkRunner(
-            agent=mock_agent,
-            domains=[],
-            experiment_name="test-experiment",
-            grouper=PlainGrouper(),
-        )
-
-        reports = await runner.run()
-
-        assert isinstance(reports, list)
-        assert len(reports) == 0
-
     async def test_handles_exceptions_in_domain_execution(self) -> None:
-        """Test that run() handles exceptions in domain execution."""
+        """Test that run(domain, ...) propagates exceptions from domain execution."""
         mock_agent = MagicMock(spec=Agent)
         domain1 = ConcreteDomain(name="domain1")
         domain2 = ConcreteDomain(name="domain2")
-        runner = BenchmarkRunner(
+        runner = DomainRunner(
             agent=mock_agent,
-            domains=[domain1, domain2],
-            experiment_name="test-experiment",
             grouper=PlainGrouper(),
             deps_maker=_no_deps_maker,
         )
@@ -219,68 +192,61 @@ class TestBenchmarkRunnerRun:
                 return mock_report1
             raise ValueError("Domain execution failed")
 
-        with (
-            patch(INTERNAL_RUN, side_effect=mock_run),
-            pytest.raises(ValueError, match="Domain execution failed"),
-        ):
-            await runner.run()
+        with patch(INTERNAL_RUN, side_effect=mock_run):
+            await runner.run(domain1, experiment_name="test-experiment")
+            with pytest.raises(ValueError, match="Domain execution failed"):
+                await runner.run(domain2, experiment_name="test-experiment")
 
-    async def test_invokes_runner_once_per_domain(self) -> None:
-        """Test that run() invokes the domain runner once per domain with correct domains."""
+    async def test_invokes_internal_run_once_per_run_call(self) -> None:
+        """Test that each run(domain, ...) invokes the internal runner with the correct domain."""
         mock_agent = MagicMock(spec=Agent)
         domain1 = ConcreteDomain(name="domain1")
         domain2 = ConcreteDomain(name="domain2")
-        runner = BenchmarkRunner(
+        runner = DomainRunner(
             agent=mock_agent,
-            domains=[domain1, domain2],
-            experiment_name="test-experiment",
             grouper=PlainGrouper(),
             deps_maker=_no_deps_maker,
         )
 
         with patch(INTERNAL_RUN, new_callable=AsyncMock) as mock_internal_run:
             mock_internal_run.return_value = MagicMock(spec=EvaluationReport)
-            await runner.run()
+            await runner.run(domain1, experiment_name="test-experiment")
+            await runner.run(domain2, experiment_name="test-experiment")
 
             assert mock_internal_run.call_count == 2
-            # Patched method is called as run(domain, experiment_name=...); domain is first positional
             assert mock_internal_run.call_args_list[0].args[0] is domain1
             assert mock_internal_run.call_args_list[1].args[0] is domain2
 
     async def test_run_passes_experiment_name_to_internal_runner(self) -> None:
-        """Test that run() forwards experiment_name from constructor to internal runner."""
+        """Test that run(domain, experiment_name=...) forwards experiment_name."""
         mock_agent = MagicMock(spec=Agent)
         domain = ConcreteDomain()
-        runner = BenchmarkRunner(
+        runner = DomainRunner(
             agent=mock_agent,
-            domains=[domain],
-            experiment_name="exp",
             grouper=PlainGrouper(),
         )
 
         with patch(INTERNAL_RUN, new_callable=AsyncMock) as mock_internal_run:
             mock_internal_run.return_value = MagicMock(spec=EvaluationReport)
-            await runner.run()
+            await runner.run(domain, experiment_name="exp")
 
             mock_internal_run.assert_called_once()
             assert mock_internal_run.call_args.kwargs["experiment_name"] == "exp"
 
-    async def test_run_with_deps_maker_uses_internal_runner(self) -> None:
-        """Test that BenchmarkRunner(deps_maker=...) creates runner that uses that deps_maker."""
+    async def test_run_with_deps_maker_uses_that_deps_maker(self) -> None:
+        """Test that DomainRunner(deps_maker=...) stores and uses that deps_maker."""
         mock_agent = MagicMock(spec=Agent)
         domain = ConcreteDomain()
         custom_factory = _no_deps_maker
-        runner = BenchmarkRunner(
+        runner = DomainRunner(
             agent=mock_agent,
-            domains=[domain],
-            experiment_name="test-experiment",
             grouper=PlainGrouper(),
             deps_maker=custom_factory,
         )
 
         with patch(INTERNAL_RUN, new_callable=AsyncMock) as mock_internal_run:
             mock_internal_run.return_value = MagicMock(spec=EvaluationReport)
-            await runner.run()
+            await runner.run(domain, experiment_name="test-experiment")
 
             mock_internal_run.assert_called_once()
             assert runner.deps_maker is custom_factory
@@ -293,17 +259,15 @@ INTERNAL_RUN_SELF_CORRECTION = INTERNAL_RUN_DOMAIN
 
 
 @pytest.mark.asyncio
-class TestBenchmarkRunnerHoldOut:
-    """Tests for BenchmarkRunner with HoldOutGrouper."""
+class TestDomainRunnerHoldOut:
+    """Tests for DomainRunner with HoldOutGrouper."""
 
-    async def test_hold_out_returns_one_report_per_domain(self) -> None:
-        """Hold-out runner returns one EvaluationReport per domain."""
+    async def test_hold_out_returns_one_report_per_run(self) -> None:
+        """Hold-out runner returns one EvaluationReport per run(domain, ...)."""
         mock_agent = MagicMock(spec=Agent)
         domain = ConcreteDomain(tasks=[ConcreteTask(name=f"t{i}") for i in range(5)])
-        runner = BenchmarkRunner(
+        runner = DomainRunner(
             agent=mock_agent,
-            domains=[domain],
-            experiment_name="test-experiment",
             grouper=HoldOutGrouper(test_ratio=0.2),
             deps_maker=_no_deps_maker,
         )
@@ -311,10 +275,9 @@ class TestBenchmarkRunnerHoldOut:
         mock_report.cases = [MagicMock(), MagicMock()]  # ~20% of 5 -> 1 or 2 test cases
 
         with patch(INTERNAL_RUN_DOMAIN, new_callable=AsyncMock, return_value=mock_report):
-            reports = await runner.run()
+            report = await runner.run(domain, experiment_name="test-experiment")
 
-        assert len(reports) == 1
-        assert reports[0] is mock_report
+        assert report is mock_report
 
     async def test_hold_out_callbacks_invoked_in_order(self, tmp_path: Path) -> None:
         """start_training is awaited before training run, start_testing before test run."""
@@ -323,10 +286,8 @@ class TestBenchmarkRunnerHoldOut:
         domain = ConcreteDomain(tasks=tasks)
         start_training = AsyncMock()
         start_testing = AsyncMock()
-        runner = BenchmarkRunner(
+        runner = DomainRunner(
             agent=mock_agent,
-            domains=[domain],
-            experiment_name="test-experiment",
             grouper=HoldOutGrouper(test_ratio=0.2),
             deps_maker=_no_deps_maker,
             start_training=start_training,
@@ -345,27 +306,22 @@ class TestBenchmarkRunnerHoldOut:
                 )
             ),
         ):
-            reports = await runner.run()
+            await runner.run(domain, experiment_name="test-experiment")
 
-        assert len(reports) == 1
-        assert start_training.await_count == 1
-        assert start_testing.await_count == 1
         assert start_training.await_count == 1
         assert start_testing.await_count == 1
 
 
 @pytest.mark.asyncio
-class TestBenchmarkRunnerCrossValidation:
-    """Tests for BenchmarkRunner with CVGrouper."""
+class TestDomainRunnerCrossValidation:
+    """Tests for DomainRunner with CVGrouper."""
 
-    async def test_cv_returns_one_report_per_domain(self) -> None:
-        """CV runner returns one merged EvaluationReport per domain."""
+    async def test_cv_returns_one_report_per_run(self) -> None:
+        """CV runner returns one merged EvaluationReport per run(domain, ...)."""
         mock_agent = MagicMock(spec=Agent)
         domain = ConcreteDomain(tasks=[ConcreteTask(name=f"t{i}") for i in range(10)])
-        runner = BenchmarkRunner(
+        runner = DomainRunner(
             agent=mock_agent,
-            domains=[domain],
-            experiment_name="test-experiment",
             grouper=CVGrouper(n_splits=5),
             deps_maker=_no_deps_maker,
         )
@@ -373,10 +329,9 @@ class TestBenchmarkRunnerCrossValidation:
         mock_report.cases = [MagicMock() for _ in range(10)]
 
         with patch(INTERNAL_RUN_DOMAIN, new_callable=AsyncMock, return_value=mock_report):
-            reports = await runner.run()
+            report = await runner.run(domain, experiment_name="test-experiment")
 
-        assert len(reports) == 1
-        assert reports[0] is mock_report
+        assert report is mock_report
 
     async def test_cv_callbacks_invoked_per_fold(self, tmp_path: Path) -> None:
         """start_training and start_testing are awaited K times (once per fold)."""
@@ -385,10 +340,8 @@ class TestBenchmarkRunnerCrossValidation:
         domain = ConcreteDomain(tasks=tasks)
         start_training = AsyncMock()
         start_testing = AsyncMock()
-        runner = BenchmarkRunner(
+        runner = DomainRunner(
             agent=mock_agent,
-            domains=[domain],
-            experiment_name="test-experiment",
             grouper=CVGrouper(n_splits=3),
             deps_maker=_no_deps_maker,
             start_training=start_training,
@@ -407,25 +360,22 @@ class TestBenchmarkRunnerCrossValidation:
                 )
             ),
         ):
-            reports = await runner.run()
+            await runner.run(domain, experiment_name="test-experiment")
 
-        assert len(reports) == 1
         assert start_training.await_count == 3
         assert start_testing.await_count == 3
 
 
 @pytest.mark.asyncio
-class TestBenchmarkRunnerSelfCorrection:
-    """Tests for BenchmarkRunner with use_self_correction=True."""
+class TestDomainRunnerSelfCorrection:
+    """Tests for DomainRunner with use_self_correction=True."""
 
-    async def test_self_correction_returns_one_report_per_domain(self) -> None:
-        """Self-correction runner returns one EvaluationReport per domain."""
+    async def test_self_correction_returns_one_report_per_run(self) -> None:
+        """Self-correction runner returns one EvaluationReport per run(domain, ...)."""
         mock_agent = MagicMock(spec=Agent)
         domain = ConcreteDomain(tasks=[ConcreteTask(name=f"t{i}") for i in range(3)])
-        runner = BenchmarkRunner(
+        runner = DomainRunner(
             agent=mock_agent,
-            domains=[domain],
-            experiment_name="test-experiment",
             grouper=PlainGrouper(),
             deps_maker=_no_deps_maker,
             use_self_correction=True,
@@ -439,19 +389,16 @@ class TestBenchmarkRunnerSelfCorrection:
             new_callable=AsyncMock,
             return_value=mock_report,
         ):
-            reports = await runner.run()
+            report = await runner.run(domain, experiment_name="test-experiment")
 
-        assert len(reports) == 1
-        assert reports[0] is mock_report
+        assert report is mock_report
 
     async def test_self_correction_uses_correct_internal_runner(self) -> None:
         """use_self_correction=True creates DomainRunner with correct params."""
         mock_agent = MagicMock(spec=Agent)
         domain = ConcreteDomain()
-        runner = BenchmarkRunner(
+        runner = DomainRunner(
             agent=mock_agent,
-            domains=[domain],
-            experiment_name="test-experiment",
             grouper=PlainGrouper(),
             deps_maker=_no_deps_maker,
             use_self_correction=True,
@@ -464,19 +411,16 @@ class TestBenchmarkRunnerSelfCorrection:
             new_callable=AsyncMock,
             return_value=mock_report,
         ) as mock_run:
-            await runner.run()
+            await runner.run(domain, experiment_name="test-experiment")
             mock_run.assert_called_once()
-            # Verify domain was passed (as keyword)
             assert mock_run.call_args.kwargs["domain"] is domain
 
     async def test_self_correction_max_tasks_limits_cases(self, tmp_path: Path) -> None:
         """With max_tasks=2, self-correction report contains at most 2 cases."""
         mock_agent = MagicMock(spec=Agent)
         domain = ConcreteDomain(tasks=[ConcreteTask(name=f"t{i}") for i in range(5)])
-        runner = BenchmarkRunner(
+        runner = DomainRunner(
             agent=mock_agent,
-            domains=[domain],
-            experiment_name="test-experiment",
             grouper=PlainGrouper(),
             deps_maker=_no_deps_maker,
             use_self_correction=True,
@@ -490,10 +434,9 @@ class TestBenchmarkRunnerSelfCorrection:
             new_callable=AsyncMock,
             return_value=mock_result,
         ):
-            reports = await runner.run()
+            report = await runner.run(domain, experiment_name="test-experiment")
 
-        assert len(reports) == 1
-        assert len(reports[0].cases) == 2
+        assert len(report.cases) == 2
 
 
 @pytest.mark.asyncio
@@ -602,17 +545,15 @@ class TestRunAgentOnTaskWithSelfCorrection:
 
 
 @pytest.mark.asyncio
-class TestBenchmarkRunnerMaxTasks:
+class TestDomainRunnerMaxTasks:
     """Tests for max_tasks limiting the number of tasks run per domain."""
 
     async def test_inference_only_max_tasks_limits_cases(self, tmp_path: Path) -> None:
         """With max_tasks=2, report contains at most 2 cases (first 2 tasks)."""
         mock_agent = MagicMock(spec=Agent)
         domain = ConcreteDomain(tasks=[ConcreteTask(name=f"t{i}") for i in range(5)])
-        runner = BenchmarkRunner(
+        runner = DomainRunner(
             agent=mock_agent,
-            domains=[domain],
-            experiment_name="test-experiment",
             grouper=PlainGrouper(),
             deps_maker=_no_deps_maker,
             max_tasks=2,
@@ -625,19 +566,16 @@ class TestBenchmarkRunnerMaxTasks:
             new_callable=AsyncMock,
             return_value=mock_result,
         ):
-            reports = await runner.run()
+            report = await runner.run(domain, experiment_name="test-experiment")
 
-        assert len(reports) == 1
-        assert len(reports[0].cases) == 2
+        assert len(report.cases) == 2
 
     async def test_hold_out_max_tasks_limits_task_list(self, tmp_path: Path) -> None:
         """With max_tasks=2, hold_out_split is called with n_tasks=2."""
         mock_agent = MagicMock(spec=Agent)
         domain = ConcreteDomain(tasks=[ConcreteTask(name=f"t{i}") for i in range(5)])
-        runner = BenchmarkRunner(
+        runner = DomainRunner(
             agent=mock_agent,
-            domains=[domain],
-            experiment_name="test-experiment",
             grouper=HoldOutGrouper(test_ratio=0.5),
             deps_maker=_no_deps_maker,
             max_tasks=2,
@@ -668,7 +606,7 @@ class TestBenchmarkRunnerMaxTasks:
                 ),
             ),
         ):
-            await runner.run()
+            await runner.run(domain, experiment_name="test-experiment")
 
         assert len(call_args) == 1
         assert call_args[0][0] == 2
@@ -677,10 +615,8 @@ class TestBenchmarkRunnerMaxTasks:
         """With max_tasks=2, k_fold_split is called with n_tasks=2."""
         mock_agent = MagicMock(spec=Agent)
         domain = ConcreteDomain(tasks=[ConcreteTask(name=f"t{i}") for i in range(5)])
-        runner = BenchmarkRunner(
+        runner = DomainRunner(
             agent=mock_agent,
-            domains=[domain],
-            experiment_name="test-experiment",
             grouper=CVGrouper(n_splits=2),
             deps_maker=_no_deps_maker,
             max_tasks=2,
@@ -711,7 +647,7 @@ class TestBenchmarkRunnerMaxTasks:
                 ),
             ),
         ):
-            await runner.run()
+            await runner.run(domain, experiment_name="test-experiment")
 
         assert len(call_args) == 1
         assert call_args[0] == 2

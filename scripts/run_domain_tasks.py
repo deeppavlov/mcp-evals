@@ -53,7 +53,7 @@ from loguru import logger
 from pydantic_ai import Agent, UsageLimits
 from pydantic_ai.messages import ModelMessage, ModelRequest, ModelRequestPart, ToolReturnPart
 
-from mcp_evals import BenchmarkRunner, Domain, PlainGrouper
+from mcp_evals import Domain, DomainRunner, PlainGrouper
 
 logfire.configure(send_to_logfire="if-token-present")
 logfire.instrument_pydantic_ai()
@@ -161,11 +161,9 @@ def main() -> None:
 
         domain = FilesystemDomain()
 
-    runner = BenchmarkRunner(
+    runner = DomainRunner(
         agent=agent,
-        domains=[domain],
         grouper=PlainGrouper(),
-        experiment_name=args.experiment_name,
         max_tasks=args.max_tasks,
         usage_limits=UsageLimits(request_limit=25),
     )
@@ -174,10 +172,11 @@ def main() -> None:
     if args.max_tasks is not None:
         logger.info(f"Running up to {args.max_tasks} tasks per domain")
 
+    experiment_name = args.experiment_name or f"{args.domain}_run"
+
     # Run benchmark
     async def run() -> None:
-        reports = await runner.run()
-        report = reports[0]
+        report = await runner.run(domain, experiment_name=experiment_name)
         logger.info(f"\nDomain: {args.domain}")
         logger.info(f"Total tasks: {len(report.cases)}")
 
