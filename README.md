@@ -32,7 +32,6 @@ For running MCP servers you might need
 ```python
 from mcp_evals import BenchmarkRunner
 from mcp_evals.contrib.filesystem import FilesystemDomain
-from mcp_evals.types import Runner
 from pydantic_ai import Agent
 
 async def main():
@@ -40,7 +39,6 @@ async def main():
     runner = BenchmarkRunner(
         agent=agent,
         domains=[FilesystemDomain()],
-        runner=Runner.INFERENCE_ONLY,
     )
     reports = await runner.run()
     reports[0].print()
@@ -103,7 +101,6 @@ class CustomDomain(Domain):
 ```python
 from mcp_evals import BenchmarkRunner
 from mcp_evals.contrib.filesystem import FilesystemDomain
-from mcp_evals.types import Runner
 from pydantic_ai import Agent
 
 async def main():
@@ -111,7 +108,6 @@ async def main():
     runner = BenchmarkRunner(
         agent=agent,
         domains=[FilesystemDomain()],
-        runner=Runner.INFERENCE_ONLY,
     )
     reports = await runner.run()
     for report in reports:
@@ -352,7 +348,6 @@ def db_deps_maker(task: Task[Any, Any]) -> Any:  # returns AbstractAsyncContextM
 runner = BenchmarkRunner(
     agent=agent,
     domains=[MyDomain()],
-    runner=Runner.INFERENCE_ONLY,
     deps_maker=db_deps_maker,
 )
 ```
@@ -361,13 +356,12 @@ The agent and any tools can use `deps` to access the connection. When omitted, a
 
 ### 8. Training and Testing Callbacks
 
-For `Runner.HOLD_OUT` and `Runner.CROSS_VALIDATION`, you can pass `start_training` and `start_testing` callbacks. They are invoked before the training phase and before the testing phase respectively (e.g. to persist a model, switch weights, or log phase changes):
+For `HoldOutGrouper` and `CVGrouper`, you can pass `start_training` and `start_testing` callbacks. They are invoked before the training phase and before the testing phase respectively (e.g. to persist a model, switch weights, or log phase changes):
 
 ```python
 from loguru import logger
 
-from mcp_evals import BenchmarkRunner
-from mcp_evals.types import Runner, TrainingTestingCallback
+from mcp_evals import BenchmarkRunner, HoldOutGrouper
 
 async def before_training() -> None:
     logger.info("Starting training phase...")
@@ -380,8 +374,7 @@ async def before_testing() -> None:
 runner = BenchmarkRunner(
     agent=agent,
     domains=[MyDomain()],
-    runner=Runner.HOLD_OUT,
-    hold_out_test_ratio=0.2,
+    grouper=HoldOutGrouper(test_ratio=0.2),
     start_training=before_training,
     start_testing=before_testing,
 )
@@ -395,7 +388,6 @@ Use `run_result_processor` to handle each agent run result (e.g. logging, persis
 from typing import Any
 
 from mcp_evals import BenchmarkRunner
-from mcp_evals.types import Runner, RunResultProcessor
 from pydantic_ai.run import AgentRunResult
 
 async def log_and_persist(
@@ -410,7 +402,6 @@ async def log_and_persist(
 runner = BenchmarkRunner(
     agent=agent,
     domains=[MyDomain()],
-    runner=Runner.INFERENCE_ONLY,
     run_result_processor=log_and_persist,
 )
 ```

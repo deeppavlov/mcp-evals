@@ -1,13 +1,12 @@
-from ._base import BaseDomainRunner
-from ._cv_runner import DomainRunnerCrossValidation
-from ._domain_runner import DomainRunnerInferenceOnly
-from ._hold_out_runner import DomainRunnerHoldOut
-from ._self_correction_runner import DomainRunnerSelfCorrection
+from ._domain_runner import DomainRunner
+from ._groupers import CVGrouper, Grouper, HoldOutGrouper, PlainGrouper
+from ._splits import Splitting
 
 __all__ = [
-    "BaseDomainRunner",
-    "DomainRunnerCrossValidation",
-    "DomainRunnerHoldOut",
-    "DomainRunnerInferenceOnly",
-    "DomainRunnerSelfCorrection",
+    "CVGrouper",
+    "DomainRunner",
+    "Grouper",
+    "HoldOutGrouper",
+    "PlainGrouper",
+    "Splitting",
 ]
