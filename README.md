@@ -350,7 +350,7 @@ The agent and any tools can use `deps` to access the connection. When omitted, a
 
 ### 8. Training and Testing Callbacks
 
-For `HoldOutGrouper` and `CVGrouper`, you can pass `start_training` and `start_testing` callbacks. They are invoked before the training phase and before the testing phase respectively (e.g. to persist a model, switch weights, or log phase changes):
+For `HoldOutGrouper` and `CVGrouper`, you can pass `start_training` and `start_testing` callbacks. They are invoked before the training phase and before the testing phase respectively (e.g. to persist a model, switch weights, or log phase changes). By default, each callback is run only once per split/phase: if you resume from a checkpoint after the phase has already started, the callback is **not** run again (safe for non-idempotent side effects). If your callbacks are idempotent and you want them to run again on resume (e.g. to re-apply config or logging), set `rerun_start_training_on_resume=True` and/or `rerun_start_testing_on_resume=True` on the runner.
 
 ```python
 from loguru import logger
@@ -370,6 +370,9 @@ runner = DomainRunner(
     grouper=HoldOutGrouper(test_ratio=0.2),
     start_training=before_training,
     start_testing=before_testing,
+    # Optional: re-run callbacks when resuming from checkpoint (for idempotent callbacks)
+    # rerun_start_training_on_resume=True,
+    # rerun_start_testing_on_resume=True,
 )
 report = await runner.run(MyDomain(), experiment_name="exp")
 ```
