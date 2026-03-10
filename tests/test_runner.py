@@ -3,7 +3,7 @@
 from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -15,6 +15,11 @@ from pydantic_evals.reporting import EvaluationReport
 
 from mcp_evals import CVGrouper, DomainRunner, HoldOutGrouper, PlainGrouper
 from mcp_evals._internal.evaluated_fn import run_agent_on_task_with_self_correction
+from mcp_evals._internal.runner._run_state import (
+    RunStateHeader,
+    SplitPhaseStartedEvent,
+    run_state_path,
+)
 from mcp_evals.domain import Domain
 from mcp_evals.secrets import DomainSecrets, TaskSecrets
 from mcp_evals.task import Task
@@ -311,6 +316,42 @@ class TestDomainRunnerHoldOut:
         assert start_training.await_count == 1
         assert start_testing.await_count == 1
 
+    async def test_hold_out_callbacks_receive_phase_name(self, tmp_path: Path) -> None:
+        """Callbacks that accept phase_name receive 'train_{split_idx}' and 'test_{split_idx}'."""
+        seen_phase_names: list[tuple[str, str]] = []
+
+        async def on_training(phase_name: str) -> None:
+            seen_phase_names.append(("train", phase_name or ""))
+
+        async def on_testing(phase_name: str) -> None:
+            seen_phase_names.append(("test", phase_name or ""))
+
+        mock_agent = MagicMock(spec=Agent)
+        tasks = [ConcreteTask(name=f"t{i}") for i in range(10)]
+        domain = ConcreteDomain(tasks=tasks)
+        runner = DomainRunner(
+            agent=mock_agent,
+            grouper=HoldOutGrouper(test_ratio=0.2),
+            deps_maker=_no_deps_maker,
+            start_training=on_training,
+            start_testing=on_testing,
+            state_dir=tmp_path,
+        )
+        with patch(
+            "mcp_evals._internal.runner._domain_runner.tasks_to_dataset",
+            side_effect=lambda ts: MagicMock(
+                evaluate=AsyncMock(
+                    return_value=MagicMock(
+                        spec=EvaluationReport,
+                        cases=[MagicMock() for _ in range(len(ts))],
+                    )
+                )
+            ),
+        ):
+            await runner.run(domain, experiment_name="test-experiment")
+
+        assert seen_phase_names == [("train", "train_0"), ("test", "test_0")]
+
 
 @pytest.mark.asyncio
 class TestDomainRunnerCrossValidation:
@@ -364,6 +405,162 @@ class TestDomainRunnerCrossValidation:
 
         assert start_training.await_count == 3
         assert start_testing.await_count == 3
+
+
+@pytest.mark.asyncio
+class TestDomainRunnerResumeCallbacks:
+    """Tests for rerun_start_*_on_resume when resuming from checkpoint."""
+
+    async def _write_state_with_phase_started(
+        self,
+        tmp_path: Path,
+        experiment_name: str,
+        n_tasks: int,
+        split_idx: int,
+        phase: Literal["train", "test"],
+    ) -> None:
+        """Write state file with given phase already marked started (simulate resume)."""
+        splittings = list(HoldOutGrouper(test_ratio=0.2).splittings(n_tasks))
+        fp = [[len(s.train_indices), len(s.test_indices)] for s in splittings]
+        path = await run_state_path(experiment_name, state_dir=tmp_path)
+        await path.parent.mkdir(parents=True, exist_ok=True)
+        header = RunStateHeader(n_tasks=n_tasks, splitting_fingerprint=fp)
+        lines = [
+            header.model_dump_json(),
+            SplitPhaseStartedEvent(split_idx=split_idx, phase=phase).model_dump_json(),
+        ]
+        async with await path.open("w") as f:
+            await f.write("\n".join(lines) + "\n")
+
+    async def test_resume_skips_start_training_by_default(self, tmp_path: Path) -> None:
+        """When resuming with train phase already started, start_training is not called by default."""
+        await self._write_state_with_phase_started(tmp_path, "exp", 10, 0, "train")
+        mock_agent = MagicMock(spec=Agent)
+        tasks = [ConcreteTask(name=f"t{i}") for i in range(10)]
+        domain = ConcreteDomain(tasks=tasks)
+        start_training = AsyncMock()
+        start_testing = AsyncMock()
+        runner = DomainRunner(
+            agent=mock_agent,
+            grouper=HoldOutGrouper(test_ratio=0.2),
+            deps_maker=_no_deps_maker,
+            start_training=start_training,
+            start_testing=start_testing,
+            state_dir=tmp_path,
+        )
+        with patch(
+            "mcp_evals._internal.runner._domain_runner.tasks_to_dataset",
+            side_effect=lambda ts: MagicMock(
+                evaluate=AsyncMock(
+                    return_value=MagicMock(
+                        spec=EvaluationReport,
+                        cases=[MagicMock() for _ in range(len(ts))],
+                    )
+                )
+            ),
+        ):
+            await runner.run(domain, experiment_name="exp")
+
+        assert start_training.await_count == 0
+        assert start_testing.await_count == 1
+
+    async def test_resume_reruns_start_training_when_opted_in(self, tmp_path: Path) -> None:
+        """When rerun_start_training_on_resume=True, start_training is called again on resume."""
+        await self._write_state_with_phase_started(tmp_path, "exp", 10, 0, "train")
+        mock_agent = MagicMock(spec=Agent)
+        tasks = [ConcreteTask(name=f"t{i}") for i in range(10)]
+        domain = ConcreteDomain(tasks=tasks)
+        start_training = AsyncMock()
+        start_testing = AsyncMock()
+        runner = DomainRunner(
+            agent=mock_agent,
+            grouper=HoldOutGrouper(test_ratio=0.2),
+            deps_maker=_no_deps_maker,
+            start_training=start_training,
+            start_testing=start_testing,
+            rerun_start_training_on_resume=True,
+            state_dir=tmp_path,
+        )
+        with patch(
+            "mcp_evals._internal.runner._domain_runner.tasks_to_dataset",
+            side_effect=lambda ts: MagicMock(
+                evaluate=AsyncMock(
+                    return_value=MagicMock(
+                        spec=EvaluationReport,
+                        cases=[MagicMock() for _ in range(len(ts))],
+                    )
+                )
+            ),
+        ):
+            await runner.run(domain, experiment_name="exp")
+
+        assert start_training.await_count == 1
+        assert start_testing.await_count == 1
+
+    async def test_resume_skips_start_testing_by_default(self, tmp_path: Path) -> None:
+        """When resuming with test phase already started, start_testing is not called by default."""
+        await self._write_state_with_phase_started(tmp_path, "exp", 10, 0, "test")
+        mock_agent = MagicMock(spec=Agent)
+        tasks = [ConcreteTask(name=f"t{i}") for i in range(10)]
+        domain = ConcreteDomain(tasks=tasks)
+        start_training = AsyncMock()
+        start_testing = AsyncMock()
+        runner = DomainRunner(
+            agent=mock_agent,
+            grouper=HoldOutGrouper(test_ratio=0.2),
+            deps_maker=_no_deps_maker,
+            start_training=start_training,
+            start_testing=start_testing,
+            state_dir=tmp_path,
+        )
+        with patch(
+            "mcp_evals._internal.runner._domain_runner.tasks_to_dataset",
+            side_effect=lambda ts: MagicMock(
+                evaluate=AsyncMock(
+                    return_value=MagicMock(
+                        spec=EvaluationReport,
+                        cases=[MagicMock() for _ in range(len(ts))],
+                    )
+                )
+            ),
+        ):
+            await runner.run(domain, experiment_name="exp")
+
+        assert start_training.await_count == 1
+        assert start_testing.await_count == 0
+
+    async def test_resume_reruns_start_testing_when_opted_in(self, tmp_path: Path) -> None:
+        """When rerun_start_testing_on_resume=True, start_testing is called again on resume."""
+        await self._write_state_with_phase_started(tmp_path, "exp", 10, 0, "test")
+        mock_agent = MagicMock(spec=Agent)
+        tasks = [ConcreteTask(name=f"t{i}") for i in range(10)]
+        domain = ConcreteDomain(tasks=tasks)
+        start_training = AsyncMock()
+        start_testing = AsyncMock()
+        runner = DomainRunner(
+            agent=mock_agent,
+            grouper=HoldOutGrouper(test_ratio=0.2),
+            deps_maker=_no_deps_maker,
+            start_training=start_training,
+            start_testing=start_testing,
+            rerun_start_testing_on_resume=True,
+            state_dir=tmp_path,
+        )
+        with patch(
+            "mcp_evals._internal.runner._domain_runner.tasks_to_dataset",
+            side_effect=lambda ts: MagicMock(
+                evaluate=AsyncMock(
+                    return_value=MagicMock(
+                        spec=EvaluationReport,
+                        cases=[MagicMock() for _ in range(len(ts))],
+                    )
+                )
+            ),
+        ):
+            await runner.run(domain, experiment_name="exp")
+
+        assert start_training.await_count == 1
+        assert start_testing.await_count == 1
 
 
 @pytest.mark.asyncio

@@ -32,6 +32,8 @@ class DomainRunner:
         max_self_correction_retries: int = 3,
         start_training: TrainingTestingCallback | None = None,
         start_testing: TrainingTestingCallback | None = None,
+        rerun_start_training_on_resume: bool = False,
+        rerun_start_testing_on_resume: bool = False,
         run_result_processor: RunResultProcessor | None = None,
         usage_limits: UsageLimits | None = None,
         clear_state_on_success: bool = False,
@@ -47,6 +49,8 @@ class DomainRunner:
         self.max_self_correction_retries = max_self_correction_retries
         self.start_training = start_training
         self.start_testing = start_testing
+        self.rerun_start_training_on_resume = rerun_start_training_on_resume
+        self.rerun_start_testing_on_resume = rerun_start_testing_on_resume
         self.clear_state_on_success = clear_state_on_success
         self.state_dir = state_dir
 
@@ -133,10 +137,11 @@ class DomainRunner:
         base_name: str,
         evaluated_fn: EvaluatedFn,
     ) -> None:
-        run_callback = not state.has_split_phase_started(split_idx, "train")
+        phase_started = state.has_split_phase_started(split_idx, "train")
+        run_callback = not phase_started or self.rerun_start_training_on_resume
         if run_callback and self.start_training is not None:
-            await self.start_training()
-        if run_callback:
+            await self.start_training(f"train_{split_idx}")
+        if not phase_started:
             await state.mark_split_phase_started(split_idx, "train")
         train_tasks = [tasks[i] for i in pending_train]
         train_dataset = tasks_to_dataset(train_tasks)
@@ -158,10 +163,11 @@ class DomainRunner:
         experiment_name: str,
         evaluated_fn: EvaluatedFn,
     ) -> EvaluationReport:
-        run_callback = not state.has_split_phase_started(split_idx, "test")
+        phase_started = state.has_split_phase_started(split_idx, "test")
+        run_callback = not phase_started or self.rerun_start_testing_on_resume
         if run_callback and self.start_testing is not None:
-            await self.start_testing()
-        if run_callback:
+            await self.start_testing(f"test_{split_idx}")
+        if not phase_started:
             await state.mark_split_phase_started(split_idx, "test")
             if split_idx > 0:
                 await state.mark_split_finished(split_idx - 1)

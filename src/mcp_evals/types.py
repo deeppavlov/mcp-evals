@@ -10,7 +10,8 @@ from mcp_evals.task import Task
 
 type DepsMaker = Callable[[Task[Any, Any]], AbstractAsyncContextManager[object]]
 
-type TrainingTestingCallback = Callable[[], Awaitable[None]]
+# Callback receives phase_name (e.g. "train_0", "test_0") for idempotent implementations.
+type TrainingTestingCallback = Callable[[str], Awaitable[None]]
 
 type EvaluatedFn = (
     Callable[[Task[Any, Any]], Awaitable[AgentRunResult[Any]]] | Callable[[Task[Any, Any]], AgentRunResult[Any]]
