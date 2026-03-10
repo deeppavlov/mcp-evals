@@ -316,6 +316,42 @@ class TestDomainRunnerHoldOut:
         assert start_training.await_count == 1
         assert start_testing.await_count == 1
 
+    async def test_hold_out_callbacks_receive_phase_name(self, tmp_path: Path) -> None:
+        """Callbacks that accept phase_name receive 'train_{split_idx}' and 'test_{split_idx}'."""
+        seen_phase_names: list[tuple[str, str]] = []
+
+        async def on_training(phase_name: str) -> None:
+            seen_phase_names.append(("train", phase_name or ""))
+
+        async def on_testing(phase_name: str) -> None:
+            seen_phase_names.append(("test", phase_name or ""))
+
+        mock_agent = MagicMock(spec=Agent)
+        tasks = [ConcreteTask(name=f"t{i}") for i in range(10)]
+        domain = ConcreteDomain(tasks=tasks)
+        runner = DomainRunner(
+            agent=mock_agent,
+            grouper=HoldOutGrouper(test_ratio=0.2),
+            deps_maker=_no_deps_maker,
+            start_training=on_training,
+            start_testing=on_testing,
+            state_dir=tmp_path,
+        )
+        with patch(
+            "mcp_evals._internal.runner._domain_runner.tasks_to_dataset",
+            side_effect=lambda ts: MagicMock(
+                evaluate=AsyncMock(
+                    return_value=MagicMock(
+                        spec=EvaluationReport,
+                        cases=[MagicMock() for _ in range(len(ts))],
+                    )
+                )
+            ),
+        ):
+            await runner.run(domain, experiment_name="test-experiment")
+
+        assert seen_phase_names == [("train", "train_0"), ("test", "test_0")]
+
 
 @pytest.mark.asyncio
 class TestDomainRunnerCrossValidation:
