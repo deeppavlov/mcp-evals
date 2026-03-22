@@ -4,6 +4,7 @@ from functools import partial
 from pathlib import Path
 from typing import Any
 
+from loguru import logger
 from pydantic_ai.agent import Agent
 from pydantic_ai.usage import UsageLimits
 from pydantic_evals.reporting import EvaluationReport
@@ -61,6 +62,15 @@ class DomainRunner:
 
     async def run(self, domain: Domain[Any], experiment_name: str) -> EvaluationReport:
         deps_maker = self.deps_maker or default_deps_maker()
+        if self.max_concurrency > 1 and not domain.supports_concurrency:
+            msg = (
+                f"Domain '{domain.name}' does not support concurrency "
+                f"(supports_concurrency={domain.supports_concurrency}). "
+                "Set max_concurrency=1, or set the domain flag to True after making tasks parallel-safe."
+            )
+            raise ValueError(msg)
+        if self.max_concurrency > 1 and domain.supports_concurrency:
+            logger.debug(f"[{domain.name}] Running with max_concurrency={self.max_concurrency}")
 
         async with domain:
             if self.use_self_correction:

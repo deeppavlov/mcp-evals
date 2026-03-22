@@ -58,6 +58,7 @@ class FilesystemDomain(Domain[DomainSecrets]):
     """
 
     name = "filesystem"
+    supports_concurrency = True
 
     def __init__(self, tool_retries: int = 1) -> None:
         """Init."""

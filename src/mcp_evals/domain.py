@@ -34,6 +34,7 @@ class Domain[SecretsT: DomainSecrets](ABC):
 
     Optional attributes:
     - `secrets_type: ClassVar[type]` - BaseSettings subclass for secrets
+    - `supports_concurrency: bool`   - If True, tasks within this domain may be evaluated concurrently
 
     Lifecycle methods (override as needed):
     - `setup()`    - Called before MCP servers are started
@@ -41,6 +42,7 @@ class Domain[SecretsT: DomainSecrets](ABC):
     """
 
     name: str
+    supports_concurrency: ClassVar[bool] = False
     _stack: AsyncExitStack[Any] | None = None
 
     def __init__(self, tool_retries: int = 1) -> None:
