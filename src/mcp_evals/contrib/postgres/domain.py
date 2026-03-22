@@ -50,6 +50,7 @@ class PostgresDomain(Domain[PgConfig]):
 
     name = "postgres"
     secrets_type = PgConfig
+    supports_concurrency = True
 
     _container: DockerContainer | None = None
     _docker: aiodocker.Docker | None = None

@@ -100,6 +100,7 @@ class RunState:
         self._split_finished: set[int] = set()
         self._task_finished: set[TaskFinishedKey] = set()
         self._header_written = False
+        self._write_lock = anyio.Lock()
 
     @classmethod
     async def load(
@@ -192,12 +193,13 @@ class RunState:
         self._task_finished.add(TaskFinishedKey(split_idx, phase, task_name))
 
     async def _append_event(self, event: RunStateEvent) -> None:
-        await self._ensure_header()
-        line = event.model_dump_json(exclude_none=True)
-        async with await anyio.open_file(self._path, "a") as f:
-            await f.write(line + "\n")
+        async with self._write_lock:
+            await self._ensure_header_unlocked()
+            line = event.model_dump_json(exclude_none=True)
+            async with await anyio.open_file(self._path, "a") as f:
+                await f.write(line + "\n")
 
-    async def _ensure_header(self) -> None:
+    async def _ensure_header_unlocked(self) -> None:
         if self._header_written:
             return
         if self._n_tasks is None or self._fingerprint is None:
@@ -211,8 +213,9 @@ class RunState:
 
     async def clear(self) -> None:
         """Remove the state file if it exists (e.g. after a full run)."""
-        with contextlib.suppress(FileNotFoundError):
-            await self._path.unlink()
+        async with self._write_lock:
+            with contextlib.suppress(FileNotFoundError):
+                await self._path.unlink()
 
 
 async def run_state_path(

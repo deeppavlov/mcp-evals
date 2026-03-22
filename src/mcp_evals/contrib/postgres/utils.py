@@ -38,6 +38,16 @@ class Backup(StrEnum):
 
 BACKUP_BASE_URL = "https://storage.mcpmark.ai/postgres"
 
+_backup_locks: dict[Backup, anyio.Lock] = {}
+
+
+def _backup_lock(backup: Backup) -> anyio.Lock:
+    lock = _backup_locks.get(backup)
+    if lock is None:
+        lock = anyio.Lock()
+        _backup_locks[backup] = lock
+    return lock
+
 
 class PgConfig(DomainSecrets):
     """PostgreSQL connection parameters."""
@@ -139,28 +149,29 @@ async def download_backup(backup: Backup) -> Path:
     await cache_dir.mkdir(exist_ok=True, parents=True)
     path = cache_dir / f"{backup.value}.backup"
 
-    if await path.is_file():
-        return Path(path)
+    async with _backup_lock(backup):
+        if await path.is_file():
+            return Path(path)
 
-    url = f"{BACKUP_BASE_URL}/{backup.value}.backup"
-    logger.debug(f"Loading from {url}...")
-    timeout = httpx.Timeout(connect=5.0, read=5.0, write=10.0, pool=5.0)
-    proxy_url = os.getenv("DOWNLOAD_PROXY")
-    async with (
-        httpx.AsyncClient(timeout=timeout, proxy=proxy_url) as client,
-        client.stream("GET", url, follow_redirects=True) as response,
-    ):
-        response.raise_for_status()
-        total_size = int(response.headers.get("content-length", 0)) or None
-        async with aiofiles.open(path, "wb") as f:
-            with tqdm(
-                total=total_size,
-                unit="B",
-                unit_scale=True,
-                unit_divisor=1024,
-                desc=f"Downloading {backup.value}",
-            ) as pbar:
-                async for chunk in response.aiter_bytes():
-                    await f.write(chunk)
-                    pbar.update(len(chunk))
-    return Path(path)
+        url = f"{BACKUP_BASE_URL}/{backup.value}.backup"
+        logger.debug(f"Loading from {url}...")
+        timeout = httpx.Timeout(connect=5.0, read=5.0, write=10.0, pool=5.0)
+        proxy_url = os.getenv("DOWNLOAD_PROXY")
+        async with (
+            httpx.AsyncClient(timeout=timeout, proxy=proxy_url) as client,
+            client.stream("GET", url, follow_redirects=True) as response,
+        ):
+            response.raise_for_status()
+            total_size = int(response.headers.get("content-length", 0)) or None
+            async with aiofiles.open(path, "wb") as f:
+                with tqdm(
+                    total=total_size,
+                    unit="B",
+                    unit_scale=True,
+                    unit_divisor=1024,
+                    desc=f"Downloading {backup.value}",
+                ) as pbar:
+                    async for chunk in response.aiter_bytes():
+                        await f.write(chunk)
+                        pbar.update(len(chunk))
+        return Path(path)

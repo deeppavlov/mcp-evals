@@ -4,6 +4,7 @@ from functools import partial
 from pathlib import Path
 from typing import Any
 
+from loguru import logger
 from pydantic_ai.agent import Agent
 from pydantic_ai.usage import UsageLimits
 from pydantic_evals.reporting import EvaluationReport
@@ -28,6 +29,7 @@ class DomainRunner:
         deps_maker: DepsMaker | None = None,
         *,
         max_tasks: int | None = None,
+        max_concurrency: int = 1,
         use_self_correction: bool = False,
         max_self_correction_retries: int = 3,
         start_training: TrainingTestingCallback | None = None,
@@ -42,6 +44,10 @@ class DomainRunner:
         self.agent = agent
         self.deps_maker = deps_maker
         self.max_tasks = max_tasks
+        if max_concurrency < 1:
+            msg = "max_concurrency must be >= 1"
+            raise ValueError(msg)
+        self.max_concurrency = max_concurrency
         self.run_result_processor = run_result_processor
         self.usage_limits = usage_limits
         self.grouper = grouper
@@ -56,6 +62,15 @@ class DomainRunner:
 
     async def run(self, domain: Domain[Any], experiment_name: str) -> EvaluationReport:
         deps_maker = self.deps_maker or default_deps_maker()
+        if self.max_concurrency > 1 and not domain.supports_concurrency:
+            msg = (
+                f"Domain '{domain.name}' does not support concurrency "
+                f"(supports_concurrency={domain.supports_concurrency}). "
+                "Set max_concurrency=1, or set the domain flag to True after making tasks parallel-safe."
+            )
+            raise ValueError(msg)
+        if self.max_concurrency > 1 and domain.supports_concurrency:
+            logger.debug(f"[{domain.name}] Running with max_concurrency={self.max_concurrency}")
 
         async with domain:
             if self.use_self_correction:
@@ -147,7 +162,7 @@ class DomainRunner:
         train_dataset = tasks_to_dataset(train_tasks)
         await train_dataset.evaluate(
             evaluated_fn,
-            max_concurrency=1,
+            max_concurrency=self.max_concurrency,
             case_context_manager=make_task_lifecycle(state, split_idx, "train"),
             progress=False,
             name=f"{base_name}_train_{split_idx}_",
@@ -175,7 +190,7 @@ class DomainRunner:
         test_dataset = tasks_to_dataset(test_tasks)
         return await test_dataset.evaluate(
             evaluated_fn,
-            max_concurrency=1,
+            max_concurrency=self.max_concurrency,
             case_context_manager=make_task_lifecycle(state, split_idx, "test"),
             progress=False,
             name=f"{base_name}_test_{split_idx}" if experiment_name else None,

@@ -7,7 +7,7 @@ from typing import Any
 
 import aiofiles
 from loguru import logger
-from pydantic_ai.mcp import MCPServerStdio
+from pydantic_ai.mcp import MCPServer
 
 from mcp_evals import Domain
 from mcp_evals.contrib.filesystem.utils import Fixture
@@ -51,10 +51,14 @@ from .tasks import (
 class FilesystemDomain(Domain[DomainSecrets]):
     """Domain for filesystem tasks from MCP Universe.
 
-    Provides MCP filesystem server and groups related filesystem tasks.
+    Provides a shared temp root directory and groups related filesystem tasks.
+
+    Each task owns its own MCP filesystem server + workspace directory to allow
+    safe parallel execution.
     """
 
     name = "filesystem"
+    supports_concurrency = True
 
     def __init__(self, tool_retries: int = 1) -> None:
         """Init."""
@@ -66,25 +70,12 @@ class FilesystemDomain(Domain[DomainSecrets]):
         tmpdir_ctx = aiofiles.tempfile.TemporaryDirectory(prefix="mcp-filesystem-")
         self._tmp_dir = Path(await stack.enter_async_context(tmpdir_ctx))
 
-    def mcp_servers(self) -> Sequence[MCPServerStdio]:
-        """Return MCP filesystem server configuration."""
-        return [
-            MCPServerStdio(
-                "docker",
-                [
-                    "run",
-                    "-i",
-                    "--rm",
-                    "--mount",
-                    f"type=bind,src={self._tmp_dir},dst=/projects",
-                    "-w",
-                    "/projects",
-                    "mcp-filesystem-server:mcp-evals",
-                    "/projects",
-                ],
-                max_retries=self.tool_retries,
-            )
-        ]
+    def mcp_servers(self) -> Sequence[MCPServer]:
+        """Return domain-scoped MCP servers (none for filesystem).
+
+        Filesystem tasks run with per-task MCP servers to support parallelism.
+        """
+        return []
 
     def tasks(self) -> Sequence[FilesystemTask]:
         """Return all filesystem tasks."""
