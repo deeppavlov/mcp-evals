@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from enum import StrEnum
 from pathlib import Path
 
+import anyio
 from dotenv import load_dotenv
 from loguru import logger
 
@@ -69,6 +70,16 @@ FIXTURE_URL_MAPPING: dict[Fixture, str] = {
 
 load_dotenv()
 
+_fixture_locks: dict[Fixture, anyio.Lock] = {}
+
+
+def _fixture_lock(category: Fixture) -> anyio.Lock:
+    lock = _fixture_locks.get(category)
+    if lock is None:
+        lock = anyio.Lock()
+        _fixture_locks[category] = lock
+    return lock
+
 
 async def download_fixture(category: Fixture) -> Path:
     """Download and cache a filesystem test fixture.
@@ -97,69 +108,70 @@ async def download_fixture(category: Fixture) -> Path:
     cache_dir = Path(user_cache_dir("mcp-evals", "mcp-evals")) / "fixtures"
     fixture_path = cache_dir / category
 
-    # Return cached fixture if it exists
-    if fixture_path.exists() and fixture_path.is_dir():
-        logger.debug(f"Using cached fixture '{category.value}'")
+    async with _fixture_lock(category):
+        # Return cached fixture if it exists
+        if fixture_path.exists() and fixture_path.is_dir():
+            logger.debug(f"Using cached fixture '{category.value}'")
+            return fixture_path
+
+        # Download fixture
+        logger.debug(f"Downloading fixture '{category.value}'")
+        url = FIXTURE_URL_MAPPING[category]
+        zip_path = cache_dir / f"{category}.zip"
+
+        # Ensure cache directory exists
+        cache_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            # Download using httpx with streaming
+            timeout = httpx.Timeout(connect=5.0, read=5.0, write=10.0, pool=5.0)
+            proxy_url = os.getenv("DOWNLOAD_PROXY")
+            async with (
+                httpx.AsyncClient(timeout=timeout, proxy=proxy_url) as client,
+                client.stream("GET", url, follow_redirects=True) as response,
+            ):
+                response.raise_for_status()
+                total_size = int(response.headers.get("content-length", 0)) or None
+                async with aiofiles.open(zip_path, "wb") as f:
+                    with tqdm(
+                        total=total_size,
+                        unit="B",
+                        unit_scale=True,
+                        unit_divisor=1024,
+                        desc=f"Downloading {category}",
+                    ) as pbar:
+                        async for chunk in response.aiter_bytes():
+                            await f.write(chunk)
+                            pbar.update(len(chunk))
+
+            # Extract ZIP file
+            with zipfile.ZipFile(zip_path) as zip_file:
+                zip_file.extractall(cache_dir)
+
+            # Clean up macOS metadata if present
+            macosx_path = cache_dir / "__MACOSX"
+            if macosx_path.exists():
+                shutil.rmtree(macosx_path)
+
+            # Clean up ZIP file
+            zip_path.unlink(missing_ok=True)
+
+        except httpx.HTTPError as e:
+            msg = f"Failed to download fixture from {url}: {e}"
+            raise RuntimeError(msg) from e
+        except zipfile.BadZipFile as e:
+            msg = f"Invalid ZIP file for category {category}: {e}"
+            raise RuntimeError(msg) from e
+        except Exception as e:
+            msg = f"Failed to download or extract fixture for category {category}: {e}"
+            raise RuntimeError(msg) from e
+
+        # Verify extraction
+        if not fixture_path.exists():
+            msg = f"Extracted directory not found: {fixture_path}"
+            raise RuntimeError(msg)
+
         return fixture_path
-
-    # Download fixture
-    logger.debug(f"Downloading fixture '{category.value}'")
-    url = FIXTURE_URL_MAPPING[category]
-    zip_path = cache_dir / f"{category}.zip"
-
-    # Ensure cache directory exists
-    cache_dir.mkdir(parents=True, exist_ok=True)
-
-    try:
-        # Download using httpx with streaming
-        timeout = httpx.Timeout(connect=5.0, read=5.0, write=10.0, pool=5.0)
-        proxy_url = os.getenv("DOWNLOAD_PROXY")
-        async with (
-            httpx.AsyncClient(timeout=timeout, proxy=proxy_url) as client,
-            client.stream("GET", url, follow_redirects=True) as response,
-        ):
-            response.raise_for_status()
-            total_size = int(response.headers.get("content-length", 0)) or None
-            async with aiofiles.open(zip_path, "wb") as f:
-                with tqdm(
-                    total=total_size,
-                    unit="B",
-                    unit_scale=True,
-                    unit_divisor=1024,
-                    desc=f"Downloading {category}",
-                ) as pbar:
-                    async for chunk in response.aiter_bytes():
-                        await f.write(chunk)
-                        pbar.update(len(chunk))
-
-        # Extract ZIP file
-        with zipfile.ZipFile(zip_path) as zip_file:
-            zip_file.extractall(cache_dir)
-
-        # Clean up macOS metadata if present
-        macosx_path = cache_dir / "__MACOSX"
-        if macosx_path.exists():
-            shutil.rmtree(macosx_path)
-
-        # Clean up ZIP file
-        zip_path.unlink(missing_ok=True)
-
-    except httpx.HTTPError as e:
-        msg = f"Failed to download fixture from {url}: {e}"
-        raise RuntimeError(msg) from e
-    except zipfile.BadZipFile as e:
-        msg = f"Invalid ZIP file for category {category}: {e}"
-        raise RuntimeError(msg) from e
-    except Exception as e:
-        msg = f"Failed to download or extract fixture for category {category}: {e}"
-        raise RuntimeError(msg) from e
-
-    # Verify extraction
-    if not fixture_path.exists():
-        msg = f"Extracted directory not found: {fixture_path}"
-        raise RuntimeError(msg)
-
-    return fixture_path
 
 
 @asynccontextmanager
