@@ -1,4 +1,5 @@
 """Unified domain runner: single runner that iterates over grouper splittings."""
+
 from functools import partial
 from pathlib import Path
 from typing import Any
