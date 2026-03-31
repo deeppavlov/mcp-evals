@@ -17,8 +17,8 @@ class RunContext(TypedDict):
     phase_to_tasks: dict[str, list[Task[Any, Any]]]
 
 
-# Callback may accept either only phase_name, or phase_name with run context.
-type TrainingTestingCallback = Callable[[str], Awaitable[None]] | Callable[[str, RunContext], Awaitable[None]]
+# Callback receives phase name and runner context.
+type TrainingTestingCallback = Callable[[str, RunContext], Awaitable[None]]
 
 type EvaluatedFn = (
     Callable[[Task[Any, Any]], Awaitable[AgentRunResult[Any]]] | Callable[[Task[Any, Any]], AgentRunResult[Any]]

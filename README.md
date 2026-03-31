@@ -352,9 +352,8 @@ The agent and any tools can use `deps` to access the connection. When omitted, a
 
 For `HoldOutGrouper` and `CVGrouper`, you can pass `start_training` and `start_testing` callbacks. They are invoked before the training phase and before the testing phase respectively (e.g. to persist a model, switch weights, or log phase changes). By default, each callback is run only once per split/phase: if you resume from a checkpoint after the phase has already started, the callback is **not** run again (safe for non-idempotent side effects). If your callbacks are idempotent and you want them to run again on resume (e.g. to re-apply config or logging), set `rerun_start_training_on_resume=True` and/or `rerun_start_testing_on_resume=True` on the runner.
 
-Callbacks can accept:
-- `phase_name` only, or
-- `phase_name, run_ctx` where `run_ctx["phase_to_tasks"]` is a mapping like `{"train_0": [...], "test_0": [...]}`.
+Callbacks accept `(phase_name, run_ctx)` where
+`run_ctx["phase_to_tasks"]` is a mapping like `{"train_0": [...], "test_0": [...]}`.
 
 You can also set `skip_training_tasks=True` to skip execution of training tasks while still running `start_training` and then proceeding to testing.
 
@@ -369,9 +368,11 @@ async def before_training(phase_name: str, run_ctx: dict[str, list[object]]) -> 
     train_tasks = run_ctx["phase_to_tasks"][phase_name]
     logger.info("Train tasks in this phase: {}", len(train_tasks))
 
-async def before_testing(phase_name: str) -> None:
+async def before_testing(phase_name: str, run_ctx: dict[str, list[object]]) -> None:
     logger.info("Starting testing phase {}...", phase_name)
     # e.g. load trained weights, persist model
+    test_tasks = run_ctx["phase_to_tasks"][phase_name]
+    logger.info("Test tasks in this phase: {}", len(test_tasks))
 
 runner = DomainRunner(
     agent=agent,

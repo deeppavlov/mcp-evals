@@ -1,6 +1,4 @@
 """Unified domain runner: single runner that iterates over grouper splittings."""
-
-import inspect
 from functools import partial
 from pathlib import Path
 from typing import Any
@@ -20,8 +18,6 @@ from ._groupers import Grouper
 from ._run_state import RunState, run_state_path
 from ._splits import Splitting
 from ._utils import default_deps_maker, make_task_lifecycle
-
-_CALLBACK_WITH_CTX_MIN_PARAMS = 2
 
 
 class DomainRunner:
@@ -166,7 +162,7 @@ class DomainRunner:
         phase_started = state.has_split_phase_started(split_idx, "train")
         run_callback = not phase_started or self.rerun_start_training_on_resume
         if run_callback and self.start_training is not None:
-            await self._invoke_phase_callback(self.start_training, f"train_{split_idx}", run_ctx)
+            await self.start_training(f"train_{split_idx}", run_ctx)
         if not phase_started:
             await state.mark_split_phase_started(split_idx, "train")
         if self.skip_training_tasks:
@@ -197,7 +193,7 @@ class DomainRunner:
         phase_started = state.has_split_phase_started(split_idx, "test")
         run_callback = not phase_started or self.rerun_start_testing_on_resume
         if run_callback and self.start_testing is not None:
-            await self._invoke_phase_callback(self.start_testing, f"test_{split_idx}", run_ctx)
+            await self.start_testing(f"test_{split_idx}", run_ctx)
         if not phase_started:
             await state.mark_split_phase_started(split_idx, "test")
             if split_idx > 0:
@@ -218,18 +214,6 @@ class DomainRunner:
             phase_to_tasks[f"train_{split_idx}"] = [tasks[i] for i in splitting.train_indices]
             phase_to_tasks[f"test_{split_idx}"] = [tasks[i] for i in splitting.test_indices]
         return {"phase_to_tasks": phase_to_tasks}
-
-    async def _invoke_phase_callback(
-        self,
-        callback: TrainingTestingCallback,
-        phase_name: str,
-        run_ctx: RunContext,
-    ) -> None:
-        params = inspect.signature(callback).parameters
-        if len(params) >= _CALLBACK_WITH_CTX_MIN_PARAMS:
-            await callback(phase_name, run_ctx)
-            return
-        await callback(phase_name)
 
 
 def _merge_test_reports(test_reports: list[EvaluationReport], base_name: str) -> EvaluationReport:

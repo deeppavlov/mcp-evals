@@ -320,10 +320,10 @@ class TestDomainRunnerHoldOut:
         """Callbacks that accept phase_name receive 'train_{split_idx}' and 'test_{split_idx}'."""
         seen_phase_names: list[tuple[str, str]] = []
 
-        async def on_training(phase_name: str) -> None:
+        async def on_training(phase_name: str, _run_ctx: Any) -> None:
             seen_phase_names.append(("train", phase_name or ""))
 
-        async def on_testing(phase_name: str) -> None:
+        async def on_testing(phase_name: str, _run_ctx: Any) -> None:
             seen_phase_names.append(("test", phase_name or ""))
 
         mock_agent = MagicMock(spec=Agent)
