@@ -10,6 +10,7 @@ from mcp_evals.task import Task
 
 type DepsMaker = Callable[[Task[Any, Any]], AbstractAsyncContextManager[object]]
 
+
 class RunContext(TypedDict):
     """Runner context passed to phase callbacks."""
 
@@ -17,9 +18,7 @@ class RunContext(TypedDict):
 
 
 # Callback may accept either only phase_name, or phase_name with run context.
-type TrainingTestingCallback = (
-    Callable[[str], Awaitable[None]] | Callable[[str, RunContext], Awaitable[None]]
-)
+type TrainingTestingCallback = Callable[[str], Awaitable[None]] | Callable[[str, RunContext], Awaitable[None]]
 
 type EvaluatedFn = (
     Callable[[Task[Any, Any]], Awaitable[AgentRunResult[Any]]] | Callable[[Task[Any, Any]], AgentRunResult[Any]]
