@@ -73,10 +73,7 @@ def make_task_lifecycle(
                     "Task will be marked as finished (not retried), but case marked as failed in reporting."
                 )
                 await state.mark_task_finished(split_idx, phase, task.name)
-                return  # Suppress the exception
-            else:
-                # For other errors, don't mark as finished and re-raise
-                raise
+            raise
         else:
             # Success path: no exception occurred
             await state.mark_task_finished(split_idx, phase, task.name)
