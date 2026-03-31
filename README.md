@@ -479,7 +479,7 @@ sequenceDiagram
     R->>D: domain.tasks()
     
     loop For each task
-        Note over R: case_context_manager enters task context
+        Note over R: CaseLifecycle.setup enters task context
         R->>R: task.setup()
         R->>A: agent.run(task.goal, toolsets=[domain.toolset])
         A->>LF: Log agent span
@@ -492,7 +492,7 @@ sequenceDiagram
         E->>LF: Log evaluator span
         E->>MCP: Check environment state
         E-->>R: EvaluatorOutput
-        Note over R: case_context_manager exits task context
+        Note over R: CaseLifecycle.teardown exits task context
         R->>R: task stack cleanup
     end
 
@@ -526,7 +526,7 @@ flowchart LR
     end
 ```
 
-NOTE: `case_context_manager` is not an official feature, but is implemented in [our fork](https://github.com/voorhs/pydantic-ai/tree/f/case-context-manager). See PR: https://github.com/pydantic/pydantic-ai/pull/4155.
+Per-case resource span (task entered before the agent run and closed after evaluators) uses pydantic_evals [`CaseLifecycle`](https://ai.pydantic.dev/evals/) with an internal `AsyncExitStack`.
 
 ### Scope Lifecycle
 
@@ -535,11 +535,11 @@ The library manages resource lifecycle at two levels:
 | Scope | Managed By | Lifecycle | Resources |
 |-------|------------|-----------|-----------|
 | Domain | `async with domain:` | Per domain | MCP connections, CombinedToolset, domain-level fixtures |
-| Task | `case_context_manager` | Per task execution | Temp files, env vars, task-level fixtures |
+| Task | `CaseLifecycle` (`Dataset.evaluate`, `lifecycle=...`) | Per task execution | Temp files, env vars, task-level fixtures |
 
 **Domain context managers** handle MCP server connections (via `pydantic_ai.CombinedToolset`) and domain-level setup via `setup(stack)` with stack-based cleanup.
 
-**Task context managers** handle task-specific setup via `setup(stack)` (fixtures, environment). The task context is managed via `case_context_manager` parameter passed to `dataset.evaluate()`, ensuring it spans both:
+**Task context managers** handle task-specific setup via `setup(stack)` (fixtures, environment). The runner passes a `CaseLifecycle` subclass to `dataset.evaluate(lifecycle=...)`, ensuring the task context spans both:
 - Task execution (agent.run)
 - Evaluator execution (evaluator.evaluate)
 
@@ -579,7 +579,7 @@ mcp-evals/
 
 ## Dependencies
 
-- **[pydantic-ai](https://ai.pydantic.dev/)** — LLM provider abstraction + MCP client (uses [our fork](https://github.com/voorhs/pydantic-ai) with pydantic_evals)
+- **[pydantic-ai](https://ai.pydantic.dev/)** — LLM provider abstraction + MCP client (bundles pydantic_evals)
 - **[pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/)** — Environment-based secrets management
 - **[loguru](https://github.com/Delgan/loguru)** — Logging
 - **[logfire](https://pydantic.dev/logfire)** — Optional observability (via pydantic-ai extra)

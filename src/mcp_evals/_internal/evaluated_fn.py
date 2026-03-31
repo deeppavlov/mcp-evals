@@ -55,7 +55,8 @@ async def run_agent_on_task(
     manager returned by deps_maker(task); that CM is entered and exited
     for each task so each task gets fresh deps.
 
-    Note: Task context (setup/teardown) is managed by `case_context_manager`,
+    Note: Task context (setup/teardown) is managed by pydantic_evals
+    `pydantic_evals.lifecycle.CaseLifecycle` (registered on `Dataset.evaluate`),
     not inside this function. This ensures evaluators can access task state
     before teardown runs.
 
@@ -92,7 +93,7 @@ async def run_agent_on_task_with_self_correction(
     augments the goal with the failure reasons and retries. Continues until all
     evaluators pass or max_retries is reached.
 
-    Task context (setup/teardown) is managed by case_context_manager, not here.
+    Task context (setup/teardown) is managed by CaseLifecycle, not here.
     Evaluators use ctx.inputs (task) and ctx.output (result); we use a minimal
     SimpleNamespace for ctx since EvaluatorContext has many internal fields.
     """

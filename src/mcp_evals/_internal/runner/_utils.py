@@ -1,13 +1,15 @@
 """Internal runner for executing domains and tasks."""
 
-from collections.abc import AsyncIterator, Callable
-from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator
+from contextlib import AsyncExitStack, asynccontextmanager
 from typing import Any, Literal
 
 from loguru import logger
 from pydantic_ai.exceptions import UsageLimitExceeded
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals import Case
+from pydantic_evals.lifecycle import CaseLifecycle
+from pydantic_evals.reporting import ReportCase, ReportCaseFailure
 
 from mcp_evals.task import Task
 from mcp_evals.types import DepsMaker
@@ -27,55 +29,57 @@ def default_deps_maker() -> DepsMaker:
     return lambda _task: _no_deps_cm()
 
 
-@asynccontextmanager
-async def task_lifecycle(case: Case[Task[Any, Any], AgentRunResult, None]) -> AsyncIterator[None]:
-    """Context manager that wraps task execution + evaluation.
-
-    This ensures the task context (setup/teardown) spans both:
-    - Task execution (agent.run)
-    - Evaluator execution (evaluator.evaluate)
-
-    This is critical because evaluators often need to check the environment
-    state (files, database, etc.) that was set up during task.setup(), and
-    this state must remain available until after evaluators complete.
-    """
-    task = case.inputs  # In mcp_evals, inputs IS the Task instance
-    async with task:
-        yield
+def _failure_is_usage_limit(result: ReportCaseFailure[Any, Any, Any]) -> bool:
+    """Detect usage-limit failures when only string error fields are available."""
+    name = UsageLimitExceeded.__name__
+    return name in result.error_message or name in result.error_stacktrace
 
 
 def make_task_lifecycle(
     state: RunState,
     split_idx: int,
     phase: Phase,
-) -> Callable[..., Any]:
-    """Return a context manager factory: callable(case) for use as case_context_manager.
+) -> type[CaseLifecycle[Task[Any, Any], AgentRunResult[Any], None]]:
+    """Return a ``CaseLifecycle`` subclass for ``Dataset.evaluate(..., lifecycle=...)``.
 
-    Marks task as finished in run state. For certain errors (e.g., ModelUsageExceeded),
-    marks as finished even though the task failed, suppressing the exception so it
-    doesn't propagate to pydantic_evals (which will still mark case as failed in reporting).
+    Enters the task async context in ``setup()`` (via :class:`~contextlib.AsyncExitStack`)
+    so it stays active through the evaluated function and evaluators; ``teardown()``
+    closes the stack and updates run state.
 
-    This distinction is important: some errors indicate the task *execution* completed
-    but was interrupted by external constraints (e.g., quota exceeded), so retrying
-    makes no sense. The task should be marked done in run state for resume purposes.
+    Marks the task finished in run state on success, or on usage-limit exhaustion
+    (retrying the same task would not help). Other failures do not mark finished
+    so resume can retry the task.
     """
 
-    @asynccontextmanager
-    async def _lifecycle(case: Case[Task[Any, Any], AgentRunResult, None]) -> AsyncIterator[None]:
-        task = case.inputs
-        try:
-            async with task:
-                yield
-        except Exception as e:
-            if isinstance(e, UsageLimitExceeded):
+    class McpTaskLifecycle(CaseLifecycle[Task[Any, Any], AgentRunResult[Any], None]):
+        def __init__(self, case: Case[Task[Any, Any], AgentRunResult[Any], None]) -> None:
+            super().__init__(case)
+            self._exit_stack: AsyncExitStack | None = None
+
+        async def setup(self) -> None:
+            self._exit_stack = AsyncExitStack()
+            task = self.case.inputs
+            await self._exit_stack.enter_async_context(task)
+
+        async def teardown(
+            self,
+            result: ReportCase[Task[Any, Any], AgentRunResult[Any], None]
+            | ReportCaseFailure[Task[Any, Any], AgentRunResult[Any], None],
+        ) -> None:
+            if self._exit_stack is not None:
+                await self._exit_stack.aclose()
+                self._exit_stack = None
+
+            task = self.case.inputs
+            if isinstance(result, ReportCase):
+                await state.mark_task_finished(split_idx, phase, task.name)
+                return
+
+            if _failure_is_usage_limit(result):
                 logger.exception(
-                    f"[{task.name}] Usage exceeded"
+                    f"[{task.name}] Usage exceeded. "
                     "Task will be marked as finished (not retried), but case marked as failed in reporting."
                 )
                 await state.mark_task_finished(split_idx, phase, task.name)
-            raise
-        else:
-            # Success path: no exception occurred
-            await state.mark_task_finished(split_idx, phase, task.name)
 
-    return _lifecycle
+    return McpTaskLifecycle

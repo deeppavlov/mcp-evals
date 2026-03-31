@@ -72,7 +72,7 @@
 - **`run(domain, experiment_name=...)`**  
   - Enters `domain` (domain `setup` → connect MCP → `domain.toolset` available).  
   - Converts `domain.tasks()` to a pydantic_evals `Dataset` (each task → `Case` with `inputs=task`, `evaluators=task.evaluators`).  
-  - For each case, runs `task_lifecycle` (enter task → run agent with `domain.toolset` → run evaluators) then exits task.  
+  - For each case, pydantic_evals `CaseLifecycle` enters the task (enter task → run agent with `domain.toolset` → run evaluators) then `teardown` exits the task.  
   - Exits domain (disconnect MCP, domain `teardown`).
 
 So: **domain** = MCP env + list of tasks; **task** = prompt + evaluators + optional per-task setup/teardown; **evaluators** = reusable (common_evaluators) or task-specific (custom_evaluators) checks that use `ctx.inputs` (the task instance) to inspect the environment.
