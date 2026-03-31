@@ -4,6 +4,8 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from typing import Any, Literal
 
+from loguru import logger
+from pydantic_ai.exceptions import UsageLimitExceeded
 from pydantic_ai.run import AgentRunResult
 from pydantic_evals import Case
 
@@ -49,14 +51,31 @@ def make_task_lifecycle(
 ) -> Callable[..., Any]:
     """Return a context manager factory: callable(case) for use as case_context_manager.
 
-    Marks task as finished on clean exit using task.name.
+    Marks task as finished in run state. For certain errors (e.g., ModelUsageExceeded),
+    marks as finished even though the task failed, suppressing the exception so it
+    doesn't propagate to pydantic_evals (which will still mark case as failed in reporting).
+
+    This distinction is important: some errors indicate the task *execution* completed
+    but was interrupted by external constraints (e.g., quota exceeded), so retrying
+    makes no sense. The task should be marked done in run state for resume purposes.
     """
 
     @asynccontextmanager
     async def _lifecycle(case: Case[Task[Any, Any], AgentRunResult, None]) -> AsyncIterator[None]:
         task = case.inputs
-        async with task:
-            yield
-        await state.mark_task_finished(split_idx, phase, task.name)
+        try:
+            async with task:
+                yield
+        except Exception as e:
+            if isinstance(e, UsageLimitExceeded):
+                logger.exception(
+                    f"[{task.name}] Usage exceeded"
+                    "Task will be marked as finished (not retried), but case marked as failed in reporting."
+                )
+                await state.mark_task_finished(split_idx, phase, task.name)
+            raise
+        else:
+            # Success path: no exception occurred
+            await state.mark_task_finished(split_idx, phase, task.name)
 
     return _lifecycle
