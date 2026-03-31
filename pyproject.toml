@@ -9,7 +9,7 @@ authors = [
 requires-python = ">=3.13"
 dependencies = [
     "anyio>=4.0,<5.0",
-    "pydantic-ai",
+    "pydantic-ai>=1.73,<2.0",
     "pydantic-settings>=2.0,<3.0",
     "loguru>=0.7,<1.0"
 ]
@@ -38,9 +38,6 @@ dev = [
     "types-aiofiles>=25.1.0.20251011,<25.2.0.0",
     "types-tqdm>=4.67.0.20250809,<5.0.0.0",
 ]
-
-[tool.uv.sources]
-pydantic-ai = { git = "https://github.com/voorhs/pydantic-ai", rev = "0772226" }
 
 [build-system]
 requires = ["uv_build>=0.8.8,<0.9.0"]
