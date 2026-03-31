@@ -163,7 +163,7 @@ class DomainRunner:
         await train_dataset.evaluate(
             evaluated_fn,
             max_concurrency=self.max_concurrency,
-            case_context_manager=make_task_lifecycle(state, split_idx, "train"),
+            lifecycle=make_task_lifecycle(state, split_idx, "train"),
             progress=False,
             name=f"{base_name}_train_{split_idx}_",
         )
@@ -191,7 +191,7 @@ class DomainRunner:
         return await test_dataset.evaluate(
             evaluated_fn,
             max_concurrency=self.max_concurrency,
-            case_context_manager=make_task_lifecycle(state, split_idx, "test"),
+            lifecycle=make_task_lifecycle(state, split_idx, "test"),
             progress=False,
             name=f"{base_name}_test_{split_idx}" if experiment_name else None,
         )
