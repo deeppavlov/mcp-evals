@@ -350,16 +350,24 @@ The agent and any tools can use `deps` to access the connection. When omitted, a
 
 ### 8. Training and Testing Callbacks
 
-For `HoldOutGrouper` and `CVGrouper`, you can pass `start_training` and `start_testing` callbacks. They are invoked before the training phase and before the testing phase respectively (e.g. to persist a model, switch weights, or log phase changes). By default, each callback is run only once per split/phase: if you resume from a checkpoint after the phase has already started, the callback is **not** run again (safe for non-idempotent side effects). If your callbacks are idempotent and you want them to run again on resume (e.g. to re-apply config or logging), set `rerun_start_training_on_resume=True` and/or `rerun_start_testing_on_resume=True` on the runner. Callbacks accept a `phase_name` argument (e.g. `"train_0"`, `"test_0"`) to implement idempotent logic or logging per phase.
+For `HoldOutGrouper` and `CVGrouper`, you can pass `start_training` and `start_testing` callbacks. They are invoked before the training phase and before the testing phase respectively (e.g. to persist a model, switch weights, or log phase changes). By default, each callback is run only once per split/phase: if you resume from a checkpoint after the phase has already started, the callback is **not** run again (safe for non-idempotent side effects). If your callbacks are idempotent and you want them to run again on resume (e.g. to re-apply config or logging), set `rerun_start_training_on_resume=True` and/or `rerun_start_testing_on_resume=True` on the runner.
+
+Callbacks can accept:
+- `phase_name` only, or
+- `phase_name, run_ctx` where `run_ctx["phase_to_tasks"]` is a mapping like `{"train_0": [...], "test_0": [...]}`.
+
+You can also set `skip_training_tasks=True` to skip execution of training tasks while still running `start_training` and then proceeding to testing.
 
 ```python
 from loguru import logger
 
 from mcp_evals import DomainRunner, HoldOutGrouper, PlainGrouper
 
-async def before_training(phase_name: str) -> None:
+async def before_training(phase_name: str, run_ctx: dict[str, list[object]]) -> None:
     logger.info("Starting training phase {}...", phase_name)
     # e.g. reset model, clear caches; phase_name helps with idempotent bookkeeping
+    train_tasks = run_ctx["phase_to_tasks"][phase_name]
+    logger.info("Train tasks in this phase: {}", len(train_tasks))
 
 async def before_testing(phase_name: str) -> None:
     logger.info("Starting testing phase {}...", phase_name)
@@ -370,6 +378,8 @@ runner = DomainRunner(
     grouper=HoldOutGrouper(test_ratio=0.2),
     start_training=before_training,
     start_testing=before_testing,
+    # Optional: skip train task execution (callback still runs)
+    # skip_training_tasks=True,
     # Optional: re-run callbacks when resuming from checkpoint (for idempotent callbacks)
     # rerun_start_training_on_resume=True,
     # rerun_start_testing_on_resume=True,
