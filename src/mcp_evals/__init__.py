@@ -11,7 +11,7 @@ from ._internal.runner import (
 from .domain import Domain
 from .secrets import DomainSecrets, TaskSecrets
 from .task import Task
-from .types import DepsMaker, RunResultProcessor, TrainingTestingCallback
+from .types import DepsMaker, RunContext, RunResultProcessor, TrainingTestingCallback
 
 __all__ = [
     "CVGrouper",
@@ -22,6 +22,7 @@ __all__ = [
     "Grouper",
     "HoldOutGrouper",
     "PlainGrouper",
+    "RunContext",
     "RunResultProcessor",
     "Splitting",
     "Task",

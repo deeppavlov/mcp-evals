@@ -1,5 +1,6 @@
 """Unified domain runner: single runner that iterates over grouper splittings."""
 
+import inspect
 from functools import partial
 from pathlib import Path
 from typing import Any
@@ -12,11 +13,15 @@ from pydantic_evals.reporting import EvaluationReport
 from mcp_evals._internal.conversion import tasks_to_dataset
 from mcp_evals._internal.evaluated_fn import run_agent_on_task, run_agent_on_task_with_self_correction
 from mcp_evals.domain import Domain
-from mcp_evals.types import DepsMaker, EvaluatedFn, RunResultProcessor, TrainingTestingCallback
+from mcp_evals.task import Task
+from mcp_evals.types import DepsMaker, EvaluatedFn, RunContext, RunResultProcessor, TrainingTestingCallback
 
 from ._groupers import Grouper
 from ._run_state import RunState, run_state_path
+from ._splits import Splitting
 from ._utils import default_deps_maker, make_task_lifecycle
+
+_CALLBACK_WITH_CTX_MIN_PARAMS = 2
 
 
 class DomainRunner:
@@ -36,6 +41,7 @@ class DomainRunner:
         start_testing: TrainingTestingCallback | None = None,
         rerun_start_training_on_resume: bool = False,
         rerun_start_testing_on_resume: bool = False,
+        skip_training_tasks: bool = False,
         run_result_processor: RunResultProcessor | None = None,
         usage_limits: UsageLimits | None = None,
         clear_state_on_success: bool = False,
@@ -57,6 +63,7 @@ class DomainRunner:
         self.start_testing = start_testing
         self.rerun_start_training_on_resume = rerun_start_training_on_resume
         self.rerun_start_testing_on_resume = rerun_start_testing_on_resume
+        self.skip_training_tasks = skip_training_tasks
         self.clear_state_on_success = clear_state_on_success
         self.state_dir = state_dir
 
@@ -106,6 +113,7 @@ class DomainRunner:
         n_tasks = len(tasks)
         splittings = list(self.grouper.splittings(n_tasks))
         test_reports: list[EvaluationReport] = []
+        run_ctx = self._build_run_ctx(tasks, splittings)
 
         path = await run_state_path(experiment_name, state_dir=self.state_dir)
         state = await RunState.load(path, n_tasks=n_tasks, splittings=splittings)
@@ -122,6 +130,7 @@ class DomainRunner:
                         tasks,
                         experiment_name,
                         evaluated_fn,
+                        run_ctx,
                     )
 
             if splitting.test_indices:
@@ -135,6 +144,7 @@ class DomainRunner:
                         experiment_name,
                         experiment_name,
                         evaluated_fn,
+                        run_ctx,
                     )
                     test_reports.append(report)
 
@@ -148,16 +158,21 @@ class DomainRunner:
         state: RunState,
         split_idx: int,
         pending_train: list[int],
-        tasks: list[Any],
+        tasks: list[Task[Any, Any]],
         base_name: str,
         evaluated_fn: EvaluatedFn,
+        run_ctx: RunContext,
     ) -> None:
         phase_started = state.has_split_phase_started(split_idx, "train")
         run_callback = not phase_started or self.rerun_start_training_on_resume
         if run_callback and self.start_training is not None:
-            await self.start_training(f"train_{split_idx}")
+            await self._invoke_phase_callback(self.start_training, f"train_{split_idx}", run_ctx)
         if not phase_started:
             await state.mark_split_phase_started(split_idx, "train")
+        if self.skip_training_tasks:
+            for idx in pending_train:
+                await state.mark_task_finished(split_idx, "train", tasks[idx].name)
+            return
         train_tasks = [tasks[i] for i in pending_train]
         train_dataset = tasks_to_dataset(train_tasks)
         await train_dataset.evaluate(
@@ -173,15 +188,16 @@ class DomainRunner:
         state: RunState,
         split_idx: int,
         pending_test: list[int],
-        tasks: list[Any],
+        tasks: list[Task[Any, Any]],
         base_name: str,
         experiment_name: str,
         evaluated_fn: EvaluatedFn,
+        run_ctx: RunContext,
     ) -> EvaluationReport:
         phase_started = state.has_split_phase_started(split_idx, "test")
         run_callback = not phase_started or self.rerun_start_testing_on_resume
         if run_callback and self.start_testing is not None:
-            await self.start_testing(f"test_{split_idx}")
+            await self._invoke_phase_callback(self.start_testing, f"test_{split_idx}", run_ctx)
         if not phase_started:
             await state.mark_split_phase_started(split_idx, "test")
             if split_idx > 0:
@@ -195,6 +211,25 @@ class DomainRunner:
             progress=False,
             name=f"{base_name}_test_{split_idx}" if experiment_name else None,
         )
+
+    def _build_run_ctx(self, tasks: list[Task[Any, Any]], splittings: list[Splitting]) -> RunContext:
+        phase_to_tasks: dict[str, list[Task[Any, Any]]] = {}
+        for split_idx, splitting in enumerate(splittings):
+            phase_to_tasks[f"train_{split_idx}"] = [tasks[i] for i in splitting.train_indices]
+            phase_to_tasks[f"test_{split_idx}"] = [tasks[i] for i in splitting.test_indices]
+        return {"phase_to_tasks": phase_to_tasks}
+
+    async def _invoke_phase_callback(
+        self,
+        callback: TrainingTestingCallback,
+        phase_name: str,
+        run_ctx: RunContext,
+    ) -> None:
+        params = inspect.signature(callback).parameters
+        if len(params) >= _CALLBACK_WITH_CTX_MIN_PARAMS:
+            await callback(phase_name, run_ctx)
+            return
+        await callback(phase_name)
 
 
 def _merge_test_reports(test_reports: list[EvaluationReport], base_name: str) -> EvaluationReport:
