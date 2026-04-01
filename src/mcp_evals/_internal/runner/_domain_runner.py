@@ -163,7 +163,8 @@ class DomainRunner:
         phase_started = state.has_split_phase_started(split_idx, "train")
         run_callback = not phase_started or self.rerun_start_training_on_resume
         if run_callback and self.start_training is not None:
-            await self.start_training(f"train_{split_idx}", run_ctx)
+            run_ctx.set_current_phase(f"train_{split_idx}")
+            await self.start_training(run_ctx)
         if not phase_started:
             await state.mark_split_phase_started(split_idx, "train")
         if self.skip_training_tasks:
@@ -194,7 +195,8 @@ class DomainRunner:
         phase_started = state.has_split_phase_started(split_idx, "test")
         run_callback = not phase_started or self.rerun_start_testing_on_resume
         if run_callback and self.start_testing is not None:
-            await self.start_testing(f"test_{split_idx}", run_ctx)
+            run_ctx.set_current_phase(f"test_{split_idx}")
+            await self.start_testing(run_ctx)
         if not phase_started:
             await state.mark_split_phase_started(split_idx, "test")
             if split_idx > 0:
@@ -214,7 +216,7 @@ class DomainRunner:
         for split_idx, splitting in enumerate(splittings):
             phase_to_tasks[f"train_{split_idx}"] = [tasks[i] for i in splitting.train_indices]
             phase_to_tasks[f"test_{split_idx}"] = [tasks[i] for i in splitting.test_indices]
-        return {"phase_to_tasks": phase_to_tasks}
+        return RunContext(phase_to_tasks=phase_to_tasks)
 
 
 def _merge_test_reports(test_reports: list[EvaluationReport], base_name: str) -> EvaluationReport:

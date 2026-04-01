@@ -23,6 +23,7 @@ from mcp_evals._internal.runner._run_state import (
 from mcp_evals.domain import Domain
 from mcp_evals.secrets import DomainSecrets, TaskSecrets
 from mcp_evals.task import Task
+from mcp_evals.types import RunContext
 
 
 @asynccontextmanager
@@ -316,15 +317,15 @@ class TestDomainRunnerHoldOut:
         assert start_training.await_count == 1
         assert start_testing.await_count == 1
 
-    async def test_hold_out_callbacks_receive_phase_name(self, tmp_path: Path) -> None:
-        """Callbacks that accept phase_name receive 'train_{split_idx}' and 'test_{split_idx}'."""
+    async def test_hold_out_callbacks_receive_phase_name_via_run_ctx(self, tmp_path: Path) -> None:
+        """Callbacks can read 'train_{split_idx}' and 'test_{split_idx}' from run_ctx.phase_name."""
         seen_phase_names: list[tuple[str, str]] = []
 
-        async def on_training(phase_name: str, _run_ctx: Any) -> None:
-            seen_phase_names.append(("train", phase_name or ""))
+        async def on_training(run_ctx: RunContext) -> None:
+            seen_phase_names.append(("train", run_ctx.phase_name))
 
-        async def on_testing(phase_name: str, _run_ctx: Any) -> None:
-            seen_phase_names.append(("test", phase_name or ""))
+        async def on_testing(run_ctx: RunContext) -> None:
+            seen_phase_names.append(("test", run_ctx.phase_name))
 
         mock_agent = MagicMock(spec=Agent)
         tasks = [ConcreteTask(name=f"t{i}") for i in range(10)]
@@ -356,13 +357,13 @@ class TestDomainRunnerHoldOut:
         """Callbacks that accept run_ctx receive phase-to-tasks mapping."""
         seen: list[tuple[str, list[str]]] = []
 
-        async def on_training(phase_name: str, run_ctx: Any) -> None:
-            task_names = [task.name for task in run_ctx["phase_to_tasks"][phase_name]]
-            seen.append((phase_name, task_names))
+        async def on_training(run_ctx: RunContext) -> None:
+            task_names = [task.name for task in run_ctx.get_phase_tasks()]
+            seen.append((run_ctx.phase_name, task_names))
 
-        async def on_testing(phase_name: str, run_ctx: Any) -> None:
-            task_names = [task.name for task in run_ctx["phase_to_tasks"][phase_name]]
-            seen.append((phase_name, task_names))
+        async def on_testing(run_ctx: RunContext) -> None:
+            task_names = [task.name for task in run_ctx.get_phase_tasks()]
+            seen.append((run_ctx.phase_name, task_names))
 
         mock_agent = MagicMock(spec=Agent)
         tasks = [ConcreteTask(name=f"t{i}") for i in range(10)]
@@ -391,6 +392,58 @@ class TestDomainRunnerHoldOut:
         assert seen[0][0] == "train_0"
         assert seen[1][0] == "test_0"
         assert set(seen[0][1] + seen[1][1]) == {f"t{i}" for i in range(10)}
+
+    async def test_hold_out_get_training_tasks_uses_train_for_test_phase(self, tmp_path: Path) -> None:
+        """During test callback, get_training_tasks() resolves to corresponding train_{split_idx}."""
+        seen: list[tuple[str, list[str], list[str]]] = []
+
+        async def on_training(run_ctx: RunContext) -> None:
+            seen.append(
+                (
+                    run_ctx.phase_name,
+                    [task.name for task in run_ctx.get_phase_tasks()],
+                    [task.name for task in run_ctx.get_training_tasks()],
+                )
+            )
+
+        async def on_testing(run_ctx: RunContext) -> None:
+            seen.append(
+                (
+                    run_ctx.phase_name,
+                    [task.name for task in run_ctx.get_phase_tasks()],
+                    [task.name for task in run_ctx.get_training_tasks()],
+                )
+            )
+
+        mock_agent = MagicMock(spec=Agent)
+        tasks = [ConcreteTask(name=f"t{i}") for i in range(10)]
+        domain = ConcreteDomain(tasks=tasks)
+        runner = DomainRunner(
+            agent=mock_agent,
+            grouper=HoldOutGrouper(test_ratio=0.2),
+            deps_maker=_no_deps_maker,
+            start_training=on_training,
+            start_testing=on_testing,
+            state_dir=tmp_path,
+        )
+
+        with patch(
+            "mcp_evals._internal.runner._domain_runner.tasks_to_dataset",
+            side_effect=lambda ts: MagicMock(
+                evaluate=AsyncMock(
+                    return_value=MagicMock(
+                        spec=EvaluationReport,
+                        cases=[MagicMock() for _ in range(len(ts))],
+                    )
+                )
+            ),
+        ):
+            await runner.run(domain, experiment_name="test-experiment")
+
+        assert seen[0][0] == "train_0"
+        assert seen[1][0] == "test_0"
+        assert seen[0][1] == seen[0][2]
+        assert seen[1][2] == seen[0][1]
 
     async def test_skip_training_tasks_runs_training_callback_but_skips_train_evaluation(self, tmp_path: Path) -> None:
         """With skip_training_tasks=True, training callback runs but train dataset is not evaluated."""
