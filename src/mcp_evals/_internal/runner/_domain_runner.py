@@ -163,7 +163,7 @@ class DomainRunner:
         phase_started = state.has_split_phase_started(split_idx, "train")
         run_callback = not phase_started or self.rerun_start_training_on_resume
         if run_callback and self.start_training is not None:
-            run_ctx.set_current_phase(f"train_{split_idx}")
+            run_ctx.set_current_phase("train", split_idx)
             await self.start_training(run_ctx)
         if not phase_started:
             await state.mark_split_phase_started(split_idx, "train")
@@ -195,7 +195,7 @@ class DomainRunner:
         phase_started = state.has_split_phase_started(split_idx, "test")
         run_callback = not phase_started or self.rerun_start_testing_on_resume
         if run_callback and self.start_testing is not None:
-            run_ctx.set_current_phase(f"test_{split_idx}")
+            run_ctx.set_current_phase("test", split_idx)
             await self.start_testing(run_ctx)
         if not phase_started:
             await state.mark_split_phase_started(split_idx, "test")

@@ -15,76 +15,83 @@ type DepsMaker = Callable[[Task[Any, Any]], AbstractAsyncContextManager[object]]
 type PhaseKind = Literal["train", "test"]
 
 
-@dataclass(slots=True)
+@dataclass()
 class RunContext:
     """Runner context passed to training/testing callbacks."""
 
     phase_to_tasks: dict[str, list[Task[Any, Any]]]
-    current_phase: str = field(default="", init=False)
+    current_phase_kind: PhaseKind | None = field(default=None, init=False)
+    current_split_idx: int | None = field(default=None, init=False)
 
-    def set_current_phase(self, phase_name: str) -> None:
+    def set_current_phase(self, phase_kind: PhaseKind, split_idx: int) -> None:
         """Set active phase for helper methods and callback consumers."""
-        self._parse_phase_name(phase_name)
+        phase_name = self._phase_name(phase_kind, split_idx)
         if phase_name not in self.phase_to_tasks:
             msg = f"Unknown phase: {phase_name!r}"
             raise ValueError(msg)
-        self.current_phase = phase_name
+        self.current_phase_kind = phase_kind
+        self.current_split_idx = split_idx
 
     @property
     def phase_name(self) -> str:
         """Current phase name (for example: 'train_0', 'test_1')."""
-        if not self.current_phase:
+        if self.current_phase_kind is None or self.current_split_idx is None:
             msg = "Current phase is not set"
             raise ValueError(msg)
-        return self.current_phase
+        return self._phase_name(self.current_phase_kind, self.current_split_idx)
 
     @property
     def phase_kind(self) -> PhaseKind:
         """Current phase kind: 'train' or 'test'."""
-        kind, _ = self._parse_phase_name(self.phase_name)
-        return kind
+        if self.current_phase_kind is None:
+            msg = "Current phase is not set"
+            raise ValueError(msg)
+        return self.current_phase_kind
 
     @property
     def split_idx(self) -> int:
         """Current phase split index."""
-        _, split_idx = self._parse_phase_name(self.phase_name)
-        return split_idx
+        if self.current_split_idx is None:
+            msg = "Current phase is not set"
+            raise ValueError(msg)
+        return self.current_split_idx
 
-    def get_phase_tasks(self, phase_name: str | None = None) -> tuple[Task[Any, Any], ...]:
+    def get_phase_tasks(
+        self, *, phase_kind: PhaseKind | None = None, split_idx: int | None = None
+    ) -> tuple[Task[Any, Any], ...]:
         """Return tasks for the provided phase (or current phase by default)."""
-        resolved_phase = self._resolve_phase_name(phase_name)
-        return tuple(self.phase_to_tasks[resolved_phase])
+        resolved_kind, resolved_idx = self._resolve_phase(phase_kind, split_idx)
+        return tuple(self.phase_to_tasks[self._phase_name(resolved_kind, resolved_idx)])
 
-    def get_training_tasks(self, phase_name: str | None = None) -> tuple[Task[Any, Any], ...]:
+    def get_training_tasks(
+        self, *, phase_kind: PhaseKind | None = None, split_idx: int | None = None
+    ) -> tuple[Task[Any, Any], ...]:
         """Return training tasks for this phase (train_i for both train_i/test_i)."""
-        resolved_phase = self._resolve_phase_name(phase_name)
-        _, split_idx = self._parse_phase_name(resolved_phase)
-        train_phase = f"train_{split_idx}"
+        _, resolved_idx = self._resolve_phase(phase_kind, split_idx)
+        train_phase = self._phase_name("train", resolved_idx)
         if train_phase not in self.phase_to_tasks:
-            msg = f"Training phase not found for split {split_idx}"
+            msg = f"Training phase not found for split {resolved_idx}"
             raise ValueError(msg)
         return tuple(self.phase_to_tasks[train_phase])
 
     @staticmethod
-    def _parse_phase_name(phase_name: str) -> tuple[PhaseKind, int]:
-        parts = phase_name.split("_", maxsplit=1)
-        if len(parts) != 2:
-            msg = f"Invalid phase name format: {phase_name!r}"
+    def _phase_name(phase_kind: PhaseKind, split_idx: int) -> str:
+        if split_idx < 0:
+            msg = f"split_idx must be >= 0, got {split_idx}"
             raise ValueError(msg)
-        kind_raw, split_raw = parts
-        if kind_raw not in ("train", "test") or not split_raw.isdigit():
-            msg = f"Invalid phase name format: {phase_name!r}"
-            raise ValueError(msg)
-        return kind_raw, int(split_raw)
+        return f"{phase_kind}_{split_idx}"
 
-    def _resolve_phase_name(self, phase_name: str | None) -> str:
-        if phase_name is None:
-            return self.phase_name
-        self._parse_phase_name(phase_name)
+    def _resolve_phase(self, phase_kind: PhaseKind | None, split_idx: int | None) -> tuple[PhaseKind, int]:
+        if phase_kind is None and split_idx is None:
+            return self.phase_kind, self.split_idx
+        if phase_kind is None or split_idx is None:
+            msg = "phase_kind and split_idx must be provided together"
+            raise ValueError(msg)
+        phase_name = self._phase_name(phase_kind, split_idx)
         if phase_name not in self.phase_to_tasks:
             msg = f"Unknown phase: {phase_name!r}"
             raise ValueError(msg)
-        return phase_name
+        return phase_kind, split_idx
 
 
 type TrainingTestingCallback = Callable[[RunContext], Awaitable[None]]
