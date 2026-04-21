@@ -20,13 +20,6 @@ This library provides infrastructure for running structured evaluations of LLM a
 | **Resource lifecycle** | Async context managers with safe cleanup |
 | **Maintainability** | pytest, mypy, ruff | 
 
-## Prerequisites
-
-For running MCP servers you might need
-- [`uv`](https://docs.astral.sh/uv/)
-- `docker`
-- [`npm`](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm)
-
 ## Quick Start
 
 ```python
@@ -49,7 +42,7 @@ uv run python scripts/run_domain_tasks.py
 
 ## Basic Usage
 
-Here's the plan on how to create and run your own tasks.
+Here's the plan on how to create and run your own tasks. For a deeper overview, see [docs](./docs/adding_new_tasks.md).
 
 ### 1. Define Tasks
 
@@ -565,7 +558,6 @@ Users don't need to manage these contexts directly—`DomainRunner.run(domain, .
 - [x] `Domain` re-entry protection
 - [ ] (?) use dishka with scopes BENCHMARK > DOMAIN > PHASE > TASK
 - [ ] check tasks names uniqueness within a single domain
-- [ ] check domains names uniqueness within a single benchmark run
 - [ ] untie `contrib` and core mcp_evals; make them external packages (e.g. `mcp-evals-filesystem`)
 
 ## Project Structure
