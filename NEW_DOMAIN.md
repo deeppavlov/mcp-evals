@@ -20,7 +20,73 @@ This matches `src/mcp_evals` today. For runner options (`deps_maker`, `run_resul
 
 Install optional domain deps when you use contrib domains, e.g. `uv sync --extra domain-filesystem` or `--extra domain-postgres` (see [`pyproject.toml`](./pyproject.toml)).
 
-TODO: mermaid class diagram 
+```mermaid
+classDiagram
+    direction TB
+
+    class Domain {
+        <<abstract>>
+        Async context manager
+        optional setup with stack
+        abstract mcp_servers
+        abstract tasks
+    }
+
+    class FilesystemDomain {
+        secrets DomainSecrets
+        domain MCP empty
+        tasks own MCP servers
+    }
+
+    class PostgresDomain {
+        secrets_type PgConfig
+        starts shared Postgres
+    }
+
+    Domain <|-- FilesystemDomain
+    Domain <|-- PostgresDomain
+
+    class Task {
+        <<abstract>>
+        name goal evaluators
+        optional setup with stack
+        optional per-task mcp_servers
+    }
+
+    class FilesystemTask {
+        output_type FinishTask
+        work_dir fixture
+    }
+
+    class PostgresTask {
+        output_type FinishTask
+        pg_config category_id
+    }
+
+    Task <|-- FilesystemTask
+    Task <|-- PostgresTask
+
+    class UppercaseTask {
+        <<example>>
+    }
+    class AuthorFoldersTask {
+        <<example>>
+    }
+
+    class DbaVectorAnalysisTask {
+        <<example>>
+    }
+    class BaseballPlayerAnalysisTask {
+        <<example>>
+    }
+
+    FilesystemTask <|-- UppercaseTask
+    FilesystemTask <|-- AuthorFoldersTask
+    PostgresTask <|-- DbaVectorAnalysisTask
+    PostgresTask <|-- BaseballPlayerAnalysisTask
+
+    note for Task "Dozens of concrete tasks under contrib/filesystem/tasks and contrib/postgres/tasks"
+```
 
 ---
 
