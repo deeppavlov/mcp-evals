@@ -45,11 +45,13 @@ async def main():
     report.print()
 ```
 
-Requires `uv sync --extra domain-filesystem` and Docker. To run the full benchmark:
+Requires `uv sync --extra domain-filesystem` and Docker. To run the full filesystem benchmark (defaults to `fs`; set `OPENAI_MODEL` or use `--model` to override):
 
 ```bash
 uv run python scripts/run_domain_tasks.py
 ```
+
+Use `uv run python scripts/run_domain_tasks.py --domain pg` for Postgres tasks (`uv sync --extra domain-postgres`).
 
 ## Basic Usage
 

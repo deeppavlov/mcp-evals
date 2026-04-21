@@ -1,49 +1,36 @@
 #!/usr/bin/env python3
-r"""Script to run domain tasks with OpenAI.
-
-This script runs single domain's tasks from MCP Universe and MCPMark using an OpenAI-compatible
-API endpoint. It uses the pydantic-ai-mcp-evals library to execute tasks and evaluate results.
+r"""Run contrib domain tasks with an OpenAI-compatible API (pydantic-ai).
 
 Prerequisites:
-    Install filesystem domain dependencies:
+    Filesystem domain:
         uv sync --extra domain-filesystem
-    Or with pip:
+    Or pip:
         pip install 'pydantic-ai-mcp-evals[domain-filesystem]'
-    Extra for postgres tasks: 'domain-postgres'
+    Postgres domain:
+        uv sync --extra domain-postgres
+        pip install 'pydantic-ai-mcp-evals[domain-postgres]'
 
 Usage:
-    # Set OpenAI API key and base URL via environment variables
+    # Credentials and optional endpoint (pydantic-ai / OpenAI client env vars)
     export OPENAI_API_KEY="your-api-key"
-    export OPENAI_BASE_URL="https://your-custom-endpoint.com/v1"
+    export OPENAI_BASE_URL="https://your-custom-endpoint.com/v1"  # optional
+
+    # Default: filesystem domain, model from OPENAI_MODEL or gpt-4o
     uv run python scripts/run_domain_tasks.py
 
-    # Or use command line arguments
-    uv run python scripts/run_domain_tasks.py
+    uv run python scripts/run_domain_tasks.py --domain pg
+    uv run python scripts/run_domain_tasks.py --model gpt-4o-mini
 
-    # Specify a different model
-    uv run python scripts/run_domain_tasks.py --model "gpt-4o-mini"
-
-Environment Variables:
-    OPENAI_API_KEY: Your OpenAI API key (required if not provided via --api-key)
-    OPENAI_BASE_URL: Custom base URL for OpenAI-compatible API (required if not provided via --base-url)
-    OPENAI_MODEL: Model name to use (defaults to "gpt-4o" if not provided)
-    DOWNLOAD_PROXY: URL for proxy used for loading setup data
-
-Examples:
-    # Run with default settings (gpt-4o)
-    uv run python scripts/run_domain_tasks.py
-
-    # Run with a specific model
-    OPENAI_MODEL="gpt-4o-mini" uv run python scripts/run_domain_tasks.py
-
-    # Run with custom endpoint
-    OPENAI_BASE_URL="http://localhost:8000/v1" \\
-    OPENAI_API_KEY="dummy-key" \\
-    uv run python scripts/run_domain_tasks.py
+Environment variables:
+    OPENAI_API_KEY: API key (required for real runs).
+    OPENAI_BASE_URL: Base URL for an OpenAI-compatible API (optional).
+    OPENAI_MODEL: Model id if --model is not passed (default: gpt-4o).
+    DOWNLOAD_PROXY: Optional HTTP(S) proxy for fixture downloads inside contrib domains.
 """
 
 import argparse
 import asyncio
+import os
 from copy import deepcopy
 from typing import Any
 
@@ -54,6 +41,8 @@ from pydantic_ai import Agent, UsageLimits
 from pydantic_ai.messages import ModelMessage, ModelRequest, ModelRequestPart, ToolReturnPart
 
 from mcp_evals import Domain, DomainRunner, PlainGrouper
+
+DEFAULT_MODEL = "gpt-4o"
 
 logfire.configure(send_to_logfire="if-token-present")
 logfire.instrument_pydantic_ai()
@@ -103,9 +92,9 @@ def truncate_tool_returns(messages: list[ModelMessage]) -> list[ModelMessage]:
 
 
 def main() -> None:
-    """Run all filesystem tasks with OpenAI."""
+    """Run contrib domain tasks with OpenAI."""
     parser = argparse.ArgumentParser(
-        description="Run filesystem tasks with OpenAI-compatible API",
+        description="Run filesystem or Postgres contrib domain tasks via an OpenAI-compatible API",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
@@ -113,14 +102,14 @@ def main() -> None:
         "--model",
         type=str,
         default=None,
-        help="Model name to use (overrides OPENAI_MODEL env var or 'gpt-4.1' default)",
+        help=f"Model name (default: OPENAI_MODEL env or {DEFAULT_MODEL!r})",
     )
     parser.add_argument(
         "--domain",
         type=str,
         choices=["pg", "fs"],
-        required=True,
-        help="Domain to run tasks from. Available: 'pg' (postgres), 'fs' (file system).",
+        default="fs",
+        help="Domain: 'fs' (filesystem, default) or 'pg' (postgres).",
     )
     parser.add_argument(
         "--experiment-name",
@@ -137,10 +126,11 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    # Create agent with custom base URL
     load_dotenv()
+    model = args.model or os.environ.get("OPENAI_MODEL", DEFAULT_MODEL)
+
     agent = Agent(
-        f"openai:{args.model}",
+        f"openai:{model}",
         system_prompt=(
             "You are a helpful assistant that can use tools to complete tasks. "
             "You can provide text messages beside the final answer as a means of "
@@ -168,7 +158,7 @@ def main() -> None:
         usage_limits=UsageLimits(request_limit=25),
     )
 
-    logger.info(f"Running {args.domain} tasks with model: {args.model}")
+    logger.info(f"Running {args.domain} tasks with model: {model}")
     if args.max_tasks is not None:
         logger.info(f"Running up to {args.max_tasks} tasks per domain")
 
