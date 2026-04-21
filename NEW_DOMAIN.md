@@ -110,7 +110,34 @@ Reference trees: **`mcp_evals.contrib.filesystem`** and **`mcp_evals.contrib.pos
 
 ### 3. **Adding tasks for that domain**
 
-TODO outline directory tree
+Typical layout under `src/mcp_evals/contrib/<domain>/` (placeholders in angle brackets; only create optional files when you need them):
+
+```text
+src/mcp_evals/contrib/<domain>/
+├── __init__.py                 # export Domain, public helpers
+├── domain.py
+├── task.py                     # optional: domain base Task subclass
+├── utils.py                    # optional: fixtures, config types, downloads
+├── common_evaluators/
+│   ├── __init__.py
+│   └── ...                     # reusable Evaluator implementations
+├── scenario_evaluators/        # optional (e.g. postgres): cross-task checks
+│   ├── __init__.py
+│   └── ...
+└── tasks/
+    ├── __init__.py             # import task classes; export __all__
+    └── <task_slug>/
+        ├── __init__.py
+        ├── task.py             # concrete Task subclass
+        ├── description.md      # common if using GoalFromDescriptionMixin
+        ├── constants.py        # optional
+        ├── utils.py            # optional
+        ├── _setup.py           # optional (e.g. complex DB seed helpers)
+        ├── custom_evaluator.py # optional: one module (postgres-style)
+        └── custom_evaluators/  # optional: package (filesystem-style)
+            ├── __init__.py
+            └── ...
+```
 
 1. **Domain-specific base task (recommended)**  
    e.g. `FilesystemTask` / `PostgresTask` in `contrib/<domain>/task.py`:
