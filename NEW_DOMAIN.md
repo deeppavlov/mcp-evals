@@ -29,12 +29,9 @@ classDiagram
         Async context manager
         optional setup with stack
         abstract mcp_servers
-        abstract tasks
     }
 
     class FilesystemDomain {
-        secrets DomainSecrets
-        domain MCP empty
         tasks own MCP servers
     }
 
@@ -46,6 +43,8 @@ classDiagram
     Domain <|-- FilesystemDomain
     Domain <|-- PostgresDomain
 
+    Domain "1" *-- "*" Task : tasks
+
     class Task {
         <<abstract>>
         name goal evaluators
@@ -54,15 +53,14 @@ classDiagram
     }
 
     class FilesystemTask {
-        output_type FinishTask
         work_dir fixture
     }
 
     class PostgresTask {
-        output_type FinishTask
         pg_config category_id
     }
 
+    FilesystemDomain *-- FilesystemTask : tasks
     Task <|-- FilesystemTask
     Task <|-- PostgresTask
 
@@ -85,7 +83,7 @@ classDiagram
     PostgresTask <|-- DbaVectorAnalysisTask
     PostgresTask <|-- BaseballPlayerAnalysisTask
 
-    note for Task "Dozens of concrete tasks under contrib/filesystem/tasks and contrib/postgres/tasks"
+    PostgresDomain *-- PostgresTask : tasks
 ```
 
 ---
