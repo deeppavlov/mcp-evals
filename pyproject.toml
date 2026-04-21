@@ -1,5 +1,5 @@
 [project]
-name = "mcp-evals"
+name = "pydantic-ai-mcp-evals"
 version = "0.0.1"
 description = "A code-first evaluation framework for testing LLM agents' ability to use MCP tools"
 readme = "README.md"
@@ -42,6 +42,9 @@ dev = [
 [build-system]
 requires = ["uv_build>=0.11,<0.12"]
 build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "mcp_evals"
 
 [tool.ruff]
 line-length = 120

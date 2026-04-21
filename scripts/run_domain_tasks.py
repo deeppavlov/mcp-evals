@@ -2,13 +2,13 @@
 r"""Script to run domain tasks with OpenAI.
 
 This script runs single domain's tasks from MCP Universe and MCPMark using an OpenAI-compatible
-API endpoint. It uses the mcp-evals library to execute tasks and evaluate results.
+API endpoint. It uses the pydantic-ai-mcp-evals library to execute tasks and evaluate results.
 
 Prerequisites:
     Install filesystem domain dependencies:
         uv sync --extra domain-filesystem
     Or with pip:
-        pip install 'mcp-evals[domain-filesystem]'
+        pip install 'pydantic-ai-mcp-evals[domain-filesystem]'
     Extra for postgres tasks: 'domain-postgres'
 
 Usage:
