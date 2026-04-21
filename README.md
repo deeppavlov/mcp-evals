@@ -2,6 +2,8 @@
 
 A code-first evaluation framework for testing LLM agents' ability to use MCP (Model Context Protocol) tools and accomplish tasks.
 
+Related projects: [MCPMark](https://github.com/eval-sys/mcpmark), [MCPUniverse](https://github.com/SalesforceAIResearch/MCP-Universe).
+
 ## Overview
 
 This library provides infrastructure for running structured evaluations of LLM agents against MCP-enabled environments. Each task is defined by:
