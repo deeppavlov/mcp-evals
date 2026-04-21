@@ -1,5 +1,5 @@
 [project]
-name = "mcp-evals"
+name = "pydantic-ai-mcp-evals"
 version = "0.0.1"
 description = "A code-first evaluation framework for testing LLM agents' ability to use MCP tools"
 readme = "README.md"

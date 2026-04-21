@@ -16,25 +16,37 @@ try:
     import aiofiles
     import aiofiles.tempfile
 except ImportError as e:
-    msg = "aiofiles is required for filesystem tasks. Install with: pip install 'mcp-evals[domain-filesystem]'"
+    msg = (
+        "aiofiles is required for filesystem tasks. "
+        "Install with: pip install 'pydantic-ai-mcp-evals[domain-filesystem]'"
+    )
     raise ImportError(msg) from e
 
 try:
     import httpx
 except ImportError as e:
-    msg = "httpx is required for filesystem tasks. Install with: pip install 'mcp-evals[domain-filesystem]'"
+    msg = (
+        "httpx is required for filesystem tasks. "
+        "Install with: pip install 'pydantic-ai-mcp-evals[domain-filesystem]'"
+    )
     raise ImportError(msg) from e
 
 try:
     from appdirs import user_cache_dir  # type: ignore[import-untyped]
 except ImportError as e:
-    msg = "appdirs is required for filesystem tasks. Install with: pip install 'mcp-evals[domain-filesystem]'"
+    msg = (
+        "appdirs is required for filesystem tasks. "
+        "Install with: pip install 'pydantic-ai-mcp-evals[domain-filesystem]'"
+    )
     raise ImportError(msg) from e
 
 try:
     from tqdm import tqdm
 except ImportError as e:
-    msg = "tqdm is required for filesystem tasks. Install with: pip install 'mcp-evals[domain-filesystem]'"
+    msg = (
+        "tqdm is required for filesystem tasks. "
+        "Install with: pip install 'pydantic-ai-mcp-evals[domain-filesystem]'"
+    )
     raise ImportError(msg) from e
 
 
@@ -105,7 +117,7 @@ async def download_fixture(category: Fixture) -> Path:
         logger.error(msg)
         raise ValueError(msg)
 
-    cache_dir = Path(user_cache_dir("mcp-evals", "mcp-evals")) / "fixtures"
+    cache_dir = Path(user_cache_dir("pydantic-ai-mcp-evals", "pydantic-ai-mcp-evals")) / "fixtures"
     fixture_path = cache_dir / category
 
     async with _fixture_lock(category):

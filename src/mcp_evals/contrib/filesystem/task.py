@@ -46,7 +46,7 @@ class FilesystemTask(GoalFromDescriptionMixin, Task[TaskSecrets, FinishTask]):
                     f"type=bind,src={self.work_dir},dst=/projects",
                     "-w",
                     "/projects",
-                    "mcp-filesystem-server:mcp-evals",
+                    "mcp-filesystem-server:pydantic-ai-mcp-evals",
                     "/projects",
                 ],
                 max_retries=self.tool_retries,

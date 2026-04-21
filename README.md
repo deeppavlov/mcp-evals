@@ -420,7 +420,7 @@ Pydantic-ai tech stack includes awesame [Logfire](https://logfire.pydantic.dev/d
 
 MCP Evals uses custom docker image for file system MCP. Before running file system tasks, build the image:
 ```bash
-docker build -t mcp-filesystem-server:mcp-evals https://github.com/voorhs/mcp-filesystem-server.git\#551c35a6661aec56f9610ca6c4eef7cb9a2b3eb0
+docker build -t mcp-filesystem-server:pydantic-ai-mcp-evals https://github.com/voorhs/mcp-filesystem-server.git\#551c35a6661aec56f9610ca6c4eef7cb9a2b3eb0
 ```
 
 ## Architecture
@@ -560,12 +560,12 @@ Users don't need to manage these contexts directly—`DomainRunner.run(domain, .
 - [x] `Domain` re-entry protection
 - [ ] (?) use dishka with scopes BENCHMARK > DOMAIN > PHASE > TASK
 - [ ] check tasks names uniqueness within a single domain
-- [ ] untie `contrib` and core mcp_evals; make them external packages (e.g. `mcp-evals-filesystem`)
+- [ ] untie `contrib` and core mcp_evals; make them external packages (e.g. `pydantic-ai-mcp-evals-filesystem`)
 
 ## Project Structure
 
 ```
-mcp-evals/
+pydantic-ai-mcp-evals/
 ├── scripts/
 │   └── run_domain_tasks.py       # Run domain tasks (filesystem, postgres)
 ├── src/
