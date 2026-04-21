@@ -4,6 +4,15 @@ A code-first evaluation framework for testing LLM agents' ability to use MCP (Mo
 
 Related projects: [MCPMark](https://github.com/eval-sys/mcpmark), [MCPUniverse](https://github.com/SalesforceAIResearch/MCP-Universe).
 
+## Installation
+
+For a basic setup use uv/pip/pdm/etc:
+```bash
+pip install pydantic-ai-mcp-evals
+```
+
+To run `contrib` tasks there are `domain-filesystem` and `domain-postgres` extras provided (see [example script](./scripts/run_domain_tasks.py)).
+
 ## Overview
 
 This library provides infrastructure for running structured evaluations of LLM agents against MCP-enabled environments. Each task is defined by:
