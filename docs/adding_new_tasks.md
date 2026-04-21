@@ -1,6 +1,6 @@
 ## Summary: Domain and Task Pattern
 
-This matches `src/mcp_evals` today. For runner options (`deps_maker`, `run_result_processor`, groupers, callbacks), see [`README.md`](./README.md).
+This matches `src/mcp_evals` today. For runner options (`deps_maker`, `run_result_processor`, groupers, callbacks), see [`README.md`](../README.md).
 
 ### 1. **Core abstractions**
 
@@ -18,7 +18,7 @@ This matches `src/mcp_evals` today. For runner options (`deps_maker`, `run_resul
   - Optional **`async def setup(self, stack: AsyncExitStack[Any]) -> None`** for per-task env; same rule — bind cleanup to **`stack`**, no user `teardown()` API
   - Optional **`mcp_servers()`** returning extra MCP servers for this task only (e.g. filesystem tasks each start a Docker-backed filesystem MCP bound to `work_dir`)
 
-Install optional domain deps when you use contrib domains, e.g. `uv sync --extra domain-filesystem` or `--extra domain-postgres` (see [`pyproject.toml`](./pyproject.toml)).
+Install optional domain deps when you use contrib domains, e.g. `uv sync --extra domain-filesystem` or `--extra domain-postgres` (see [`pyproject.toml`](../pyproject.toml)).
 
 ```mermaid
 classDiagram
