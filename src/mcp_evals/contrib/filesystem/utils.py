@@ -25,28 +25,21 @@ except ImportError as e:
 try:
     import httpx
 except ImportError as e:
-    msg = (
-        "httpx is required for filesystem tasks. "
-        "Install with: pip install 'pydantic-ai-mcp-evals[domain-filesystem]'"
-    )
+    msg = "httpx is required for filesystem tasks. Install with: pip install 'pydantic-ai-mcp-evals[domain-filesystem]'"
     raise ImportError(msg) from e
 
 try:
     from appdirs import user_cache_dir  # type: ignore[import-untyped]
 except ImportError as e:
     msg = (
-        "appdirs is required for filesystem tasks. "
-        "Install with: pip install 'pydantic-ai-mcp-evals[domain-filesystem]'"
+        "appdirs is required for filesystem tasks. Install with: pip install 'pydantic-ai-mcp-evals[domain-filesystem]'"
     )
     raise ImportError(msg) from e
 
 try:
     from tqdm import tqdm
 except ImportError as e:
-    msg = (
-        "tqdm is required for filesystem tasks. "
-        "Install with: pip install 'pydantic-ai-mcp-evals[domain-filesystem]'"
-    )
+    msg = "tqdm is required for filesystem tasks. Install with: pip install 'pydantic-ai-mcp-evals[domain-filesystem]'"
     raise ImportError(msg) from e
 
 
