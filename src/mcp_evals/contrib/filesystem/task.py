@@ -1,5 +1,6 @@
 """Base class for all filesystem tasks."""
 
+import os
 from collections.abc import Sequence
 from contextlib import AsyncExitStack
 from pathlib import Path
@@ -35,20 +36,30 @@ class FilesystemTask(GoalFromDescriptionMixin, Task[TaskSecrets, FinishTask]):
 
     def mcp_servers(self) -> Sequence[MCPServerStdio]:
         """Return task-scoped MCP filesystem server configuration."""
+        # On Linux bind mounts, files created in the container default to root
+        # ownership; the host user then cannot delete them in prepare_workspace
+        # teardown. Match host UID/GID so cleanup works without sudo.
+        docker_args = [
+            "run",
+            "-i",
+            "--rm",
+        ]
+        if hasattr(os, "getuid"):
+            docker_args.extend(["--user", f"{os.getuid()}:{os.getgid()}"])
+        docker_args.extend(
+            [
+                "--mount",
+                f"type=bind,src={self.work_dir},dst=/projects",
+                "-w",
+                "/projects",
+                "mcp-filesystem-server:pydantic-ai-mcp-evals",
+                "/projects",
+            ]
+        )
         return [
             MCPServerStdio(
                 "docker",
-                [
-                    "run",
-                    "-i",
-                    "--rm",
-                    "--mount",
-                    f"type=bind,src={self.work_dir},dst=/projects",
-                    "-w",
-                    "/projects",
-                    "mcp-filesystem-server:pydantic-ai-mcp-evals",
-                    "/projects",
-                ],
+                docker_args,
                 max_retries=self.tool_retries,
             )
         ]
