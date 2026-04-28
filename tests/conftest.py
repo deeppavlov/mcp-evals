@@ -1,5 +1,6 @@
 """Shared fixtures and mocks for tests."""
 
+import os
 from collections.abc import AsyncIterator
 from contextlib import AsyncExitStack, asynccontextmanager
 from types import TracebackType
@@ -16,6 +17,9 @@ from pydantic_evals.evaluators import Evaluator
 from mcp_evals.domain import Domain
 from mcp_evals.secrets import DomainSecrets, TaskSecrets
 from mcp_evals.task import Task
+
+# Tests create Logfire spans (e.g. DomainRunner.run_domain) without calling logfire.configure().
+os.environ.setdefault("LOGFIRE_IGNORE_NO_CONFIG", "1")
 
 
 @pytest.fixture
