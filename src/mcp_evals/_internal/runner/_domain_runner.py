@@ -4,6 +4,7 @@ from functools import partial
 from pathlib import Path
 from typing import Any
 
+import logfire
 from loguru import logger
 from pydantic_ai.agent import Agent
 from pydantic_ai.usage import UsageLimits
@@ -104,51 +105,56 @@ class DomainRunner:
         experiment_name: str,
         evaluated_fn: EvaluatedFn,
     ) -> EvaluationReport:
-        tasks = list(domain.tasks())
-        if self.max_tasks is not None:
-            tasks = tasks[: self.max_tasks]
-        n_tasks = len(tasks)
-        splittings = list(self.grouper.splittings(n_tasks))
-        test_reports: list[EvaluationReport] = []
-        run_ctx = self._build_run_ctx(tasks, splittings)
+        with logfire.span(
+            f"mcp_evals {experiment_name}",
+            experiment_name=experiment_name,
+            domain=domain.name,
+        ):
+            tasks = list(domain.tasks())
+            if self.max_tasks is not None:
+                tasks = tasks[: self.max_tasks]
+            n_tasks = len(tasks)
+            splittings = list(self.grouper.splittings(n_tasks))
+            test_reports: list[EvaluationReport] = []
+            run_ctx = self._build_run_ctx(tasks, splittings)
 
-        path = await run_state_path(experiment_name, state_dir=self.state_dir)
-        state = await RunState.load(path, n_tasks=n_tasks, splittings=splittings)
+            path = await run_state_path(experiment_name, state_dir=self.state_dir)
+            state = await RunState.load(path, n_tasks=n_tasks, splittings=splittings)
 
-        task_names = [t.name for t in tasks]
-        for split_idx, splitting in enumerate(splittings):
-            if splitting.train_indices:
-                pending_train = state.pending_indices(split_idx, "train", splitting.train_indices, task_names)
-                if pending_train:
-                    await self._run_train_phase(
-                        state,
-                        split_idx,
-                        pending_train,
-                        tasks,
-                        experiment_name,
-                        evaluated_fn,
-                        run_ctx,
-                    )
+            task_names = [t.name for t in tasks]
+            for split_idx, splitting in enumerate(splittings):
+                if splitting.train_indices:
+                    pending_train = state.pending_indices(split_idx, "train", splitting.train_indices, task_names)
+                    if pending_train:
+                        await self._run_train_phase(
+                            state,
+                            split_idx,
+                            pending_train,
+                            tasks,
+                            experiment_name,
+                            evaluated_fn,
+                            run_ctx,
+                        )
 
-            if splitting.test_indices:
-                pending_test = state.pending_indices(split_idx, "test", splitting.test_indices, task_names)
-                if pending_test:
-                    report = await self._run_test_phase(
-                        state,
-                        split_idx,
-                        pending_test,
-                        tasks,
-                        experiment_name,
-                        experiment_name,
-                        evaluated_fn,
-                        run_ctx,
-                    )
-                    test_reports.append(report)
+                if splitting.test_indices:
+                    pending_test = state.pending_indices(split_idx, "test", splitting.test_indices, task_names)
+                    if pending_test:
+                        report = await self._run_test_phase(
+                            state,
+                            split_idx,
+                            pending_test,
+                            tasks,
+                            experiment_name,
+                            experiment_name,
+                            evaluated_fn,
+                            run_ctx,
+                        )
+                        test_reports.append(report)
 
-        report = _merge_test_reports(test_reports, experiment_name)
-        if self.clear_state_on_success:
-            await state.clear()
-        return report
+            report = _merge_test_reports(test_reports, experiment_name)
+            if self.clear_state_on_success:
+                await state.clear()
+            return report
 
     async def _run_train_phase(
         self,
