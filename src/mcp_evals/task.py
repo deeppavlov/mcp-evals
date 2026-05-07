@@ -83,7 +83,7 @@ class Task(ABC, Generic[SecretsT, OutputT]):
             async with AsyncExitStack() as stack:
                 await self.setup(stack)
                 self._stack = stack.pop_all()
-            logger.success(f"[{self.name}] Entered task!")
+            logger.debug(f"[{self.name}] Entered task!")
             return self
 
     async def __aexit__(
@@ -100,7 +100,7 @@ class Task(ABC, Generic[SecretsT, OutputT]):
             logger.debug(f"[{self.name}] Quitting task...")
             await self._stack.aclose()
             self._stack = None
-            logger.success(f"[{self.name}] Quit task!")
+            logger.debug(f"[{self.name}] Quit task!")
             return None
 
     async def setup(self, stack: AsyncExitStack[Any]) -> None:  # noqa: ARG002
