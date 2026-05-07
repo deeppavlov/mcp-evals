@@ -7,6 +7,7 @@ from functools import cached_property
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, ClassVar, Self, cast
 
+import anyio
 from loguru import logger
 from pydantic_ai.mcp import MCPServer
 from pydantic_ai.toolsets import CombinedToolset
@@ -39,6 +40,9 @@ class Domain[SecretsT: DomainSecrets](ABC):
     Lifecycle methods (override as needed):
     - `setup()`    - Called before MCP servers are started
     - `teardown()` - Called after MCP servers are stopped
+
+    Note: single instance support a single entry and exit, so multiple
+    ``async with domain`` on the same object will raise exception.
     """
 
     name: str
@@ -48,6 +52,7 @@ class Domain[SecretsT: DomainSecrets](ABC):
     def __init__(self, tool_retries: int = 1) -> None:
         """Init."""
         self.tool_retries = tool_retries
+        self._lifecycle_lock = anyio.Lock()
 
     @abstractmethod
     def mcp_servers(self) -> Sequence[MCPServer]:
@@ -79,32 +84,34 @@ class Domain[SecretsT: DomainSecrets](ABC):
         return self._toolset
 
     async def __aenter__(self) -> Self:
-        if self._stack is not None:
-            msg = f"Attempted entering domain {self.name} twice"
-            raise RuntimeError(msg)
+        async with self._lifecycle_lock:
+            if self._stack is not None:
+                msg = f"Attempted entering domain {self.name} twice"
+                raise RuntimeError(msg)
 
-        logger.debug(f"[{self.name}] Entering domain...")
-        async with AsyncExitStack() as stack:
-            await self.setup(stack)
-            logger.debug(f"[{self.name}] Connecting to MCP servers...")
-            self._toolset = CombinedToolset(self.mcp_servers())
-            await stack.enter_async_context(self._toolset)
-            self._stack = stack.pop_all()
-        logger.success(f"[{self.name}] Entered domain!")
-        return self
+            logger.debug(f"[{self.name}] Entering domain...")
+            async with AsyncExitStack() as stack:
+                await self.setup(stack)
+                logger.debug(f"[{self.name}] Connecting to MCP servers...")
+                self._toolset = CombinedToolset(self.mcp_servers())
+                await stack.enter_async_context(self._toolset)
+                self._stack = stack.pop_all()
+            logger.success(f"[{self.name}] Entered domain!")
+            return self
 
     async def __aexit__(
         self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: TracebackType | None
     ) -> bool | None:
-        if self._stack is None:
-            msg = f"Attempted quitting domain {self.name} twice"
-            raise RuntimeError(msg)
+        async with self._lifecycle_lock:
+            if self._stack is None:
+                msg = f"Attempted quitting domain {self.name} twice"
+                raise RuntimeError(msg)
 
-        logger.debug(f"[{self.name}] Quitting domain...")
-        await self._stack.aclose()
-        self._stack = None
-        logger.success(f"[{self.name}] Quit domain!")
-        return None
+            logger.debug(f"[{self.name}] Quitting domain...")
+            await self._stack.aclose()
+            self._stack = None
+            logger.success(f"[{self.name}] Quit domain!")
+            return None
 
     async def setup(self, stack: AsyncExitStack[Any]) -> None:  # noqa: ARG002
         """Override to perform setup before agent execution.
