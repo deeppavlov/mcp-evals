@@ -215,12 +215,15 @@ async def prepare_workspace(fixture_path: Path, work_dir: Path) -> AsyncIterator
     finally:
         # Clean up all contents of work_dir on exit
         try:
-            for item in work_dir.iterdir():
-                item_path = work_dir / item.name
-                if item_path.is_dir():
-                    shutil.rmtree(item_path)
-                else:
-                    item_path.unlink()
+            if not work_dir.exists():
+                logger.warning("Abnormal termination: workspace directory is already removed: {}", work_dir)
+            else:
+                for item in work_dir.iterdir():
+                    item_path = work_dir / item.name
+                    if item_path.is_dir():
+                        shutil.rmtree(item_path)
+                    else:
+                        item_path.unlink()
         except (OSError, PermissionError) as e:
             msg = "Error cleaning work_dir on teardown"
             logger.exception(msg)

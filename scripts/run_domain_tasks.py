@@ -178,7 +178,11 @@ def main() -> None:
             else:
                 logger.warning(f"Task {case.name} failed")
 
-    asyncio.run(run())
+    try:
+        asyncio.run(run())
+    except KeyboardInterrupt:
+        logger.info("Run interrupted (Ctrl+C); exiting.")
+        raise SystemExit(130) from None
 
 
 if __name__ == "__main__":

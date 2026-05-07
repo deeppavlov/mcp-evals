@@ -1,5 +1,6 @@
 """Task abstraction for evaluation tasks."""
 
+import asyncio
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from contextlib import AsyncExitStack
@@ -8,6 +9,7 @@ from importlib.resources import files
 from types import TracebackType
 from typing import Any, ClassVar, Generic, Self, TypeVar
 
+import anyio
 from loguru import logger
 from pydantic_ai.mcp import MCPServer
 from pydantic_ai.run import AgentRunResult
@@ -34,6 +36,9 @@ class Task(ABC, Generic[SecretsT, OutputT]):
     Lifecycle methods (override as needed):
     - `setup()`                         - Called before agent runs
     - `teardown()`                      - Called after evaluation completes
+
+    Note: single instance support a single entry and exit, so multiple
+    ``async with task`` on the same object will raise exception.
     """
 
     name: str
@@ -41,6 +46,7 @@ class Task(ABC, Generic[SecretsT, OutputT]):
     def __init__(self, tool_retries: int = 1) -> None:
         """Init."""
         self.tool_retries = tool_retries
+        self._lifecycle_lock = anyio.Lock()
 
     @property
     @abstractmethod
@@ -68,29 +74,34 @@ class Task(ABC, Generic[SecretsT, OutputT]):
         return self.secrets_type()
 
     async def __aenter__(self) -> Self:
-        if self._stack is not None:
-            msg = f"Attempted entering task {self.name} twice"
-            raise RuntimeError(msg)
+        async with self._lifecycle_lock:
+            if self._stack is not None:
+                msg = f"Attempted entering task {self.name} twice"
+                raise RuntimeError(msg)
 
-        logger.debug(f"[{self.name}] Entering task...")
-        async with AsyncExitStack() as stack:
-            await self.setup(stack)
-            self._stack = stack.pop_all()
-        logger.success(f"[{self.name}] Entered task!")
-        return self
+            logger.debug(f"[{self.name}] Entering task...")
+            async with AsyncExitStack() as stack:
+                await self.setup(stack)
+                self._stack = stack.pop_all()
+            logger.success(f"[{self.name}] Entered task!")
+            return self
 
     async def __aexit__(
         self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: TracebackType | None
     ) -> bool | None:
-        if self._stack is None:
-            msg = f"Attempted quitting task {self.name} twice"
-            raise RuntimeError(msg)
+        if exc_type in (asyncio.CancelledError, KeyboardInterrupt):
+            logger.info(f"[{self.name}] Tearing down task after interrupt or cancellation")
 
-        logger.debug(f"[{self.name}] Quitting task...")
-        await self._stack.aclose()
-        self._stack = None
-        logger.success(f"[{self.name}] Quit task!")
-        return None
+        async with self._lifecycle_lock:
+            if self._stack is None:
+                msg = f"Attempted quitting task {self.name} twice"
+                raise RuntimeError(msg)
+
+            logger.debug(f"[{self.name}] Quitting task...")
+            await self._stack.aclose()
+            self._stack = None
+            logger.success(f"[{self.name}] Quit task!")
+            return None
 
     async def setup(self, stack: AsyncExitStack[Any]) -> None:  # noqa: ARG002
         """Override to perform setup before agent execution.
