@@ -73,13 +73,25 @@ def make_task_lifecycle(
             task = self.case.inputs
             if isinstance(result, ReportCase):
                 await state.mark_task_finished(split_idx, phase, task.name)
+                if _is_success(result):
+                    logger.success(f"[{task.name}] Agent succeeded")
+                else:
+                    logger.warning(f"[{task.name}] Agent failed")
                 return
 
             if _failure_is_usage_limit(result):
-                logger.exception(
+                logger.error(
                     f"[{task.name}] Usage exceeded. "
                     "Task will be marked as finished (not retried), but case marked as failed in reporting."
                 )
                 await state.mark_task_finished(split_idx, phase, task.name)
+            else:
+                logger.error(
+                    f"[{task.name}] Failed with error {result.error_message}.\nStacktrace:\n{result.error_stacktrace}"
+                )
 
     return McpTaskLifecycle
+
+
+def _is_success(case: ReportCase[Any, Any, Any]) -> bool:
+    return all(eval_res.value == 1.0 for eval_res in case.scores.values())

@@ -97,7 +97,7 @@ class Domain[SecretsT: DomainSecrets](ABC):
                 self._toolset = CombinedToolset(self.mcp_servers())
                 await stack.enter_async_context(self._toolset)
                 self._stack = stack.pop_all()
-            logger.success(f"[{self.name}] Entered domain!")
+            logger.debug(f"[{self.name}] Entered domain!")
             return self
 
     async def __aexit__(
@@ -114,7 +114,7 @@ class Domain[SecretsT: DomainSecrets](ABC):
             logger.debug(f"[{self.name}] Quitting domain...")
             await self._stack.aclose()
             self._stack = None
-            logger.success(f"[{self.name}] Quit domain!")
+            logger.debug(f"[{self.name}] Quit domain!")
             return None
 
     async def setup(self, stack: AsyncExitStack[Any]) -> None:  # noqa: ARG002
