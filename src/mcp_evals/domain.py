@@ -1,5 +1,6 @@
 """Domain abstraction for evaluation domains."""
 
+import asyncio
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from contextlib import AsyncExitStack
@@ -102,6 +103,9 @@ class Domain[SecretsT: DomainSecrets](ABC):
     async def __aexit__(
         self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: TracebackType | None
     ) -> bool | None:
+        if exc_type in (asyncio.CancelledError, KeyboardInterrupt):
+            logger.info(f"[{self.name}] Tearing down domain after interrupt or cancellation")
+
         async with self._lifecycle_lock:
             if self._stack is None:
                 msg = f"Attempted quitting domain {self.name} twice"
